@@ -45,29 +45,34 @@ case $PLATFORM in
         MTG_BIN="mtg-linux-${PLATFORM}"
         ;;
 esac
-MTG_MULTI_VER=$(curl -sfL "https://api.github.com/repos/mhsanaei/mtg-multi/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
+MTG_MULTI_VER=$(curl --retry 5 --retry-connrefused --retry-delay 3 --retry-all-errors -sfL "https://api.github.com/repos/mhsanaei/mtg-multi/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
 if [ -z "$MTG_MULTI_VER" ]; then
-    echo "DockerInit: could not resolve the latest mtg-multi release tag" >&2
-    exit 1
+    MTG_MULTI_VER="v1.16.1"
 fi
 mkdir -p build/bin
 cd build/bin
-curl -sfLRO "https://github.com/XTLS/Xray-core/releases/download/v26.10.21/Xray-linux-${XRAY_ZIP}.zip"
-unzip "Xray-linux-${XRAY_ZIP}.zip"
+
+# Resilient downloader with automatic retry for transient network/TLS errors
+dl() {
+    curl --retry 5 --retry-connrefused --retry-delay 3 --retry-all-errors -sfL "$@"
+}
+
+dl -RO "https://github.com/XTLS/Xray-core/releases/download/v26.10.21/Xray-linux-${XRAY_ZIP}.zip"
+unzip -o "Xray-linux-${XRAY_ZIP}.zip"
 rm -f "Xray-linux-${XRAY_ZIP}.zip" geoip.dat geosite.dat
-mv xray "${XRAY_BIN}"
+mv -f xray "${XRAY_BIN}"
 # mtg-multi (MTProto sidecar) ships prebuilt release binaries for every target
 # we package, so download and unpack the matching one instead of compiling.
 MTG_PKG="mtg-multi-${MTG_MULTI_VER#v}-linux-${PLATFORM}"
-curl -sfLRO "https://github.com/mhsanaei/mtg-multi/releases/download/${MTG_MULTI_VER}/${MTG_PKG}.tar.gz"
+dl -RO "https://github.com/mhsanaei/mtg-multi/releases/download/${MTG_MULTI_VER}/${MTG_PKG}.tar.gz"
 tar -xzf "${MTG_PKG}.tar.gz"
-mv "${MTG_PKG}/mtg-multi" "${MTG_BIN}"
+mv -f "${MTG_PKG}/mtg-multi" "${MTG_BIN}"
 rm -rf "${MTG_PKG}" "${MTG_PKG}.tar.gz"
 chmod +x "${MTG_BIN}"
-curl -sfLRO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-curl -sfLRO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-curl -sfLRo geoip_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat
-curl -sfLRo geosite_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat
-curl -sfLRo geoip_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat
-curl -sfLRo geosite_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat
+dl -RO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
+dl -RO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
+dl -o geoip_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat
+dl -o geosite_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat
+dl -o geoip_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat
+dl -o geosite_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat
 cd ../../
