@@ -2,8 +2,12 @@ name: Publish Mikrozia Container
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*.*.*-mikrozia.*"
+    paths:
+      - MIKROZIA_VERSION
   workflow_dispatch:
     inputs:
       version:
@@ -20,15 +24,32 @@ concurrency:
 
 env:
   IMAGE_NAME: majlot/mikrozia
-  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
   validate:
     name: Validate RouterOS container release
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Resolve release tag
+        id: version
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            release_tag="${DISPATCH_VERSION}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            release_tag="$(tr -d '[:space:]' < MIKROZIA_VERSION)"
+          fi
+          echo "RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Validate release tag
         shell: bash
@@ -64,6 +85,8 @@ jobs:
     name: Build and smoke-test linux/amd64
     needs: validate
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -103,8 +126,10 @@ jobs:
 
   publish:
     name: Publish multi-architecture image
-    needs: smoke-amd64
+    needs: [validate, smoke-amd64]
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

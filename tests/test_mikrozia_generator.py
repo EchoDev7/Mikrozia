@@ -238,6 +238,7 @@ class TestMikroziaGenerator(unittest.TestCase):
             content = handle.read()
         self.assertIn("IMAGE_NAME: majlot/mikrozia", content)
         self.assertIn('"v*.*.*-mikrozia.*"', content)
+        self.assertIn("MIKROZIA_VERSION", content)
         self.assertIn("linux/amd64,linux/arm64/v8,linux/arm/v7", content)
         self.assertIn("DOCKER_HUB_TOKEN", content)
         self.assertIn("Assert firewall-free RouterOS installers", content)
