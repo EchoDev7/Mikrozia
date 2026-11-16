@@ -82,6 +82,30 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
         self.temp_dirs.append(d)
         return d
 
+    def _connect_db(self, data_dir):
+        db_path = os.path.join(data_dir, "x-ui.db")
+        if hasattr(os, "getuid") and os.path.exists(db_path):
+            uid = os.getuid()
+            gid = os.getgid()
+            try:
+                if os.stat(db_path).st_uid != uid:
+                    subprocess.run(
+                        [
+                            "docker", "run", "--rm",
+                            "--entrypoint", "/bin/sh",
+                            "-v", f"{data_dir}:/etc/x-ui",
+                            self.test_image,
+                            "-ec", f"chown -R {uid}:{gid} /etc/x-ui",
+                        ],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+            except OSError:
+                pass
+        return sqlite3.connect(db_path)
+
     def test_01_first_boot_random_credentials_generation(self):
         """Item 1: On fresh boot, random credentials are generated, logged once, and stored as bcrypt."""
         if not self.docker_available:
@@ -126,7 +150,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
             db_path = os.path.join(data_dir, "x-ui.db")
             self.assertTrue(os.path.exists(db_path), f"Database not found at {db_path}")
 
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             user_row = cur.execute("SELECT id, username, password, login_epoch FROM users").fetchone()
             con.close()
@@ -219,7 +243,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
 
             # Verify database
             db_path = os.path.join(data_dir, "x-ui.db")
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             after_row = cur.execute("SELECT username, password, login_epoch FROM users").fetchone()
             con.close()
@@ -255,7 +279,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
             subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
 
             db_path = os.path.join(data_dir, "x-ui.db")
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             cur.execute("""
                 INSERT INTO inbounds (user_id, up, down, total, remark, enable, expiry_time, listen, port, protocol, settings, stream_settings, tag, sniffing)
@@ -286,7 +310,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
             subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
 
             # Query database and verify all inbounds and settings survived
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             inbounds = cur.execute("SELECT remark, port, protocol FROM inbounds ORDER BY port").fetchall()
             user_info = cur.execute("SELECT username FROM users").fetchall()
@@ -323,7 +347,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
             subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
 
             db_path = os.path.join(data_dir, "x-ui.db")
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             cur.execute("DELETE FROM settings WHERE key IN ('twoFactorEnable', 'twoFactorToken')")
             cur.execute("INSERT INTO settings (key, value) VALUES ('twoFactorEnable', 'true')")
@@ -350,7 +374,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
             subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
 
             # Verify in settings table
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             enable_val = cur.execute("SELECT value FROM settings WHERE key='twoFactorEnable'").fetchone()
             token_val = cur.execute("SELECT value FROM settings WHERE key='twoFactorToken'").fetchone()
@@ -397,7 +421,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
 
             # Verify user record was NOT wiped or changed back to admin
             db_path = os.path.join(data_dir, "x-ui.db")
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             cur = con.cursor()
             user_row = cur.execute("SELECT username, password FROM users").fetchone()
             con.close()
@@ -454,7 +478,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
 
             # Verify in DB
             db_path = os.path.join(data_dir, "x-ui.db")
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             user_row = con.cursor().execute("SELECT username FROM users").fetchone()
             con.close()
             self.assertEqual(user_row[0], "forwarded_user")
@@ -506,7 +530,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
 
             # Verify credentials in database are still persistent_admin
             db_path = os.path.join(data_dir, "x-ui.db")
-            con = sqlite3.connect(db_path)
+            con = self._connect_db(data_dir)
             user_row = con.cursor().execute("SELECT username FROM users").fetchone()
             con.close()
 
