@@ -998,7 +998,7 @@ class TestContainerFixes(unittest.TestCase):
             self.assertIn('/log/print follow-only where topics~"container"', res.stdout)
 
     def test_32_postgresql_routeros_contract_and_immutable_client(self):
-        """Verifies pinned Alpine 3.23.8 + postgresql18-client=18.6-r0 in Dockerfile, removal of local PG/pgclient from x-ui.sh, and updated restore error message."""
+        """Verifies pinned Alpine 3.23.8 + postgresql18-client=18.7-r0 in Dockerfile, removal of local PG/pgclient from x-ui.sh, and updated restore error message."""
         with open(self.dockerfile_path, "r", encoding="utf-8") as f:
             dockerfile = f.read()
 
@@ -1009,7 +1009,7 @@ class TestContainerFixes(unittest.TestCase):
         )
         self.assertNotRegex(dockerfile, r"(?m)^FROM\s+alpine(?::latest)?\s*$")
         final_stage = dockerfile.split("FROM alpine:3.23.8@", 1)[-1]
-        self.assertIn("postgresql18-client=18.6-r0", final_stage)
+        self.assertIn("postgresql18-client=18.7-r0", final_stage)
         self.assertNotIn("apk add --no-cache --update", final_stage)
         self.assertIn("apk add --no-cache", final_stage)
         self.assertNotIn("postgresql18-contrib", final_stage)

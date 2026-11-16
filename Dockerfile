@@ -71,7 +71,7 @@ RUN apk add --no-cache \
   curl \
   openssl \
   coreutils \
-  postgresql18-client=18.6-r0
+  postgresql18-client=18.7-r0
 
 COPY --from=builder /app/build/ /app/
 COPY --from=builder /app/DockerEntrypoint.sh /app/
