@@ -35,7 +35,7 @@ var (
 // version; it must never be a stale production tag.
 const devVersion = "dev"
 
-var releaseVersionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$`)
+var releaseVersionPattern = regexp.MustCompile(`^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?|[0-9]+-mikrozia)$`)
 
 // LogLevel represents the logging level for the application.
 type LogLevel string

@@ -79,7 +79,7 @@ func TestMissingInjectionNeverFallsBackToCanonicalRelease(t *testing.T) {
 		canonical + " ",
 		canonical + "\t",
 		canonical + "\n",
-		strings.Replace(canonical, ".", ". ", 1),
+		strings.Replace(canonical, "-", "- ", 1),
 		canonical + "\n" + canonical,
 	} {
 		mikroziaVersion = injected
