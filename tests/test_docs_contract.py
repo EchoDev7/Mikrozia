@@ -315,7 +315,10 @@ class DocsContractTests(unittest.TestCase):
             for endpoint in retired:
                 with self.subTest(page=os.path.relpath(path, self.repo_root), endpoint=endpoint):
                     self.assertNotIn(endpoint, text)
-        for spec in ("docs/public/openapi.json", "internal/web/dist/openapi.json"):
+        # internal/web/dist is a gitignored frontend build output.  It does not
+        # exist in a clean checkout until the image/frontend build runs, so the
+        # release validation must assert the two version-controlled API specs.
+        for spec in ("frontend/public/openapi.json", "docs/public/openapi.json"):
             self.assertTrue(os.path.exists(os.path.join(self.repo_root, spec)), spec)
             document = json.loads(self._read(spec))
             for endpoint in retired:
