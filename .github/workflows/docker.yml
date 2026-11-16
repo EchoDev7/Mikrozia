@@ -172,24 +172,42 @@ jobs:
           set -euo pipefail
           image="$SMOKE_IMAGE"
           platform="${{ matrix.platform }}"
-          docker image inspect "$image" >/dev/null
+          report_failure() {
+            {
+              echo "### RouterOS runtime contract: FAIL"
+              echo ""
+              echo "- image: \`${image}\`"
+              echo "- platform: \`${platform}\`"
+              echo "- failed check: ${1}"
+              if [ -n "${2:-}" ]; then
+                echo ""
+                echo '```'
+                echo "${2}"
+                echo '```'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=RouterOS runtime contract::${1}"
+            exit 1
+          }
+          docker image inspect "$image" >/dev/null || report_failure "image missing from the runner daemon" ""
           actual_mikrozia_ver=$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
-          test "$actual_mikrozia_ver" = "$RELEASE_TAG"
-          runtime_mikrozia_ver=$(docker run --rm --platform "$platform" --entrypoint /app/x-ui "$image" -v)
-          test "$runtime_mikrozia_ver" = "$RELEASE_TAG"
+          test "$actual_mikrozia_ver" = "$RELEASE_TAG" || report_failure "OCI version label mismatch" "actual=${actual_mikrozia_ver} expected=${RELEASE_TAG}"
+          runtime_err=$(mktemp)
+          runtime_mikrozia_ver=$(docker run --rm --platform "$platform" --entrypoint /app/x-ui "$image" -v 2>"${runtime_err}") || report_failure "panel binary did not report its version" "$(cat "${runtime_err}")"
+          test "$runtime_mikrozia_ver" = "$RELEASE_TAG" || report_failure "runtime version mismatch" "actual=${runtime_mikrozia_ver} expected=${RELEASE_TAG} stderr=$(cat "${runtime_err}")"
           actual_xray_ver=$(docker inspect --format '{{ index .Config.Labels "io.mikrozia.xray.version" }}' "$image")
-          test "$actual_xray_ver" = "$XRAY_VERSION"
+          test "$actual_xray_ver" = "$XRAY_VERSION" || report_failure "Xray version label mismatch" "actual=${actual_xray_ver} expected=${XRAY_VERSION}"
           actual_mtg_ver=$(docker inspect --format '{{ index .Config.Labels "io.mikrozia.mtg.version" }}' "$image")
-          test "$actual_mtg_ver" = "$MTG_VERSION"
+          test "$actual_mtg_ver" = "$MTG_VERSION" || report_failure "mtg version label mismatch" "actual=${actual_mtg_ver} expected=${MTG_VERSION}"
           xray_no_v="${XRAY_VERSION#v}"
-          xray_out=$(docker run --rm --platform "$platform" --entrypoint "/app/bin/${{ matrix.xray_bin }}" "$image" version)
+          xray_out=$(docker run --rm --platform "$platform" --entrypoint "/app/bin/${{ matrix.xray_bin }}" "$image" version 2>&1) || report_failure "Xray binary did not run" "${xray_out}"
           echo "$xray_out"
-          echo "$xray_out" | grep -Fq "Xray ${xray_no_v}"
+          grep -Fq "Xray ${xray_no_v}" <<< "$xray_out" || report_failure "Xray binary version output mismatch" "${xray_out}"
           mtg_no_v="${MTG_VERSION#v}"
-          mtg_out=$(docker run --rm --platform "$platform" --entrypoint "/app/bin/${{ matrix.mtg_bin }}" "$image" --version)
+          mtg_out=$(docker run --rm --platform "$platform" --entrypoint "/app/bin/${{ matrix.mtg_bin }}" "$image" --version 2>&1) || report_failure "mtg binary did not run" "${mtg_out}"
           echo "$mtg_out"
-          echo "$mtg_out" | grep -Fq "${mtg_no_v}"
-          docker run --rm --platform "$platform" --entrypoint /bin/sh "$image" -ec '
+          grep -Fq "${mtg_no_v}" <<< "$mtg_out" || report_failure "mtg binary version output mismatch" "${mtg_out}"
+          contract_output=$(docker run --rm --platform "$platform" --entrypoint /bin/sh "$image" -ec '
             test -x /app/x-ui
             test -x /app/DockerEntrypoint.sh
             test -x /app/bin/${{ matrix.xray_bin }}
@@ -216,7 +234,16 @@ jobs:
             test "$HOME" = /root
             ! grep -Fq "/server/getXrayVersion" /app/x-ui
             ! grep -Fq "/server/installXray" /app/x-ui
-          '
+          ' 2>&1) || report_failure "image content contract" "${contract_output}"
+          {
+            echo "### RouterOS runtime contract: PASS"
+            echo ""
+            echo "- image: \`${image}\`"
+            echo "- platform: \`${platform}\`"
+            echo "- release tag: \`${RELEASE_TAG}\`"
+            echo "- xray version: \`${XRAY_VERSION}\`"
+            echo "- mtg version: \`${MTG_VERSION}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run image integration tests (amd64)
         if: matrix.integration
