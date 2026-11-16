@@ -31,8 +31,6 @@ function renderList(isMobile: boolean) {
       onDelete={noop}
       onProbe={noop}
       onToggleEnable={noop}
-      onUpdateNode={noop}
-      onUpdateSelected={noop}
     />,
   );
 }

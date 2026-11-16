@@ -16,16 +16,16 @@ Mikrozia **هیچ Rule مربوط به Firewall، NAT، Port Forward، Masquerad
 
 ## نسخه مرجع
 
-| جزء | نسخه/مقدار |
-|---|---|
-| RouterOS | `7.25.1` یا Stable جدیدتر |
-| Container package | دقیقاً هم‌نسخه RouterOS |
-| Docker image | `majlot/mikrozia:v3.11.0-mikrozia.4` |
-| معماری CHR | `linux/amd64` |
-| IP پیش‌فرض Container | `172.16.10.2/24` |
-| Gateway پیش‌فرض | `172.16.10.1` |
-| پورت داخلی پنل | `2053/TCP` |
-| پورت داخلی Subscription | `2096/TCP` |
+| جزء                     | نسخه/مقدار                    |
+| ----------------------- | ----------------------------- |
+| RouterOS                | `7.25.1` یا Stable جدیدتر     |
+| Container package       | دقیقاً هم‌نسخه RouterOS         |
+| Docker image            | `majlot/mikrozia:v1-mikrozia` |
+| معماری CHR              | `linux/amd64`                 |
+| IP پیش‌فرض Container     | `172.16.10.2/24`              |
+| Gateway پیش‌فرض          | `172.16.10.1`                 |
+| پورت داخلی پنل          | `2053/TCP`                    |
+| پورت داخلی Subscription | `2096/TCP`                    |
 
 Tag `latest` برای آزمایش مناسب است؛ برای نصب واقعی همیشه Tag نسخه‌دار را استفاده کنید.
 
@@ -33,12 +33,12 @@ Tag `latest` برای آزمایش مناسب است؛ برای نصب واقع�
 
 ### منابع CHR
 
-| منبع | حداقل عملی | پیشنهاد تولیدی |
-|---|---:|---:|
-| CPU | 2 vCPU | 2 تا 4 vCPU |
-| RAM | 2 GiB | 4 GiB |
-| فضای آزاد | 2 GiB | 8 GiB یا بیشتر |
-| RouterOS | 7.25+ Stable | آخرین Stable |
+| منبع      |   حداقل عملی | پیشنهاد تولیدی |
+| --------- | -----------: | -------------: |
+| CPU       |       2 vCPU |    2 تا 4 vCPU |
+| RAM       |        2 GiB |          4 GiB |
+| فضای آزاد |        2 GiB | 8 GiB یا بیشتر |
+| RouterOS  | 7.25+ Stable |   آخرین Stable |
 
 برای دیدن وضعیت:
 
@@ -110,43 +110,70 @@ Container:       172.16.10.2
 /interface/veth/print
 ```
 
-اگر شبکه، Bridge یا VETH همنام وجود دارد، از اسکریپت آماده استفاده نکنید و بخش «Generator پیشرفته» را بخوانید.
+اگر این Subnet، نام Bridge یا نام VETH قبلاً استفاده شده است، از همان مقدار یا
+نام دوباره استفاده نکنید. مقادیر آزاد انتخاب کنید و آن‌ها را در همهٔ دستورهای
+نصب یکسان اعمال کنید.
 
-## 6. روش پیشنهادی نصب از Docker Hub
+## 6. نصب Image نسخه‌دار
 
 ایمیج رسمی پروژه از Docker Hub دریافت می‌شود:
 
 ```text
-majlot/mikrozia:v3.11.0-mikrozia.4
+majlot/mikrozia:v1-mikrozia
 ```
 
-فایل زیر را روی کامپیوتر باز کنید:
+> این مسیر با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا است. پذیرش روی
+> CHR تمیز برای P1-CHR-01 هنوز کامل نشده است؛ پیش از Production کل مسیر را روی
+> یک CHR موقت آزمایش کنید. این مستند ادعای پذیرش واقعی CHR ندارد.
 
-[`scripts/routeros/mikrozia-clean-room-deploy.rsc`](../scripts/routeros/mikrozia-clean-room-deploy.rsc)
+دستورهای زیر را به ترتیب در Terminal RouterOS یا WinBox اجرا کنید. فقط اشیای
+متعلق به Mikrozia ساخته می‌شوند و با `[Mikrozia:container]` علامت‌گذاری شده‌اند.
 
-در حالت معمول نیازی به تغییر فایل نیست. اگر مسیر ذخیره‌سازی شما متفاوت است، فقط این مقدار را تغییر دهید:
+### 6.1 ساخت پوشه‌های پایدار و موقت
+
+پوشهٔ `data` به `/etc/x-ui`، پوشهٔ `cert` به `/root/cert` و پوشهٔ `tmp` برای
+فضای موقت Extract متصل می‌شوند. پوشهٔ Root نسخه‌دار را RouterOS هنگام Extract
+می‌سازد. اگر پوشه‌ای از قبل وجود دارد، خط `/file/add` مربوط به آن را اجرا نکنید.
 
 ```routeros
-:local storageBase "containers"
+/file/add name=containers type=directory
+/file/add name=containers/mikrozia type=directory
+/file/add name=containers/mikrozia/data type=directory
+/file/add name=containers/mikrozia/cert type=directory
+/file/add name=containers/mikrozia/tmp type=directory
 ```
 
-فایل را با WinBox در Files آپلود و Import کنید:
+### 6.2 ساخت Bridge و VETH
 
 ```routeros
-/import file-name=mikrozia-clean-room-deploy.rsc verbose=yes
+/interface/bridge/add name=br-mikrozia comment="[Mikrozia:container] Bridge"
+/ip/address/add address=172.16.10.1/24 interface=br-mikrozia comment="[Mikrozia:container] Gateway"
+/interface/veth/add name=veth-mikrozia address=172.16.10.2/24 gateway=172.16.10.1 comment="[Mikrozia:container] VETH"
+/interface/bridge/port/add bridge=br-mikrozia interface=veth-mikrozia comment="[Mikrozia:container] Bridge Port"
 ```
 
-اسکریپت فقط موارد زیر را می‌سازد:
+### 6.3 افزودن Mountها و متغیرهای محیطی
 
-- `br-mikrozia`؛
-- `veth-mikrozia`؛
-- آدرس `172.16.10.1/24` روی Bridge؛
-- Mount دیتابیس `/etc/x-ui`؛
-- Mount گواهی و ACME در `/root/cert`؛
-- Environmentهای سازگار با RouterOS؛
-- Container با Image نسخه‌دار Docker Hub.
+```routeros
+/container/mounts/add list=MIKROZIA_DATA src=containers/mikrozia/data dst="/etc/x-ui" comment="[Mikrozia:container] Data Mount"
+/container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
+/container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+```
 
-هیچ تنظیم Firewall یا NAT در این مرحله ایجاد یا تغییر نمی‌شود.
+### 6.4 تنظیم Registry و ساخت Container
+
+`/container/config/set` فقط Registry و پوشهٔ Extract را تنظیم می‌کند. Tag
+نسخه‌دار در `/container/add` ثابت است و `memory-high`، `memory-max` و
+`start-on-boot` مطابق قرارداد Runtime تنظیم شده‌اند.
+
+```routeros
+/container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
+/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+```
+
+این دستورها فقط Bridge/VETH، Mountها، Environment و Container را ایجاد می‌کنند و
+هیچ تنظیم Firewall، NAT، Port Forward یا Routing ایجاد یا تغییر نمی‌دهند.
 
 ## 7. صبر برای دریافت و استخراج Image
 
@@ -185,11 +212,11 @@ Container اکنون روی `172.16.10.2` قرار دارد، اما پروژه 
 
 پورت‌های داخلی موردنیاز را می‌توانید ببینید، اما نحوه انتشار آن‌ها در اختیار شماست:
 
-| سرویس | مقصد داخلی |
-|---|---|
-| پنل مدیریت | `172.16.10.2:2053/TCP` |
-| Subscription پیش‌فرض | `172.16.10.2:2096/TCP` |
-| Inboundهای Xray | پورتی که داخل پنل تعریف می‌کنید |
+| سرویس               | مقصد داخلی                     |
+| ------------------- | ------------------------------ |
+| پنل مدیریت          | `172.16.10.2:2053/TCP`         |
+| Subscription پیش‌فرض | `172.16.10.2:2096/TCP`         |
+| Inboundهای Xray     | پورتی که داخل پنل تعریف می‌کنید |
 
 ## 9. مشاهده نام کاربری و رمز اولیه
 
@@ -204,24 +231,23 @@ Container اکنون روی `172.16.10.2` قرار دارد، اما پروژه 
 اگر Log اولیه از دست رفته است:
 
 ```routeros
-/container/print
-/container/shell 0
+/container/shell [find where comment="[Mikrozia:container] Container"]
 ```
 
-عدد `0` را با شماره واقعی Container عوض کنید. سپس داخل Shell:
+سپس داخل Shell:
 
 ```sh
 /app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
 exit
 ```
 
-Container را restart کنید:
+برای اعمال تغییر تنظیمات پنل بدون ری‌استارت کل Container می‌توانید داخل Shell از `x-ui restart` (بارگذاری مجدد وب‌سرور پنل و ری‌استارت Xray) استفاده کنید، یا در RouterOS کل Container را ری‌استارت نمایید:
 
 ```routeros
-/container/stop 0
-:delay 3s
-/container/start 0
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
+
+> **نکته Lifecycle در RouterOS Container**: دستورهای `x-ui start`، `x-ui stop`، `x-ui enable` و `x-ui disable` داخل کانتینر هیچ تغییری در وضعیت کانتینر ایجاد نمی‌کنند و تنها دستور معادل RouterOS (از جمله `/container/start`، `/container/stop` و `/container/set ... start-on-boot=yes|no restart-policy=always|no`) را نمایش می‌دهند. دستور `x-ui restart` نیز تنها سرویس وب پنل و Xray را داخل کانتینر ری‌لود/ری‌استارت می‌کند و خود Container را خاموش یا ری‌استارت نمی‌کند.
 
 ## 10. تنظیمات اولیه پنل
 
@@ -235,7 +261,7 @@ Container را restart کنید:
 
 ## 11. دامنه و TLS
 
-یک رکورد DNS برای IP عمومی موردنظر خود بسازید. برای RouterOS Container روش **DNS-01** پیشنهاد می‌شود، چون به بازبودن پورت خاصی هنگام صدور و تمدید وابسته نیست.
+یک رکورد DNS برای IP عمومی موردنظر خود بسازید. Mikrozia هیچ گواهی‌ای را داخل کانتینر صادر یا تمدید نمی‌کند؛ گواهی را با روش مرجع گواهی خود بیرون از کانتینر تهیه و تمدید کنید.
 
 مسیر پایدار گواهی‌ها:
 
@@ -244,25 +270,19 @@ Container را restart کنید:
 /root/cert/<domain>/privkey.pem
 ```
 
-State مربوط به acme.sh نیز در این مسیر نگهداری می‌شود:
-
-```text
-/root/cert/.acme.sh
-```
-
-EntryPoint کانتینر هنگام Boot، مسیر ACME را به فضای پایدار متصل و Cron تمدید را دوباره ثبت می‌کند.
+فایل‌ها را روی Mount پایدار `/root/cert` قرار دهید و مسیر آن‌ها را از منوی `x-ui` (گزینه 14) یا با `x-ui cert` به پنل معرفی کنید. نه ابزار ACME و نه Cron تمدید در کانتینر وجود ندارد.
 
 ## 12. ساخت اولین Inbound
 
 در پنل به **Inbounds → Add Inbound** بروید. نمونه تنظیم معمول:
 
-| گزینه | مقدار نمونه |
-|---|---|
-| Protocol | VLESS |
-| Listen IP | خالی یا `0.0.0.0` |
-| Transport | TCP |
-| Security | REALITY |
-| Port | یک پورت آزاد انتخابی |
+| گزینه     | مقدار نمونه          |
+| --------- | -------------------- |
+| Protocol  | VLESS                |
+| Listen IP | خالی یا `0.0.0.0`    |
+| Transport | TCP                  |
+| Security  | REALITY              |
+| Port      | یک پورت آزاد انتخابی |
 
 کلیدهای REALITY و UUID را در خود پنل تولید کنید. پس از ساخت Inbound، مدیر RouterOS تصمیم می‌گیرد ترافیک آن پورت چگونه به IP داخلی Container برسد.
 
@@ -278,7 +298,7 @@ containers/mikrozia/cert/
 محتوای مهم:
 
 - `data/x-ui.db`: کاربران، Inboundها، تنظیمات و آمار؛
-- `cert/`: کلید خصوصی، Certificate و ACME state.
+- `cert/`: کلید خصوصی و Certificateهای ارائه‌شده توسط کاربر.
 
 RootFS هر نسخه جداست:
 
@@ -338,8 +358,8 @@ Token باید از Docker Hub ساخته شود؛ رمز حساب را در Rep
 برای انتشار یک نسخه:
 
 ```bash
-git tag v3.11.0-mikrozia.4
-git push origin v3.11.0-mikrozia.4
+git tag v1-mikrozia
+git push origin v1-mikrozia
 ```
 
 Workflow قبل از Push این کارها را انجام می‌دهد:
@@ -347,10 +367,9 @@ Workflow قبل از Push این کارها را انجام می‌دهد:
 1. تست‌های سازگاری Mikrozia؛
 2. بررسی Syntax اسکریپت‌ها؛
 3. اطمینان از نبود دستورات Firewall در Installer/Generator؛
-4. Build و Smoke Test معماری amd64؛
-5. Build چندمعماری؛
-6. انتشار Tag نسخه‌دار و `latest`؛
-7. ثبت OCI provenance، SBOM و Digest.
+4. Build، Start و Smoke Test قرارداد Runtime برای هر سه معماری؛
+5. Build چندمعماری و انتشار Tag نسخه‌دار و `latest`؛
+6. ثبت OCI provenance، SBOM و Digest.
 
 معماری‌های منتشرشده:
 
@@ -360,50 +379,38 @@ linux/arm64/v8
 linux/arm/v7
 ```
 
-هر Tag نسخه‌ای مستقل است و نباید پس از انتشار بازنویسی شود.
+هر Tag نسخه‌ای مستقل است و نباید پس از انتشار بازنویسی شود. انتشار فقط از روی Tag نسخه‌دار یا Dispatch صریح همان نسخه انجام می‌شود و Push روی `main` یا Pull Request Image‌ای منتشر نمی‌کند.
 
-## 17. Generator پیشرفته
+تنها Artifact انتشار، Image نسخه‌دار OCI است. برای نسخه‌های Mikrozia هیچ Tarball باینری، Package سیستم‌عامل یا Installer مبتنی بر systemd منتشر نمی‌شود.
 
-برای CHR دارای شبکه‌های موجود، چند Container یا Storage سفارشی، ابتدا Preflight را اجرا کنید:
+## 17. سفارشی‌سازی مقادیر نصب
 
-```text
-scripts/routeros/mikrozia-preflight.rsc
-```
-
-خروجی JSON را در `preflight.json` ذخیره کنید. سپس:
-
-```bash
-python3 scripts/generator/mikrozia_generator.py \
-  --preflight preflight.json \
-  --target-storage containers \
-  --container-subnet 172.16.10.0/24 \
-  --image-source registry
-```
-
-فرمان بالا Dry Run است. پس از بررسی Preview:
-
-```bash
-python3 scripts/generator/mikrozia_generator.py \
-  --preflight preflight.json \
-  --target-storage containers \
-  --container-subnet 172.16.10.0/24 \
-  --image-source registry \
-  --write
-```
-
-Generator نیز هیچ Rule شبکه‌ای تولید نمی‌کند.
+اگر نام Bridge/VETH، Subnet، پورت داخلی یا مسیر ذخیره‌سازی پیش‌فرض با تنظیمات
+RouterOS شما تداخل دارد، مقادیر مرتبط را در همهٔ دستورهای بخش ۶ یکسان تغییر
+دهید: Bridge، VETH، آدرس‌های IP، پوشه‌ها، مبدأ Mountها، `mountlists` و
+`root-dir`. Commentهای `[Mikrozia:container]` را حفظ کنید تا دستورهای Lifecycle
+و حذف بتوانند اشیای متعلق به Mikrozia را پیدا کنند. از Subnet یا نام متداخل
+استفاده نکنید و هیچ Rule شبکه‌ای به Mikrozia نسبت داده نشود.
 
 ## 18. حذف امن
 
-فایل زیر را Upload و Import کنید:
-
-[`scripts/routeros/mikrozia-clean-room-teardown.rsc`](../scripts/routeros/mikrozia-clean-room-teardown.rsc)
+پیش از حذف، از `data` و `cert` Backup بگیرید. سپس این دستورها را به ترتیب اجرا
+کنید تا فقط اشیای متعلق به Mikrozia حذف شوند:
 
 ```routeros
-/import file-name=mikrozia-clean-room-teardown.rsc verbose=yes
+/container/stop [find where comment="[Mikrozia:container] Container"]
+/container/remove [find where comment="[Mikrozia:container] Container"]
+/container/mounts/remove [find where comment="[Mikrozia:container] Data Mount"]
+/container/mounts/remove [find where comment="[Mikrozia:container] Cert Mount"]
+/container/envs/remove [find where comment="[Mikrozia:container] Environment"]
+/interface/bridge/port/remove [find where comment="[Mikrozia:container] Bridge Port"]
+/ip/address/remove [find where comment="[Mikrozia:container] Gateway"]
+/interface/veth/remove [find where comment="[Mikrozia:container] VETH"]
+/interface/bridge/remove [find where comment="[Mikrozia:container] Bridge"]
 ```
 
-این اسکریپت Container object، Mount/Environment definition و شبکه اختصاصی آن را حذف می‌کند؛ دیتابیس، Certificate و تمام تنظیمات Firewall/NAT دست‌نخورده می‌مانند.
+این دستورها Container object، Mount/Environment definition و شبکهٔ اختصاصی آن را
+حذف می‌کنند؛ دیتابیس، Certificate و تمام تنظیمات Firewall/NAT دست‌نخورده می‌مانند.
 
 ## 19. عیب‌یابی
 
@@ -467,16 +474,28 @@ exit
 
 مقدار DNS، مسیر خروجی Container و دسترسی شبکه آن را بررسی کنید.
 
-### Certificate تمدید نمی‌شود
+### Certificate منقضی می‌شود
 
 - Mount مربوط به `/root/cert` باید متصل باشد؛
-- DNS API Token باید معتبر باشد؛
-- زمان RouterOS درست باشد؛
-- Logهای `MIKROZIA-ACME` را بررسی کنید.
+- فایل‌های تمدیدشده باید همان مسیرهای قبلی را بازنویسی کنند؛
+- پس از تمدید، دستور `x-ui restart` را اجرا کنید؛
+- تمدید گواهی بر عهدهٔ کاربر و بیرون از کانتینر است.
 
 ### پنل پس از تعویض نسخه خالی است
 
 Container جدید بدون Mount صحیح `/etc/x-ui` ساخته شده است. آن را متوقف کنید و مسیر دیتابیس قبلی را متصل کنید؛ دیتابیس جدید خالی را روی Backup کپی نکنید.
+
+### مشاهده لاگ‌های پنل و کانتینر
+
+- **لاگ‌های برنامه پنل**: از بخش **Logs** در رابط وب پنل (بر پایه بافر درون‌حافظه‌ای) یا دستور `x-ui` (منوی 11) قابل مشاهده است؛ در RouterOS Container از systemd/`journalctl` استفاده نمی‌شود.
+- **لاگ‌های `stdout`/`stderr` کانتینر در RouterOS**:
+
+```routeros
+/container/set [find where comment="[Mikrozia:container] Container"] logging=yes
+/log/print follow-only where topics~"container"
+```
+
+- **حریم خصوصی لاگ دسترسی Xray**: لاگ دسترسی Xray می‌تواند IP مبدأ کلاینت‌ها، مقصدها و ایمیل حساب‌ها را ثبت کند؛ پیش از فعال‌سازی یا اشتراک‌گذاری، دسترسی به پنل را محدود و سیاست نگهداری لاگ را بررسی کنید.
 
 ## 20. محدودیت‌های شناخته‌شده RouterOS Container
 
@@ -505,6 +524,7 @@ Container جدید بدون Mount صحیح `/etc/x-ui` ساخته شده است.
 ## منابع رسمی
 
 - [MikroTik Container](https://help.mikrotik.com/docs/spaces/ROS/pages/84901929/Container)
+- [MikroTik Log](https://help.mikrotik.com/docs/spaces/ROS/pages/328094/Log)
 - [MikroTik Device Mode](https://help.mikrotik.com/docs/spaces/ROS/pages/93749258/Device-mode)
 - [MikroTik CHR](https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud%20Hosted%20Router%20CHR)
 - [RouterOS Stable releases](https://mikrotik.com/download/changelogs?channelFilter=stable)

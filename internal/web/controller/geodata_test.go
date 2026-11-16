@@ -276,3 +276,17 @@ func TestGeodataFollowsXrayAssetLocation(t *testing.T) {
 		t.Errorf("categories = %d, want 2 — the shared asset folder should be read", files[0].Categories)
 	}
 }
+
+// The image RootFS is immutable, so the panel must not expose a Geo updater.
+// Browsing (the /geodata/* routes above) stays available; mutation does not.
+func TestServerGeoUpdateRoutesAbsent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	(&ServerController{}).initRouter(engine.Group("/panel/api/server"))
+
+	for _, route := range engine.Routes() {
+		if strings.Contains(route.Path, "updateGeofile") {
+			t.Fatalf("runtime geo update route must not be registered: %s %s", route.Method, route.Path)
+		}
+	}
+}

@@ -24,7 +24,7 @@ describe('API token creation date', () => {
           name: 'legacy-milliseconds-token',
           enabled: true,
           createdAt: 1782485394270,
-          scope: 'node-admin',
+          scope: 'node-sync',
           expiresAt: 0,
         },
       ],
@@ -38,8 +38,7 @@ describe('API token creation date', () => {
     expect(await screen.findByText('seconds-token')).toBeTruthy();
     expect(screen.getByText('legacy-milliseconds-token')).toBeTruthy();
     expect(screen.getAllByText(/2026/)).toHaveLength(2);
-    expect(screen.getByText('Node synchronization')).toBeTruthy();
-    expect(screen.getByText('Node administrator')).toBeTruthy();
+    expect(screen.getAllByText('Node synchronization').length).toBeGreaterThanOrEqual(1);
   });
 
   it('creates a token with the selected scope', async () => {
@@ -62,21 +61,17 @@ describe('API token creation date', () => {
     const scope = screen.getByRole('combobox', { name: 'Scope' });
     fireEvent.mouseDown(scope.closest('.ant-select') ?? scope);
     const option = Array.from(document.querySelectorAll('.ant-select-item-option')).find(
-      (item) => item.textContent === 'Node administrator',
+      (item) => item.textContent === 'Node synchronization',
     );
-    if (!option) throw new Error('Node administrator option not found');
+    if (!option) throw new Error('Node synchronization option not found');
     fireEvent.click(option);
-    expect(
-      screen.getByText(
-        'Includes node synchronization permissions and can also start panel software updates.',
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(/Synchronizes node configuration/)).toBeTruthy();
 
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith('/panel/api/setting/apiTokens/create', {
         name: 'central-node',
-        scope: 'node-admin',
+        scope: 'node-sync',
       }),
     );
   });

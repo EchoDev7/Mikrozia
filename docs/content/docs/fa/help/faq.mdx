@@ -1,47 +1,65 @@
 ---
-title: سؤالات متداول
-description: پرسش‌های پرتکرار درباره 3x-ui — مجوز، سیستم‌های پشتیبانی‌شده، پایگاه‌های داده و کلاینت‌ها.
+title: پرسش‌های متداول
+description: پرسش‌های متداول دربارهٔ Mikrozia روی MikroTik RouterOS Container — مجوز، پلتفرم پشتیبانی‌شده، دیتابیس، به‌روزرسانی و پشتیبانی.
 icon: CircleQuestionMark
 ---
 
-## آیا 3x-ui رایگان و متن‌باز است؟
+## آیا Mikrozia رایگان و متن‌باز است؟
 
-بله. 3x-ui تحت مجوز GPL-3.0 متن‌باز است. کد منبع آن روی
-[GitHub](https://github.com/MHSanaei/3x-ui) در دسترس است.
+بله. Mikrozia تحت مجوز GPL-3.0 منتشر می‌شود و کپی‌رایت و ذکر منبع پروژهٔ بالادستی
+[3x-ui](https://github.com/MHSanaei/3x-ui) را حفظ می‌کند.
 
-## روی چه سیستم‌هایی اجرا می‌شود؟
+## روی چه پلتفرمی اجرا می‌شود؟
 
-روی بیشتر توزیع‌های اصلی Linux (Ubuntu، Debian، CentOS/RHEL و مشتقات آن‌ها،
-Fedora، Arch، Alpine و موارد دیگر) روی معماری‌های `amd64`، `arm64` و دیگر معماری‌ها.
-همچنین به‌صورت یک کانتینر Docker اجرا می‌شود. به [نصب](/docs/guide/installation) مراجعه کنید.
+**RouterOS Container** میکروتیک، نسخهٔ `7.25+` همراه با بستهٔ Container دقیقاً
+هم‌نسخه. CHR x86_64 محیط مرجع است. Imageهای منتشرشده `linux/amd64`،
+`linux/arm64/v8` و `linux/arm/v7` هستند. Mikrozia روی VPS با systemd، از Tarball،
+روی Windows یا به‌عنوان Stack تولیدی Docker Compose اجرا نمی‌شود.
 
 ## SQLite یا PostgreSQL؟
 
-SQLite گزینه پیش‌فرض است و برای بیشتر استقرارها مناسب است. PostgreSQL برای
-راه‌اندازی‌های بزرگ‌تر از طریق `XUI_DB_TYPE=postgres` و `XUI_DB_DSN` در دسترس است — به
-[متغیرهای محیطی](/docs/reference/env-vars) مراجعه کنید.
+SQLite پیش‌فرض و برای بیشتر استقرارها کافی است؛ دیتابیس روی Mount پایدار
+`/etc/x-ui` قرار دارد. PostgreSQL خارجی اختیاری است و از طریق `/container/envs`
+در RouterOS (`XUI_DB_TYPE=postgres` و `XUI_DB_DSN`) تنظیم می‌شود — به
+[متغیرهای محیطی](/docs/reference/env-vars) و [دیتابیس](/docs/reference/database)
+مراجعه کنید. Mikrozia هرگز سرور PostgreSQL را داخل کانتینر نصب نمی‌کند.
 
-## کدام اپلیکیشن‌های کلاینت با آن کار می‌کنند؟
+## کدام اپلیکیشن‌های کلاینت کار می‌کنند؟
 
-هر کلاینت سازگار با Xray — برای مثال v2rayNG، Hiddify و Clash/Mihomo.
-لینک اشتراک‌گذاری یا کد QR یک کلاینت را وارد کنید، یا از
-[سابسکریپشن](/docs/config/subscription) استفاده کنید.
+هر کلاینت سازگار با Xray — برای مثال v2rayNG، Hiddify و Clash/Mihomo. لینک
+اشتراک‌گذاری یا QR Code کلاینت را Import کنید یا از
+[Subscription](/docs/config/subscription) استفاده کنید.
 
-## 3x-ui چه تفاوتی با x-ui دارد؟
+## آیا Mikrozia فایروال یا NAT را مدیریت می‌کند؟
 
-3x-ui یک فورک ارتقایافته از پروژه اصلی X-UI است. این پروژه پشتیبانی گسترده‌تری از
-پروتکل‌ها، پایداری بهبودیافته، حسابداری ترافیک به‌ازای هر کلاینت، مدیریت چندنودی،
-یک رابط کاربری ۱۴ زبانه و بسیاری از امکانات رفاهی را اضافه می‌کند.
+خیر. Firewall، NAT، Masquerade، Port Forward، Routing، Address List و Access
+Control در RouterOS بر عهدهٔ کاربر است. Mikrozia فقط پورت‌هایی را که داخل کانتینر
+گوش می‌دهد مستند می‌کند. به [پورت‌ها و فایروال](/docs/reference/ports-firewall)
+مراجعه کنید.
+
+## آیا گواهی TLS صادر یا تمدید می‌کند؟
+
+خیر. گواهی‌ها بر عهدهٔ کاربر هستند: آن‌ها را بیرون از کانتینر تهیه و تمدید کنید،
+فایل‌ها را روی Mount پایدار `/root/cert` قرار دهید و مسیرشان را در پنل تنظیم کنید.
+به [گواهی‌های TLS](/docs/config/ssl-certificates) مراجعه کنید.
 
 ## چگونه به‌روزرسانی کنم؟
 
-اسکریپت نصب را دوباره اجرا کنید (به‌صورت درجا به‌روزرسانی می‌شود)، یا ایمیج جدید Docker را دریافت کنید.
-به [نصب](/docs/guide/installation) و
-[صفحه نسخه‌ها](https://github.com/MHSanaei/3x-ui/releases) مراجعه کنید.
+Image کانتینر را جایگزین کنید. Tag نسخه‌دار جدید را از Docker Hub
+`majlot/mikrozia` دریافت کنید، کانتینر را با همان Mountهای `/etc/x-ui` و
+`/root/cert` دوباره بسازید و Image قبلی را تا تأیید نسخهٔ جدید نگه دارید. هیچ
+به‌روزرسان پنل، Xray، Geo یا نرم‌افزاری داخل کانتینر وجود ندارد. به
+[به‌روزرسانی و حذف نصب](/docs/guide/update-uninstall) مراجعه کنید.
 
-## از کجا می‌توانم کمک بگیرم؟
+## تفاوت Mikrozia با 3x-ui چیست؟
 
-به کانال رسمی Telegram با نشانی [@XrayUI](https://t.me/XrayUI) برای
-اطلاعیه‌ها و پشتیبانی انجمن بپیوندید، یا یک ایشو روی
-[GitHub](https://github.com/MHSanaei/3x-ui/issues) باز کنید. برای مشکلات رایج، با
-[عیب‌یابی](/docs/help/troubleshooting) شروع کنید.
+Mikrozia از پایهٔ کد 3x-ui برای RouterOS Container ساخته شده است: Image
+تغییرناپذیر، بدون systemd، بدون مدیریت Firewall میزبان، بدون به‌روزرسانی نرم‌افزار
+در زمان اجرا و با سیاست شبکه در اختیار RouterOS. پروژهٔ بالادستی 3x-ui منبع
+تاریخی است و مطابق مجوز ذکر می‌شود.
+
+## از کجا کمک بگیرم؟
+
+با [عیب‌یابی](/docs/help/troubleshooting) شروع کنید. هنگام گزارش مشکل، نسخهٔ
+RouterOS، Tag Image میکروزیا، وضعیت کانتینر و خطوط مرتبط Log کانتینر را ذکر کنید —
+هرگز کلید خصوصی یا رمز پنل را ارسال نکنید.

@@ -1,129 +1,211 @@
 ---
 title: 安装
-description: 通过官方脚本（稳定版、指定版本或开发最新版）、无人值守 / cloud-init 或 Docker 安装 3x-ui，并选择 SQLite 或 PostgreSQL。
+description: 在 MikroTik RouterOS Container 上使用版本化 OCI 镜像和持久挂载安装 Mikrozia。
 icon: Download
 ---
 
-3x-ui 可运行在多种 Linux 发行版上——Ubuntu、Debian、Armbian、
-Fedora、CentOS、RHEL、AlmaLinux、Rocky Linux、Oracle Linux、Amazon Linux、
-Virtuozzo、Arch、Manjaro、openSUSE（Tumbleweed/Leap）、Alpine——以及 Windows，
-覆盖 `amd64`、`386`、`arm64`、`armv7`、`armv6`、`armv5` 和 `s390x` 架构。
+Mikrozia **只能作为 RouterOS Container 安装**。受支持的平台是 MikroTik
+RouterOS `7.25+` 以及版本完全一致的 Container 软件包；CHR x86_64 是此入门路径的
+参考环境。Mikrozia 不安装在 Linux VPS 上，不使用 systemd，不从压缩包或发布归档
+安装，不支持 Windows，也不作为 Docker Compose 生产栈运行。
 
 <Callout type="warn">
-  请以 **root** 身份（或使用 `sudo`）运行脚本安装程序。它会安装服务、
-  配置 `x-ui` 管理命令，并将面板设为开机自启。
+  Mikrozia 从不创建或修改 RouterOS 的 firewall、NAT、端口转发、路由、
+  address list 或访问控制规则。这些决策属于 RouterOS 管理员。Mikrozia 只记录
+  容器内部监听的端口。
 </Callout>
 
-<Tabs items={['Script', 'Docker', 'Manual']}>
+## 前提条件
 
-<Tab value="Script">
+| 资源 | 最低要求 | 建议 |
+| ---- | -------: | ---: |
+| RouterOS | `7.25.0` stable | 最新 stable |
+| Container 软件包 | 与 RouterOS 版本完全一致 | 与 RouterOS 版本完全一致 |
+| 内存 | 2 GiB | 4 GiB |
+| 可用存储 | 2 GiB | 8 GiB 或更多 |
+| 架构 | `linux/amd64`（CHR） | 已发布的 `amd64`、`arm64/v8`、`arm/v7` |
 
-官方脚本是推荐的安装方式。安装过程中，它会生成一个**随机**的用户名、密码和访问（Web 根）路径，配置服务，
-并安装 `x-ui` 管理命令。
+开始前检查当前状态：
 
-```bash title="latest stable"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+```text
+/system/resource/print
+/system/package/print
+/disk/print
 ```
 
-在命令后附加标签即可安装**指定版本**：
+## 先备份 RouterOS
 
-```bash title="pinned version"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) v3.4.0
+```text
+/system/backup/save name=before-mikrozia password="a-strong-password"
+/export hide-sensitive file=before-mikrozia
 ```
 
-传入 `dev-latest` 可安装滚动更新的**开发版**构建（来自 `main` 的最新逐提交预发布版本
-——并非稳定版）：
+在任何更改之前，用 WinBox 下载这两个文件。
 
-```bash title="rolling dev build"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) dev-latest
+## 启用容器支持
+
+1. 从 `stable` 频道升级 RouterOS。
+2. 从 MikroTik 下载与当前 RouterOS 版本和 x86 架构一致的 **Extra packages**。
+3. 通过 WinBox 上传 `container-<version>-x86.npk` 并重启。
+4. 确认软件包存在且版本与 RouterOS 完全一致：
+
+```text
+/system/package/print where name="container"
 ```
 
-安装完成后，记下打印出的登录信息并运行 `x-ui` 打开
-[管理菜单](/docs/guide/update-uninstall#the-x-ui-management-menu)，然后
-继续阅读[首次登录](/docs/guide/first-login)。
+5. 在 Device Mode 中启用容器支持：
 
-</Tab>
-
-<Tab value="Docker">
-
-默认的 Compose 配置使用 SQLite。克隆仓库（或复制其
-`docker-compose.yml` 和 `Dockerfile`）并启动：
-
-```bash
-docker compose up -d
+```text
+/system/device-mode/update container=yes
 ```
 
-如需使用内置的 **PostgreSQL** 服务，请取消 `docker-compose.yml` 中两行 `XUI_DB_*`
-的注释，并使用对应 profile 启动：
+在 CHR 上，从虚拟化平台完全关机后再开机（软重启不够）。验证：
 
-```bash
-docker compose --profile postgres up -d
+```text
+/system/device-mode/print
 ```
 
-更想用预构建镜像？它已发布到 GitHub Container Registry。该镜像内置了 Fail2ban（用于
-[IP 限制](/docs/operations/security)），其封禁通过 `iptables` 实现，因此需要 `NET_ADMIN`
-（IPv6 还需 `NET_RAW`）——
-否则封禁只会被记录，而不会实际生效：
+`container` 必须为 `yes`。
 
-```bash title="docker run"
-docker run -d \
-  --cap-add=NET_ADMIN \
-  --cap-add=NET_RAW \
-  -e XUI_ENABLE_FAIL2BAN=true \
-  -v $PWD/db/:/etc/x-ui/ \
-  -v $PWD/cert/:/root/cert/ \
-  --network=host \
-  --restart=unless-stopped \
-  --name 3x-ui \
-  ghcr.io/mhsanaei/3x-ui:latest
+## 检查地址冲突
+
+入门路径使用 `172.16.10.0/24`：
+
+```text
+172.16.10.1  RouterOS 网桥
+172.16.10.2  Mikrozia 容器
 ```
 
-`db/` 卷保存 SQLite 数据库（`/etc/x-ui/x-ui.db`），`cert/`
-保存 TLS 证书，因此你的数据可在升级后保留。
+如果该子网、网桥名称或 VETH 名称已被占用，请勿重复使用。选择空闲值，并在下面
+所有命令中保持一致。
 
-</Tab>
-
-<Tab value="Manual">
-
-高级用户可从[发布页面](https://github.com/MHSanaei/3x-ui/releases)
-下载适用于你架构的发布归档包，解压后
-将二进制文件作为 systemd 服务运行。安装脚本正是将这些步骤自动化，
-因此除非你有特定理由要手动安装，否则更推荐使用脚本。
-
-</Tab>
-
-</Tabs>
-
-## 构建你的安装命令
-
-根据你的环境定制命令：
-
-<InstallCommandBuilder />
-
-## 选择数据库
-
-你在安装时选择存储后端：
-
-- **SQLite**（默认）——位于 `/etc/x-ui/x-ui.db` 的单个文件。无需任何配置。
-- **PostgreSQL**——适用于客户端数量庞大或多节点的部署。安装程序
-  可以在本地安装它，也可以使用你提供的 DSN。
-
-详情及 SQLite→PostgreSQL 迁移请参见[数据库](/docs/reference/database)。
-
-## 无人值守 / cloud-init
-
-安装程序也可**非交互式**运行，用于自动化。设置
-`XUI_NONINTERACTIVE=1`（或在无 TTY 的环境下运行），它便会全程零提示地完成
-端到端安装，生成随机凭据并写入
-`/etc/x-ui/install-result.env`：
-
-```bash
-XUI_NONINTERACTIVE=1 bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+```text
+/ip/address/print
+/ip/route/print
+/interface/bridge/print
+/interface/veth/print
 ```
 
-仓库的 [`deploy/`](https://github.com/MHSanaei/3x-ui/tree/main/deploy)
-目录提供了现成的 **cloud-init** user-data，可用于在任意云平台上进行无人值守安装
-（Hetzner、AWS、DigitalOcean、Vultr、GCP、Azure、Oracle）。
+## 安装版本化镜像
+
+Mikrozia 以多架构 OCI 镜像发布到 Docker Hub。生产环境使用版本化标签；`latest`
+只是便捷别名：
+
+```text
+majlot/mikrozia:v1-mikrozia
+```
+
+<Callout type="warn">
+  这些说明遵循当前 RouterOS `7.25` 容器契约。P1-CHR-01 的干净 CHR 验收尚未
+  完成，因此请先在一次性 CHR 上验证完整流程，再用于生产。本文不声称已完成
+  真实 CHR 验收。
+</Callout>
+
+请在 RouterOS Terminal 或 WinBox 中按顺序执行这些命令。它们只创建带有
+`[Mikrozia:container]` 标记的 Mikrozia 自有对象。
+
+### 1. 创建持久化目录
+
+`data` 挂载到 `/etc/x-ui`，`cert` 挂载到 `/root/cert`，`tmp` 用于解压临时
+空间。版本化 RootFS 目录由 RouterOS 在解压时创建。如果目录已存在，请跳过对应
+的 `/file/add` 行。
+
+```text
+/file/add name=containers type=directory
+/file/add name=containers/mikrozia type=directory
+/file/add name=containers/mikrozia/data type=directory
+/file/add name=containers/mikrozia/cert type=directory
+/file/add name=containers/mikrozia/tmp type=directory
+```
+
+### 2. 创建网桥和 VETH
+
+```text
+/interface/bridge/add name=br-mikrozia comment="[Mikrozia:container] Bridge"
+/ip/address/add address=172.16.10.1/24 interface=br-mikrozia comment="[Mikrozia:container] Gateway"
+/interface/veth/add name=veth-mikrozia address=172.16.10.2/24 gateway=172.16.10.1 comment="[Mikrozia:container] VETH"
+/interface/bridge/port/add bridge=br-mikrozia interface=veth-mikrozia comment="[Mikrozia:container] Bridge Port"
+```
+
+### 3. 添加挂载和环境变量
+
+```text
+/container/mounts/add list=MIKROZIA_DATA src=containers/mikrozia/data dst="/etc/x-ui" comment="[Mikrozia:container] Data Mount"
+/container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
+/container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+```
+
+### 4. 配置 Registry 并添加容器
+
+`/container/config/set` 只更改 Registry 和解压目录。版本化标签固定在
+`/container/add` 中；`memory-high`、`memory-max` 和 `start-on-boot`
+与运行时契约一致。
+
+```text
+/container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
+/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+```
+
+这些命令不会添加 firewall、NAT、masquerade、端口转发或路由规则。出站连接和
+面板可达性仍由 RouterOS 管理员决定。
+
+## 等待解压并启动
+
+```text
+/container/print detail
+/log/print follow-only where topics~"container"
+```
+
+解压可能需要几分钟。完成前不要删除容器或关闭 CHR。然后启动：
+
+```text
+/container/start [find where comment="[Mikrozia:container] Container"]
+/container/print detail where comment="[Mikrozia:container] Container"
+```
+
+状态必须为 `running`。
+
+## 访问面板
+
+面板在容器**内部**（`172.16.10.2`）监听 `2053/TCP`。该端口如何从你的管理网络
+访问，属于你的 RouterOS 网络设计；Mikrozia 不会替你发布或转发。参见
+[端口与防火墙](/docs/reference/ports-firewall)。
+
+## 初始凭据
+
+首次启动时，面板会生成随机用户名和密码，并在容器日志中打印一次：
+
+```text
+/log/print where topics~"container"
+```
+
+查找 `Username:` 和 `Password:`。如果日志已丢失，打开容器 shell 重置：
+
+```text
+/container/shell [find where comment="[Mikrozia:container] Container"]
+```
+
+```sh
+/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
+exit
+```
+
+然后继续阅读[首次登录](/docs/guide/first-login)。
+
+## 数据库
+
+默认使用 SQLite，数据库文件位于持久挂载的 `/etc/x-ui/x-ui.db`。外部 PostgreSQL
+是可选项，通过 RouterOS `/container/envs` 配置（`XUI_DB_TYPE=postgres` 和
+`XUI_DB_DSN`）；Mikrozia 从不在容器内安装数据库服务器。参见
+[数据库](/docs/reference/database)。
+
+## 自定义值
+
+如果默认名称、子网或存储位置与现有 RouterOS 设置冲突，请在上面的每条命令中
+一致地修改它们：网桥、VETH、IP 地址、目录、挂载源和 `mountlists`。保留
+`[Mikrozia:container]` 注释，以便生命周期和卸载命令能找到 Mikrozia 自有对象。
+不要使用冲突子网，也不要重命名现有 RouterOS 对象。
 
 ## 后续步骤
 
@@ -136,11 +218,11 @@ XUI_NONINTERACTIVE=1 bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/
   <Card
     title="更新与卸载"
     href="/docs/guide/update-uninstall"
-    description="x-ui 菜单、更新与移除。"
+    description="替换镜像并保留挂载。"
   />
   <Card
-    title="REALITY"
-    href="/docs/config/reality"
-    description="配置你的第一个隐蔽入站。"
+    title="TLS 证书"
+    href="/docs/config/ssl-certificates"
+    description="证书由用户管理并按路径挂载。"
   />
 </Cards>

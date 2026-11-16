@@ -48,11 +48,6 @@ func (t *Tgbot) BuildClientDraftMessage(draft *clientDraft) string {
 		traffic = common.FormatTraffic(draft.totalGB)
 	}
 
-	ipLimit := "♾️ Unlimited(Reset)"
-	if draft.limitIP > 0 {
-		ipLimit = fmt.Sprint(draft.limitIP)
-	}
-
 	attached := t.describeAttachedInbounds(draft.receiverInboundIDs)
 	if attached == "" {
 		attached = "—"
@@ -74,7 +69,6 @@ func (t *Tgbot) BuildClientDraftMessage(draft *clientDraft) string {
 	fmt.Fprintf(&b, "🔗 Attached: %s\r\n", html.EscapeString(attached))
 	fmt.Fprintf(&b, "📊 Traffic: %s\r\n", traffic)
 	fmt.Fprintf(&b, "📅 Expire: %s\r\n", expiry)
-	fmt.Fprintf(&b, "🔢 IP limit: %s\r\n", ipLimit)
 	fmt.Fprintf(&b, "👤 TG user: %s\r\n", html.EscapeString(tgID))
 	fmt.Fprintf(&b, "💬 Comment: %s\r\n", html.EscapeString(comment))
 	return b.String()
@@ -119,7 +113,6 @@ func (t *Tgbot) SubmitAddClient(draft *clientDraft) (bool, error) {
 	client := model.Client{
 		Email:      draft.email,
 		Enable:     draft.enable,
-		LimitIP:    draft.limitIP,
 		TotalGB:    draft.totalGB,
 		ExpiryTime: draft.expiryTime,
 		SubID:      draft.subID,
@@ -435,7 +428,6 @@ func (t *Tgbot) getCommonClientButtons(draft *clientDraft) [][]telego.InlineKeyb
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.resetExpire")).WithCallbackData("add_client_ch_default_exp"),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.ipLimit")).WithCallbackData("add_client_ch_default_ip_limit"),
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.setTGUser")).WithCallbackData("add_client_ch_default_tg_id"),
 		),
 		tu.InlineKeyboardRow(

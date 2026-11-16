@@ -310,7 +310,7 @@ func TestHomeScreenCarriesTheMenu(t *testing.T) {
 			t.Errorf("menu is missing the %q button", want)
 		}
 	}
-	for _, old := range []string{cbServer, cbInbounds, cbClients, cbOnlines, cbDeplete, cbReport, cbBackup, cbBanLogs, cbAddClient} {
+	for _, old := range []string{cbServer, cbInbounds, cbClients, cbOnlines, cbDeplete, cbReport, cbBackup, cbAddClient} {
 		if data[old] {
 			t.Errorf("menu still carries %q directly; it belongs in a category", old)
 		}

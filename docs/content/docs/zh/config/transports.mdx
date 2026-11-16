@@ -164,7 +164,7 @@ FinalMask 取代了旧版 Xray 构建中暴露的、按每种传输各自实现�
 | 字段                  | 默认值  | 含义                                                            |
 | --------------------- | ------- | ---------------------------------------------------------------- |
 | `tcpFastOpen`         | `false` | 启用 TCP Fast Open。                                            |
-| `tcpcongestion`       | `bbr`   | 拥塞控制：`bbr`、`cubic` 或 `reno`。                           |
+| `tcpcongestion`       | _(未设置)_ | 拥塞控制：推荐使用 `OS Default`（CHR 上已确认支持 `cubic`；保留 `reno`）。新建配置不再自动注入 `bbr`；旧版已保存的 `bbr` 会保留在数据库中，但在 RouterOS 运行时配置中会被忽略，选择 `OS Default` 后可移除。回滚到旧版本可能会重新将旧版 `bbr` 发送给 Xray。TUIC/QUIC/FinalMask 中的用户态 BBR 不受影响。 |
 | `tproxy`              | `off`   | 透明代理模式：`off`、`redirect` 或 `tproxy`。                  |
 | `domainStrategy`      | `AsIs`  | 地址如何解析（`UseIP`、`ForceIPv4`……）。                      |
 | `dialerProxy`         | _(无)_  | 将此出站的拨号链式经过另一个出站标签。                         |

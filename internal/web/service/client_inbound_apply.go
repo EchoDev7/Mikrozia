@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
@@ -54,18 +53,6 @@ func validateAmneziaWGClientWrite(inbound *model.Inbound, clients []model.Client
 				return fmt.Errorf("amneziawg: client %q: %w", client.Email, err)
 			}
 		}
-	}
-	if settings.Server == nil || !settings.Server.KernelMode {
-		return nil
-	}
-	inst := amneziawg.Instance{Listen: inbound.Listen, IPv6Enabled: settings.Server.IPv6Enabled}
-	for _, client := range clients {
-		inst.Peers = append(inst.Peers, amneziawg.Peer{
-			AllowedIPs: client.AllowedIPs, ForwardedPorts: client.ForwardedPorts,
-		})
-	}
-	if err := amneziawgkern.ValidateInstanceFeatures(inst, settings.Server.RouteThroughXray); err != nil {
-		return err
 	}
 	return nil
 }
@@ -1523,12 +1510,6 @@ func (s *ClientService) applyClientFieldByEmail(inboundSvc *InboundService, clie
 	}
 	nr, applyErr := fanoutInboundApplies(applies)
 	return needRestart || nr, applyErr
-}
-
-func (s *ClientService) ResetClientIpLimitByEmail(inboundSvc *InboundService, clientEmail string, count int) (bool, error) {
-	return s.applyClientFieldByEmail(inboundSvc, clientEmail, func(c map[string]any) {
-		c["limitIp"] = count
-	})
 }
 
 func (s *ClientService) ResetClientExpiryTimeByEmail(inboundSvc *InboundService, clientEmail string, expiry_time int64) (bool, error) {

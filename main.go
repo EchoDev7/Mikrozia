@@ -4,16 +4,13 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"os/exec"
 	"os/signal"
-	"runtime"
 	"strings"
 	"syscall"
 	_ "unsafe"
@@ -108,6 +105,10 @@ func runWebServer() {
 
 	if err := initNodeTokenCrypto(); err != nil {
 		log.Fatalf("Error initializing node-token encryption: %v", err)
+	}
+
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
 	}
 
 	err := database.InitDB(config.GetDBPath())
@@ -229,6 +230,10 @@ func runWebServer() {
 
 // resetSetting resets all panel settings to their default values.
 func resetSetting() error {
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
+	}
+
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println("Failed to initialize database:", err)
@@ -310,6 +315,10 @@ func updateTgbotEnableSts(status bool) {
 
 // updateTgbotSetting updates Telegram bot settings including token, chat ID, and runtime schedule.
 func updateTgbotSetting(tgBotToken string, tgBotChatid string, tgBotRuntime string) {
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
+	}
+
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println("Error initializing database:", err)
@@ -368,6 +377,10 @@ func encryptNodeTokens() {
 
 // updateSetting updates various panel settings including port, credentials, base path, listen IP, and two-factor authentication.
 func updateSetting(port int, username string, password string, webBasePath string, listenIP string, resetTwoFactor bool) error {
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
+	}
+
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println("Database initialization failed:", err)
@@ -429,6 +442,10 @@ func updateSetting(port int, username string, password string, webBasePath strin
 
 // updateCert updates the SSL certificate files for the panel.
 func updateCert(publicKey string, privateKey string) {
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
+	}
+
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println(err)
@@ -509,6 +526,10 @@ func GetApiToken(getApiToken bool, tokenName, tokenScope string) {
 	// An explicit name applies to both branches below; without one each keeps
 	// the name it already used, so every existing invocation is unaffected.
 	name := strings.TrimSpace(tokenName)
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
+	}
+
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println("open database failed, error info:", err)
@@ -555,6 +576,10 @@ func migrateDb() {
 	inboundService := service.InboundService{}
 
 	logger.InitLogger(logging.INFO)
+	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
+		log.Fatalf("Error recovering pending SQLite restore: %v", err)
+	}
+
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		log.Fatal(err)
@@ -592,6 +617,7 @@ func main() {
 
 	var showVersion bool
 	flag.BoolVar(&showVersion, "v", false, "show version")
+	flag.BoolVar(&showVersion, "version", false, "show version")
 
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
 
@@ -660,6 +686,9 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "version", "-v", "--version":
+		fmt.Println(config.GetPanelVersion())
+		return
 	case "run":
 		err := runCmd.Parse(os.Args[2:])
 		if err != nil {
@@ -667,8 +696,6 @@ func main() {
 			return
 		}
 		runWebServer()
-	case "install-awg-kernel":
-		installAmneziaWGKernelModule()
 	case "migrate":
 		migrateDb()
 	case "encrypt-tokens":
@@ -694,7 +721,10 @@ func main() {
 				fmt.Println("--out is required when using --restore: the destination .db path (must not exist)")
 				return
 			}
-			if err := database.RestoreSQLite(migrateRestore, migrateOut); err != nil {
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			err := database.RestoreSQLiteContext(ctx, migrateRestore, migrateOut)
+			stop()
+			if err != nil {
 				fmt.Println("restore failed:", err)
 				os.Exit(1)
 			}
@@ -771,56 +801,11 @@ func main() {
 func commandHelp() string {
 	return `
 Commands:
+    version        show version
     run            run web panel
     migrate        migrate from other/old x-ui
     migrate-db     SQLite <-> .dump (--dump/--restore) or copy into PostgreSQL (--dsn)
     encrypt-tokens encrypt node bearer tokens with the configured active key
     setting        set settings
-    install-awg-kernel
-                   build and install the AmneziaWG kernel module (required for
-                   an AmneziaWG inbound's kernel mode)
 `
-}
-
-//go:embed scripts/install-amneziawg-kernel.sh
-var installAwgKernelScript []byte
-
-// installAmneziaWGKernelModule runs the bundled module installer.
-// It needs a terminal for its apt and DKMS build output.
-func installAmneziaWGKernelModule() {
-	if runtime.GOOS != "linux" {
-		fmt.Println("the AmneziaWG kernel module is Linux-only")
-		return
-	}
-	if os.Geteuid() != 0 {
-		exe, err := os.Executable()
-		if err != nil || exe == "" {
-			exe = "/usr/local/x-ui/x-ui"
-		}
-		fmt.Println("run as root: sudo " + exe + " install-awg-kernel")
-		return
-	}
-
-	f, err := os.CreateTemp("", "install-amneziawg-kernel-*.sh")
-	if err != nil {
-		fmt.Println("could not stage the installer:", err)
-		return
-	}
-	defer os.Remove(f.Name())
-	if _, err := f.Write(installAwgKernelScript); err != nil {
-		f.Close()
-		fmt.Println("could not write the installer:", err)
-		return
-	}
-	f.Close()
-
-	// No timeout: an apt+dkms build legitimately runs for minutes.
-	cmd := exec.CommandContext(context.Background(), "bash", f.Name())
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
-		fmt.Println("install failed:", err)
-		os.Exit(1)
-	}
 }

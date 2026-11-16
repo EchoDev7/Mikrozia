@@ -17,7 +17,6 @@ export const EXAMPLES: Record<string, unknown> = {
     "externalTrafficInformEnable": false,
     "externalTrafficInformURI": "",
     "happLinkEnable": false,
-    "ipLimitAllowlist": "",
     "ldapAutoCreate": false,
     "ldapAutoDelete": false,
     "ldapBaseDN": "",
@@ -207,7 +206,6 @@ export const EXAMPLES: Record<string, unknown> = {
     "hasTgBotToken": false,
     "hasTwoFactorToken": false,
     "hasWarpSecret": false,
-    "ipLimitAllowlist": "",
     "ldapAutoCreate": false,
     "ldapAutoDelete": false,
     "ldapBaseDN": "",
@@ -409,10 +407,6 @@ export const EXAMPLES: Record<string, unknown> = {
     "name": "central-panel-a",
     "scope": "admin",
     "token": "new-token-string"
-  },
-  "Blocker": {
-    "code": "tools",
-    "detail": "awg"
   },
   "Client": {
     "adTag": "0123456789abcdef0123456789abcdef",
@@ -1040,11 +1034,13 @@ export const EXAMPLES: Record<string, unknown> = {
     "total": 0,
     "up": 0
   },
-  "PanelUpdateStatus": {
-    "exitCode": 0,
-    "finishedAt": 1735689612,
-    "runId": "1735689600123456789",
-    "state": "success"
+  "PanelUpdateInfo": {
+    "channel": "",
+    "currentCommit": "",
+    "currentVersion": "",
+    "latestCommit": "",
+    "latestVersion": "",
+    "updateAvailable": false
   },
   "PeerActivity": {
     "allowedIPs": "10.8.1.2/32",
@@ -1072,16 +1068,6 @@ export const EXAMPLES: Record<string, unknown> = {
     "xrayError": "",
     "xrayState": "",
     "xrayVersion": "25.10.31"
-  },
-  "Readiness": {
-    "blockers": [
-      {
-        "code": "tools",
-        "detail": "awg"
-      }
-    ],
-    "installCommand": "sudo /usr/local/x-ui/x-ui install-awg-kernel",
-    "ready": false
   },
   "RealityScanResult": {
     "alpn": "h2",
@@ -1129,7 +1115,6 @@ export const EXAMPLES: Record<string, unknown> = {
     "jmax": 0,
     "jmin": 0,
     "keepaliveTimeout": "",
-    "kernelMode": false,
     "maxHandshakeAttempts": "",
     "mtu": 0,
     "primaryDns": "",

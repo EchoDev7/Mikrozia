@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ClientFormModal from '@/pages/clients/ClientFormModal';
 import { renderWithProviders } from './test-utils';
 
-// ClientFormModal reads server state via react-query (useFail2banStatusQuery),
-// so it needs a QueryClientProvider on top of the shared ThemeProvider wrapper.
+// ClientFormModal loads supporting data through react-query, so it needs a
+// QueryClientProvider on top of the shared ThemeProvider wrapper.
 function renderModal() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   renderWithProviders(

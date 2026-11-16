@@ -190,7 +190,6 @@ export function useInbounds() {
   const expireDiff = (defaults.expireDiff ?? 0) * 86400000;
   const trafficDiff = (defaults.trafficDiff ?? 0) * 1073741824;
   const tgBotEnable = !!defaults.tgBotEnable;
-  const ipLimitEnable = !!defaults.ipLimitEnable;
   const pageSize = defaults.pageSize ?? 0;
   const datepicker = (defaults.datepicker as 'gregorian' | 'jalalian') || 'gregorian';
 
@@ -620,7 +619,6 @@ export function useInbounds() {
     subSettings,
     datepicker,
     tgBotEnable,
-    ipLimitEnable,
     pageSize,
     refresh,
     hydrateInbound,

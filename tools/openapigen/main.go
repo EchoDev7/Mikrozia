@@ -118,7 +118,7 @@ func run(root, outDir string) error {
 		},
 		{
 			Path:        resolveRel(root, "internal/web/service/panel"),
-			StructAllow: setOf("ApiTokenView", "PanelUpdateStatus", "Sponsor", "SponsorList"),
+			StructAllow: setOf("ApiTokenView", "PanelUpdateInfo", "Sponsor", "SponsorList"),
 		},
 		{
 			Path:        resolveRel(root, "internal/web/controller"),
@@ -127,11 +127,6 @@ func run(root, outDir string) error {
 		{
 			Path:        resolveRel(root, "internal/amneziawg"),
 			StructAllow: setOf("ServerSettings"),
-		},
-		{
-			Path:        resolveRel(root, "internal/amneziawgkern"),
-			StructAllow: setOf("Readiness", "Blocker"),
-			AliasAllow:  setOf("BlockerCode"),
 		},
 		{
 			Path:        resolveRel(root, "internal/tuic"),

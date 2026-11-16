@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/wirecodec"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
@@ -81,7 +80,6 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g.GET("/allLinks", a.getAllInboundLinks)
 	g.GET("/get/:id", a.getInbound)
 	g.GET("/:id/fallbacks", a.getFallbacks)
-	g.GET("/amneziawgKernelReadiness", a.getAmneziaWGKernelReadiness)
 
 	g.POST("/add", a.addInbound)
 	g.POST("/del/:id", a.delInbound)
@@ -144,12 +142,6 @@ func (a *InboundController) getInboundOptions(c *gin.Context) {
 		return
 	}
 	jsonObj(c, options, nil)
-}
-
-// getAmneziaWGKernelReadiness reports whether this host can run an AmneziaWG
-// inbound on the kernel module, so the form can disable the toggle and say why.
-func (a *InboundController) getAmneziaWGKernelReadiness(c *gin.Context) {
-	jsonObj(c, amneziawgkern.HostReadiness(), nil)
 }
 
 // getInbound retrieves a specific inbound by its ID.

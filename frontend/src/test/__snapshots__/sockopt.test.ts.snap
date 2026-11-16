@@ -18,7 +18,6 @@ exports[`SockoptStreamSettingsSchema fixtures > parses defaults byte-stably 1`] 
   "tcpMptcp": false,
   "tcpUserTimeout": 0,
   "tcpWindowClamp": 0,
-  "tcpcongestion": "bbr",
   "tproxy": "off",
   "trustedXForwardedFor": [],
 }
@@ -93,7 +92,6 @@ exports[`SockoptStreamSettingsSchema fixtures > parses tproxy byte-stably 1`] = 
   "tcpMptcp": false,
   "tcpUserTimeout": 0,
   "tcpWindowClamp": 0,
-  "tcpcongestion": "bbr",
   "tproxy": "tproxy",
   "trustedXForwardedFor": [],
 }

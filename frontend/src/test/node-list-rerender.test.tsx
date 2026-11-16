@@ -9,15 +9,15 @@ import type { NodeRecord } from '@/schemas/node';
 
 import { makeTestQueryClient } from './test-utils';
 
-const updateChecks = vi.hoisted(() => ({ count: 0 }));
+const renderChecks = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock('@/lib/panel-version', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/panel-version')>();
   return {
     ...actual,
-    isPanelUpdateAvailable: (...args: Parameters<typeof actual.isPanelUpdateAvailable>) => {
-      updateChecks.count++;
-      return actual.isPanelUpdateAvailable(...args);
+    formatPanelVersion: (...args: Parameters<typeof actual.formatPanelVersion>) => {
+      renderChecks.count++;
+      return actual.formatPanelVersion(...args);
     },
   };
 });
@@ -45,7 +45,6 @@ describe('NodeList re-render', () => {
     const props = {
       nodes,
       isMobile: false,
-      latestVersion: '3.0.1',
       selectedIds: [] as number[],
       onSelectionChange: noop,
       onAdd: noop,
@@ -54,15 +53,13 @@ describe('NodeList re-render', () => {
       onDelete: noop,
       onProbe: noop,
       onToggleEnable: noop,
-      onUpdateNode: noop,
-      onUpdateSelected: noop,
     };
     const view = render(<NodeList {...props} />, { wrapper });
-    expect(updateChecks.count).toBeGreaterThan(0);
+    expect(renderChecks.count).toBeGreaterThan(0);
 
-    updateChecks.count = 0;
+    renderChecks.count = 0;
     view.rerender(<NodeList {...props} />);
 
-    expect(updateChecks.count).toBe(0);
+    expect(renderChecks.count).toBe(0);
   });
 });

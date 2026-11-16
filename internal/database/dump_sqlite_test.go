@@ -1,11 +1,13 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
@@ -125,6 +127,104 @@ func TestDumpAndRestoreSQLiteRoundTrip(t *testing.T) {
 	}
 	if s.Value != "o'brien \"quote\"" {
 		t.Errorf("value mismatch after round-trip: %q", s.Value)
+	}
+}
+
+// TestDumpSQLiteUsesConsistentSnapshotDuringWrites proves a logical dump of a
+// live WAL database cannot mix values from different committed transactions.
+func TestDumpSQLiteUsesConsistentSnapshotDuringWrites(t *testing.T) {
+	dir := t.TempDir()
+	srcPath := filepath.Join(dir, "live.db")
+	writer, err := sql.Open("sqlite3", srcPath+"?_journal_mode=WAL&_busy_timeout=10000")
+	if err != nil {
+		t.Fatalf("open writer: %v", err)
+	}
+	defer writer.Close()
+	writer.SetMaxOpenConns(1)
+
+	payload := strings.Repeat("x", 8<<20)
+	for _, statement := range []string{
+		`CREATE TABLE pair_a (v INTEGER NOT NULL)`,
+		`CREATE TABLE payload (body TEXT NOT NULL)`,
+		`CREATE TABLE pair_b (v INTEGER NOT NULL)`,
+		`INSERT INTO pair_a VALUES (0)`,
+		`INSERT INTO pair_b VALUES (0)`,
+	} {
+		if _, err := writer.Exec(statement); err != nil {
+			t.Fatalf("seed %q: %v", statement, err)
+		}
+	}
+	if _, err := writer.Exec(`INSERT INTO payload VALUES (?)`, payload); err != nil {
+		t.Fatalf("seed payload: %v", err)
+	}
+
+	stop := make(chan struct{})
+	writerErr := make(chan error, 1)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				writerErr <- nil
+				return
+			default:
+			}
+			tx, err := writer.Begin()
+			if err != nil {
+				writerErr <- err
+				return
+			}
+			if _, err := tx.Exec(`UPDATE pair_a SET v = v + 1`); err != nil {
+				_ = tx.Rollback()
+				writerErr <- err
+				return
+			}
+			if _, err := tx.Exec(`UPDATE pair_b SET v = v + 1`); err != nil {
+				_ = tx.Rollback()
+				writerErr <- err
+				return
+			}
+			if err := tx.Commit(); err != nil {
+				writerErr <- err
+				return
+			}
+		}
+	}()
+
+	defer func() {
+		close(stop)
+		if err := <-writerErr; err != nil {
+			t.Errorf("writer failed: %v", err)
+		}
+	}()
+
+	for i := 0; i < 10; i++ {
+		dumpPath := filepath.Join(dir, fmt.Sprintf("out-%d.dump", i))
+		dstPath := filepath.Join(dir, fmt.Sprintf("rebuilt-%d.db", i))
+		if err := DumpSQLite(srcPath, dumpPath); err != nil {
+			t.Fatalf("DumpSQLite iteration %d: %v", i, err)
+		}
+		if err := RestoreSQLite(dumpPath, dstPath); err != nil {
+			t.Fatalf("RestoreSQLite iteration %d: %v", i, err)
+		}
+
+		dst, err := sql.Open("sqlite3", dstPath)
+		if err != nil {
+			t.Fatalf("open restored %d: %v", i, err)
+		}
+		var a, b int64
+		if err := dst.QueryRow(`SELECT v FROM pair_a`).Scan(&a); err != nil {
+			_ = dst.Close()
+			t.Fatalf("read pair_a %d: %v", i, err)
+		}
+		if err := dst.QueryRow(`SELECT v FROM pair_b`).Scan(&b); err != nil {
+			_ = dst.Close()
+			t.Fatalf("read pair_b %d: %v", i, err)
+		}
+		_ = dst.Close()
+		if a != b {
+			t.Fatalf("dump %d mixed committed states: pair_a=%d pair_b=%d", i, a, b)
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
 }
 

@@ -17,8 +17,6 @@ export interface SiteMessages {
   stars: string;
   forks: string;
   latest: string;
-  copyCommand: string;
-  copied: string;
   featuresHeading: string;
   featuresSubtitle: string;
   // Order matches the icon list in components/home/features.tsx.
@@ -38,8 +36,6 @@ const en: SiteMessages = {
   stars: 'stars',
   forks: 'forks',
   latest: 'latest',
-  copyCommand: 'Copy install command',
-  copied: 'Copied',
   featuresHeading: 'Everything you need to run Xray',
   featuresSubtitle:
     'A modern, fast control panel for Xray-core — built for operators who want power without the command-line grind.',
@@ -89,8 +85,6 @@ const fa: SiteMessages = {
   stars: 'ستاره',
   forks: 'فورک',
   latest: 'آخرین',
-  copyCommand: 'کپی دستور نصب',
-  copied: 'کپی شد',
   featuresHeading: 'هر آنچه برای اجرای Xray لازم دارید',
   featuresSubtitle:
     'یک پنل کنترلِ مدرن و سریع برای Xray-core — ساخته‌شده برای ادمین‌هایی که قدرت می‌خواهند، بدون درگیری با خط فرمان.',
@@ -140,8 +134,6 @@ const ru: SiteMessages = {
   stars: 'звёзд',
   forks: 'форков',
   latest: 'последняя',
-  copyCommand: 'Скопировать команду установки',
-  copied: 'Скопировано',
   featuresHeading: 'Всё необходимое для запуска Xray',
   featuresSubtitle:
     'Современная и быстрая панель управления для Xray-core — создана для администраторов, которым нужна мощь без возни с командной строкой.',
@@ -191,8 +183,6 @@ const zh: SiteMessages = {
   stars: '星标',
   forks: '复刻',
   latest: '最新',
-  copyCommand: '复制安装命令',
-  copied: '已复制',
   featuresHeading: '运行 Xray 所需的一切',
   featuresSubtitle:
     '为 Xray-core 打造的现代、快速控制面板 —— 专为想要强大功能又不愿折腾命令行的运维者而生。',

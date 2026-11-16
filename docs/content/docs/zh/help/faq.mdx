@@ -1,45 +1,59 @@
 ---
 title: 常见问题
-description: 关于 3x-ui 的常见问题 —— 许可协议、受支持的系统、数据库以及客户端。
+description: 关于 MikroTik RouterOS 容器上 Mikrozia 的常见问题——许可、支持平台、数据库、更新与支持。
 icon: CircleQuestionMark
 ---
 
-## 3x-ui 是免费且开源的吗？
+## Mikrozia 是否免费且开源？
 
-是的。3x-ui 基于 GPL-3.0 许可协议开源，源代码托管在
-[GitHub](https://github.com/MHSanaei/3x-ui) 上。
+是的。Mikrozia 以 GPL-3.0 许可发布，并保留其上游项目
+[3x-ui](https://github.com/MHSanaei/3x-ui) 的版权与署名。
 
-## 它能运行在哪些系统上？
+## 它运行在什么平台上？
 
-绝大多数主流 Linux 发行版（Ubuntu、Debian、CentOS/RHEL 及其衍生版、
-Fedora、Arch、Alpine 等），并支持 `amd64`、`arm64` 以及其他架构。
-它同样可以作为 Docker 容器运行。参见[安装](/docs/guide/installation)。
+MikroTik **RouterOS 容器**，即 RouterOS `7.25+` 及配套的 Container 软件包。
+参考环境为 CHR x86_64。发布的镜像包括 `linux/amd64`、`linux/arm64/v8` 和
+`linux/arm/v7`。Mikrozia 不能运行在 systemd VPS 上，也不能从 tarball 运行、
+在 Windows 上运行，或作为 Docker Compose 生产栈运行。
 
 ## 选 SQLite 还是 PostgreSQL？
 
-SQLite 是默认选项，适用于大多数部署场景。对于规模更大的部署，可以通过
-`XUI_DB_TYPE=postgres` 和 `XUI_DB_DSN` 启用 PostgreSQL —— 参见
-[环境变量](/docs/reference/env-vars)。
+SQLite 是默认选项，适用于大多数部署；数据库位于持久化挂载 `/etc/x-ui` 上。
+外部 PostgreSQL 是可选项，通过 RouterOS `/container/envs` 配置
+（`XUI_DB_TYPE=postgres` 和 `XUI_DB_DSN`）——参见
+[环境变量](/docs/reference/env-vars)与[数据库](/docs/reference/database)参考。
+Mikrozia 从不在容器内安装 PostgreSQL 服务器。
 
 ## 哪些客户端应用可以配合使用？
 
-任何兼容 Xray 的客户端 —— 例如 v2rayNG、Hiddify 以及 Clash/Mihomo。
-导入客户端的分享链接或 QR 码，或者使用
-[订阅](/docs/config/subscription)。
+任何兼容 Xray 的客户端——例如 v2rayNG、Hiddify 以及 Clash/Mihomo。
+导入客户端的分享链接或 QR 码，或者使用[订阅](/docs/config/subscription)。
 
-## 3x-ui 与 x-ui 有什么区别？
+## Mikrozia 会管理防火墙或 NAT 吗？
 
-3x-ui 是原版 X-UI 项目的增强分支。它增加了更广泛的协议支持、更佳的稳定性、
-按客户端的流量统计、多节点管理、14 种语言的界面，以及众多提升使用体验的功能。
+不会。防火墙、NAT、masquerade、端口转发、路由策略、地址列表和访问控制均由用户在
+RouterOS 中管理。Mikrozia 只记录它在容器内监听的端口。参见
+[端口与防火墙](/docs/reference/ports-firewall)。
 
-## 我该如何更新？
+## 它会签发或续期 TLS 证书吗？
 
-重新运行安装脚本（它会原地更新），或者拉取新的 Docker 镜像。
-参见[安装](/docs/guide/installation)以及
-[发布页面](https://github.com/MHSanaei/3x-ui/releases)。
+不会。证书由用户管理：在容器外获取和续期，将文件放在持久化挂载 `/root/cert` 上，
+并在面板中配置其路径。参见 [TLS 证书](/docs/config/ssl-certificates)。
 
-## 我可以在哪里获取帮助？
+## 如何更新？
 
-加入官方 Telegram 频道 [@XrayUI](https://t.me/XrayUI) 获取公告与社区支持，
-或在 [GitHub](https://github.com/MHSanaei/3x-ui/issues) 上提交 issue。遇到常见问题时，
-请先查看[故障排查](/docs/help/troubleshooting)。
+替换容器镜像。从 Docker Hub `majlot/mikrozia` 拉取新的版本化标签，使用相同的
+`/etc/x-ui` 与 `/root/cert` 挂载重新创建容器，并在验证新镜像之前保留旧镜像。
+容器内没有面板、Xray、Geo 数据或软件更新器。参见
+[更新与卸载](/docs/guide/update-uninstall)。
+
+## Mikrozia 与 3x-ui 有什么区别？
+
+Mikrozia 基于 3x-ui 代码库，专为 RouterOS 容器构建：不可变镜像、无 systemd、
+不管理主机防火墙、无运行时软件更新，网络策略由 RouterOS 掌控。上游 3x-ui
+仍是历史来源，并按许可证要求注明出处。
+
+## 在哪里可以获得帮助？
+
+请先阅读[故障排查](/docs/help/troubleshooting)。报告问题时，请附上 RouterOS
+版本、Mikrozia 镜像标签、容器状态和相关容器日志行——切勿发送私钥或密码。

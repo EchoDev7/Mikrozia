@@ -183,7 +183,7 @@ ALPN آن را می‌بیند.
 | فیلد                  | پیش‌فرض | معنی                                                             |
 | --------------------- | ------- | ---------------------------------------------------------------- |
 | `tcpFastOpen`         | `false` | فعال‌سازی TCP Fast Open.                                         |
-| `tcpcongestion`       | `bbr`   | کنترل ازدحام: `bbr`، `cubic` یا `reno`.                         |
+| `tcpcongestion`       | _(تنظیم‌نشده)_ | کنترل ازدحام: گزینه `OS Default` توصیه می‌شود (`cubic` روی CHR مشاهده شده؛ `reno` حفظ شده است). تنظیمات جدید دیگر `bbr` تزریق نمی‌کنند؛ `bbr` قدیمی در دیتابیس حفظ می‌شود ولی در RouterOS Runtime حذف می‌گردد و با انتخاب `OS Default` پاک می‌شود. بازگشت (Rollback) به نسخه قدیمی ممکن است دوباره `bbr` قدیمی را به Xray بفرستد. BBRهای Userspace در TUIC/QUIC/FinalMask دست‌نخورده‌اند. |
 | `tproxy`              | `off`   | حالت پراکسی شفاف: `off`، `redirect` یا `tproxy`.                 |
 | `domainStrategy`      | `AsIs`  | نحوه تفکیک نشانی‌ها (`UseIP`، `ForceIPv4`، …).                   |
 | `dialerProxy`         | _(none)_| زنجیر کردن شماره‌گیری این outbound از طریق یک تگ outbound دیگر.   |

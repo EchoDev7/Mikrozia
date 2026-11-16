@@ -72,7 +72,7 @@ func TestDiscordMessagesFollowDiscordLang(t *testing.T) {
 			return embed.Title
 		}},
 		{"discord.report.title", func(t *testing.T) string {
-			payload, _, err := svc.BuildReport(context.Background(), nil, nil)
+			payload, err := svc.BuildReport(context.Background(), nil, nil)
 			if err != nil {
 				t.Fatalf("BuildReport: %v", err)
 			}

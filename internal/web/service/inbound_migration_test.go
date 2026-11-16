@@ -356,3 +356,352 @@ func TestMigrationRequirements_NormalizesShareAddressFields(t *testing.T) {
 		t.Fatalf("invalid address share fields = (%q, %q), want (node, empty)", gotInvalidAddress.ShareAddrStrategy, gotInvalidAddress.ShareAddr)
 	}
 }
+
+func TestMigrationRequirements_RejectsMalformedJSONAndTypes(t *testing.T) {
+	cases := []struct {
+		name           string
+		settings       string
+		streamSettings string
+		wantErrSubstr  string
+	}{
+		{
+			name:           "invalid_settings_json",
+			settings:       `{not-valid-json`,
+			streamSettings: `{}`,
+			wantErrSubstr:  "field settings: invalid JSON",
+		},
+		{
+			name:           "null_settings_json",
+			settings:       `null`,
+			streamSettings: `{}`,
+			wantErrSubstr:  "field settings: expected JSON object",
+		},
+		{
+			name:           "clients_not_array",
+			settings:       `{"clients":"oops"}`,
+			streamSettings: `{}`,
+			wantErrSubstr:  "field settings.clients: expected JSON array",
+		},
+		{
+			name:           "clients_element_not_object",
+			settings:       `{"clients":[1]}`,
+			streamSettings: `{}`,
+			wantErrSubstr:  "field settings.clients[0]: expected JSON object",
+		},
+		{
+			name:           "external_proxy_missing_domain",
+			settings:       `{"clients":[]}`,
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":[{}]}}}`,
+			wantErrSubstr:  "domains[0].domain: expected non-empty string",
+		},
+		{
+			name:           "external_proxy_non_string_domain",
+			settings:       `{"clients":[]}`,
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":[{"domain":123}]}}}`,
+			wantErrSubstr:  "domains[0].domain: expected non-empty string",
+		},
+		{
+			name:           "external_proxy_empty_domain",
+			settings:       `{"clients":[]}`,
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":[{"domain":"  "}]}}}`,
+			wantErrSubstr:  "domains[0].domain: expected non-empty string",
+		},
+		{
+			name:           "external_proxy_domains_not_array",
+			settings:       `{"clients":[]}`,
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":"bad"}}}`,
+			wantErrSubstr:  "domains: expected JSON array",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dbDir := t.TempDir()
+			t.Setenv("XUI_DB_FOLDER", dbDir)
+			dbtest.InitDB(t, filepath.Join(dbDir, "x-ui.db"))
+			db := database.GetDB()
+
+			ib := &model.Inbound{
+				UserId:         1,
+				Tag:            "bad-" + tc.name,
+				Enable:         true,
+				Port:           32001,
+				Protocol:       model.VLESS,
+				Settings:       tc.settings,
+				StreamSettings: tc.streamSettings,
+			}
+			if err := db.Create(ib).Error; err != nil {
+				t.Fatalf("create inbound: %v", err)
+			}
+
+			err := (&InboundService{}).MigrationRequirements()
+			if err == nil {
+				t.Fatalf("expected contextual error for %s, got nil", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.wantErrSubstr) || !strings.Contains(err.Error(), "inbound ") {
+				t.Fatalf("unexpected error for %s: %v (want %q and inbound id)", tc.name, err, tc.wantErrSubstr)
+			}
+		})
+	}
+}
+
+func TestMigrateDBStrict_NilDBAndSemanticVsVacuumPolicy(t *testing.T) {
+	t.Run("closed_or_nil_db_returns_error", func(t *testing.T) {
+		_ = database.CloseDB()
+		err := (&InboundService{}).MigrateDBStrict()
+		if err == nil || (!strings.Contains(err.Error(), "not initialized") && !strings.Contains(err.Error(), "database is closed")) {
+			t.Fatalf("expected closed/nil db error, got %v", err)
+		}
+	})
+
+	t.Run("vacuum_failure_is_best_effort_and_preserves_valid_migration", func(t *testing.T) {
+		dbDir := t.TempDir()
+		t.Setenv("XUI_DB_FOLDER", dbDir)
+		dbtest.InitDB(t, filepath.Join(dbDir, "x-ui.db"))
+		db := database.GetDB()
+
+		ib := &model.Inbound{
+			UserId:         1,
+			Tag:            "0.0.0.0:33001-tcp",
+			Enable:         true,
+			Port:           33001,
+			Protocol:       model.VLESS,
+			Settings:       `{"clients":[{"email":"vac@example.com","id":"vac-uid-1","enable":true}]}`,
+			StreamSettings: `{}`,
+		}
+		if err := db.Create(ib).Error; err != nil {
+			t.Fatalf("create inbound: %v", err)
+		}
+
+		origHook := sqliteVacuumExecHook
+		t.Cleanup(func() { sqliteVacuumExecHook = origHook })
+		vacuumCalled := false
+		sqliteVacuumExecHook = func(*gorm.DB) error {
+			vacuumCalled = true
+			return errors.New("simulated disk full during VACUUM")
+		}
+
+		if err := (&InboundService{}).MigrateDBStrict(); err != nil {
+			t.Fatalf("MigrateDBStrict should succeed when only VACUUM fails, got %v", err)
+		}
+		if !vacuumCalled {
+			t.Fatal("expected vacuumSQLiteBestEffort to be invoked")
+		}
+
+		var refreshed model.Inbound
+		if err := db.First(&refreshed, ib.Id).Error; err != nil {
+			t.Fatalf("reload inbound: %v", err)
+		}
+		if !strings.Contains(refreshed.Settings, `"created_at"`) {
+			t.Fatalf("expected client settings migration committed despite VACUUM failure, got %q", refreshed.Settings)
+		}
+		var ct xray.ClientTraffic
+		if err := db.Where("email = ?", "vac@example.com").First(&ct).Error; err != nil {
+			t.Fatalf("expected client_traffics backfill committed despite VACUUM failure: %v", err)
+		}
+	})
+
+	t.Run("semantic_migration_failure_is_fatal", func(t *testing.T) {
+		dbDir := t.TempDir()
+		t.Setenv("XUI_DB_FOLDER", dbDir)
+		dbtest.InitDB(t, filepath.Join(dbDir, "x-ui.db"))
+		db := database.GetDB()
+
+		ib := &model.Inbound{
+			UserId:         1,
+			Tag:            "0.0.0.0:33002-tcp",
+			Enable:         true,
+			Port:           33002,
+			Protocol:       model.VLESS,
+			Settings:       `{"clients":[1]}`,
+			StreamSettings: `{}`,
+		}
+		if err := db.Create(ib).Error; err != nil {
+			t.Fatalf("create inbound: %v", err)
+		}
+
+		err := (&InboundService{}).MigrateDBStrict()
+		if err == nil || !strings.Contains(err.Error(), "MigrationRequirements:") {
+			t.Fatalf("expected fatal MigrationRequirements error, got %v", err)
+		}
+		var refreshed model.Inbound
+		if err := db.First(&refreshed, ib.Id).Error; err != nil {
+			t.Fatalf("reload inbound: %v", err)
+		}
+		if refreshed.Tag != "0.0.0.0:33002-tcp" {
+			t.Fatalf("partial migration should have rolled back, got tag %q", refreshed.Tag)
+		}
+	})
+}
+
+func TestMigrationRequirements_StreamSettingsValidationMatrix(t *testing.T) {
+	cases := []struct {
+		name              string
+		streamSettings    string
+		wantErr           bool
+		wantErrField      string
+		wantExternalProxy bool
+	}{
+		{
+			name:           "1_invalid_stream_settings_json",
+			streamSettings: `{malformed`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings: invalid JSON",
+		},
+		{
+			name:           "2_null_stream_settings",
+			streamSettings: `null`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings: expected JSON object",
+		},
+		{
+			name:           "3_tls_settings_string",
+			streamSettings: `{"security":"tls","tlsSettings":"not-an-object"}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings: expected JSON object",
+		},
+		{
+			name:           "4a_tls_inner_settings_array",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":["bad"]}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings: expected JSON object",
+		},
+		{
+			name:           "4b_tls_inner_settings_string",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":"bad"}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings: expected JSON object",
+		},
+		{
+			name:           "5_domains_not_array",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":{}}}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings.domains: expected JSON array",
+		},
+		{
+			name:           "6_domain_element_not_object",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":["example.com"]}}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings.domains[0]: expected JSON object",
+		},
+		{
+			name:           "7_domain_missing",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":[{}]}}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings.domains[0].domain: expected non-empty string",
+		},
+		{
+			name:           "8_domain_non_string",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":[{"domain":42}]}}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings.domains[0].domain: expected non-empty string",
+		},
+		{
+			name:           "9_domain_empty",
+			streamSettings: `{"security":"tls","tlsSettings":{"settings":{"domains":[{"domain":"  "}]}}}`,
+			wantErr:        true,
+			wantErrField:   "field streamSettings.tlsSettings.settings.domains[0].domain: expected non-empty string",
+		},
+		{
+			name:              "10_valid_tls_without_domains_skips_cleanly",
+			streamSettings:    `{"security":"tls","tlsSettings":{"settings":{}}}`,
+			wantErr:           false,
+			wantExternalProxy: false,
+		},
+		{
+			name:              "11_valid_tls_with_legacy_domains_migrates",
+			streamSettings:    `{"security":"tls","tlsSettings":{"settings":{"domains":[{"domain":"edge.example.com"}]}}}`,
+			wantErr:           false,
+			wantExternalProxy: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dbDir := t.TempDir()
+			t.Setenv("XUI_DB_FOLDER", dbDir)
+			dbtest.InitDB(t, filepath.Join(dbDir, "x-ui.db"))
+			db := database.GetDB()
+
+			ib := &model.Inbound{
+				UserId:         1,
+				Tag:            "stream-" + tc.name,
+				Enable:         true,
+				Port:           35001,
+				Protocol:       model.VLESS,
+				Settings:       `{"clients":[]}`,
+				StreamSettings: tc.streamSettings,
+			}
+			if err := db.Create(ib).Error; err != nil {
+				t.Fatalf("create inbound: %v", err)
+			}
+
+			err := (&InboundService{}).MigrationRequirements()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %s, got nil", tc.name)
+				}
+				if !strings.Contains(err.Error(), "inbound ") || !strings.Contains(err.Error(), tc.wantErrField) {
+					t.Fatalf("error %q missing inbound id or %q", err.Error(), tc.wantErrField)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for %s: %v", tc.name, err)
+			}
+			var refreshed model.Inbound
+			if err := db.First(&refreshed, ib.Id).Error; err != nil {
+				t.Fatalf("reload inbound: %v", err)
+			}
+			hasEP := strings.Contains(refreshed.StreamSettings, "externalProxy")
+			if hasEP != tc.wantExternalProxy {
+				t.Fatalf("hasExternalProxy=%v, want %v (stream=%q)", hasEP, tc.wantExternalProxy, refreshed.StreamSettings)
+			}
+		})
+	}
+}
+
+func TestMigrationRequirements_PanicRollsBackInternalTxAndRepanics(t *testing.T) {
+	dbDir := t.TempDir()
+	t.Setenv("XUI_DB_FOLDER", dbDir)
+	dbtest.InitDB(t, filepath.Join(dbDir, "x-ui.db"))
+	db := database.GetDB()
+
+	ib := &model.Inbound{
+		UserId:         1,
+		Tag:            "panic-tx-test",
+		Enable:         true,
+		Port:           36001,
+		Protocol:       model.VLESS,
+		Settings:       `{"clients":[{"email":"panic@example.com","id":"panic-uid-1","enable":true}]}`,
+		StreamSettings: `{}`,
+	}
+	if err := db.Create(ib).Error; err != nil {
+		t.Fatalf("create inbound: %v", err)
+	}
+
+	origHook := sqliteMigrationInTxHook
+	t.Cleanup(func() { sqliteMigrationInTxHook = origHook })
+	sqliteMigrationInTxHook = func() {
+		panic("injected mid-tx panic")
+	}
+
+	var recovered any
+	func() {
+		defer func() {
+			recovered = recover()
+		}()
+		_ = (&InboundService{}).MigrationRequirements()
+	}()
+	if recovered == nil {
+		t.Fatal("expected MigrationRequirements to re-panic after rolling back internal tx")
+	}
+
+	var refreshed model.Inbound
+	if err := db.First(&refreshed, ib.Id).Error; err != nil {
+		t.Fatalf("reload inbound: %v", err)
+	}
+	if strings.Contains(refreshed.Settings, `"created_at"`) {
+		t.Fatalf("partial migration committed despite panic! settings=%q", refreshed.Settings)
+	}
+}

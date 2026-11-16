@@ -587,7 +587,6 @@ func (t *Tgbot) startAddClientForInbound(chatID, userID int64, inboundID int) {
 // resetDraft clears the wizard back to its defaults for a fresh client.
 func (t *Tgbot) resetDraft(draft *clientDraft) {
 	draft.email = t.randomLowerAndNum(8)
-	draft.limitIP = 0
 	draft.totalGB = 0
 	draft.expiryTime = 0
 	draft.enable = true

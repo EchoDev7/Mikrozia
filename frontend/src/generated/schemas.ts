@@ -55,9 +55,6 @@ export const SCHEMAS: Record<string, unknown> = {
       "happLinkEnable": {
         "type": "boolean"
       },
-      "ipLimitAllowlist": {
-        "type": "string"
-      },
       "ldapAutoCreate": {
         "type": "boolean"
       },
@@ -600,7 +597,6 @@ export const SCHEMAS: Record<string, unknown> = {
       "externalTrafficInformEnable",
       "externalTrafficInformURI",
       "happLinkEnable",
-      "ipLimitAllowlist",
       "ldapAutoCreate",
       "ldapAutoDelete",
       "ldapBaseDN",
@@ -845,9 +841,6 @@ export const SCHEMAS: Record<string, unknown> = {
       },
       "hasWarpSecret": {
         "type": "boolean"
-      },
-      "ipLimitAllowlist": {
-        "type": "string"
       },
       "ldapAutoCreate": {
         "type": "boolean"
@@ -1399,7 +1392,6 @@ export const SCHEMAS: Record<string, unknown> = {
       "hasTgBotToken",
       "hasTwoFactorToken",
       "hasWarpSecret",
-      "ipLimitAllowlist",
       "ldapAutoCreate",
       "ldapAutoDelete",
       "ldapBaseDN",
@@ -1674,23 +1666,6 @@ export const SCHEMAS: Record<string, unknown> = {
       "id",
       "name",
       "scope"
-    ],
-    "type": "object"
-  },
-  "Blocker": {
-    "description": "Blocker is one unmet requirement.",
-    "properties": {
-      "code": {
-        "example": "tools",
-        "type": "string"
-      },
-      "detail": {
-        "example": "awg",
-        "type": "string"
-      }
-    },
-    "required": [
-      "code"
     ],
     "type": "object"
   },
@@ -4169,32 +4144,33 @@ export const SCHEMAS: Record<string, unknown> = {
     ],
     "type": "object"
   },
-  "PanelUpdateStatus": {
-    "description": "PanelUpdateStatus reports the outcome of the most recently launched panel\nself-update. RunID lets the caller confirm this status belongs to the\nupdate it started rather than a stale result left over from an earlier\nrun; State is one of \"pending\", \"success\", or \"failed\". RunID is a decimal\nstring, not a JSON number: it's a formatted UnixNano timestamp, and\nJavaScript's number type can't represent that precisely (it exceeds\nNumber.MAX_SAFE_INTEGER), which would let two different runs round to the\nsame value on the wire and defeat the whole point of this field.",
+  "PanelUpdateInfo": {
+    "description": "PanelUpdateInfo contains current panel version information for read-only display.",
     "properties": {
-      "exitCode": {
-        "example": 0,
-        "type": "integer"
-      },
-      "finishedAt": {
-        "example": 1735689612,
-        "format": "int64",
-        "type": "integer"
-      },
-      "runId": {
-        "example": "1735689600123456789",
+      "channel": {
         "type": "string"
       },
-      "state": {
-        "example": "success",
+      "currentCommit": {
         "type": "string"
+      },
+      "currentVersion": {
+        "type": "string"
+      },
+      "latestCommit": {
+        "type": "string"
+      },
+      "latestVersion": {
+        "type": "string"
+      },
+      "updateAvailable": {
+        "type": "boolean"
       }
     },
     "required": [
-      "exitCode",
-      "finishedAt",
-      "runId",
-      "state"
+      "channel",
+      "currentVersion",
+      "latestVersion",
+      "updateAvailable"
     ],
     "type": "object"
   },
@@ -4319,37 +4295,6 @@ export const SCHEMAS: Record<string, unknown> = {
       "xrayError",
       "xrayState",
       "xrayVersion"
-    ],
-    "type": "object"
-  },
-  "Readiness": {
-    "description": "Readiness is the host's ability to run any kernel-mode inbound at all.",
-    "properties": {
-      "blockers": {
-        "example": [
-          {
-            "code": "tools",
-            "detail": "awg"
-          }
-        ],
-        "items": {
-          "$ref": "#/components/schemas/Blocker"
-        },
-        "type": "array"
-      },
-      "installCommand": {
-        "example": "sudo /usr/local/x-ui/x-ui install-awg-kernel",
-        "type": "string"
-      },
-      "ready": {
-        "example": false,
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "blockers",
-      "installCommand",
-      "ready"
     ],
     "type": "object"
   },
@@ -4534,10 +4479,6 @@ export const SCHEMAS: Record<string, unknown> = {
       },
       "keepaliveTimeout": {
         "type": "string"
-      },
-      "kernelMode": {
-        "description": "KernelMode runs this inbound on the AmneziaWG kernel module (internal/amneziawgkern)\ninstead of the embedded amneziawg-go + gVisor stack.",
-        "type": "boolean"
       },
       "maxHandshakeAttempts": {
         "type": "string"

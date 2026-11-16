@@ -251,14 +251,20 @@ func (t *Tgbot) screenCommands(chatID int64, isAdmin bool) {
 // sendBackupScreen delivers the backup and summary as ONE message (file plus
 // caption); a summary too long for a caption is sent after the file.
 func (t *Tgbot) sendBackupScreen(chatID int64) {
-	dbData, err := t.serverService.GetDb()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	artifact, err := t.serverService.PrepareBackup(ctx, "")
+	if artifact != nil {
+		defer artifact.Cleanup()
+	}
 	if err != nil {
 		logger.Error("Error in getting db backup:", err)
 	}
 	summary := t.I18nBot("tgbot.messages.hostname", "Hostname=="+hostname)
 	summary += t.I18nBot("tgbot.messages.backupTime", "Time=="+time.Now().Format("2006-01-02 15:04:05"))
 
-	if dbData == nil {
+	if err != nil || artifact == nil {
 		t.sendNotice(chatID, summary)
 		return
 	}
@@ -266,7 +272,7 @@ func (t *Tgbot) sendBackupScreen(chatID int64) {
 	// carries the backup and what it is for.
 	body := summary + "\n\n" + t.depleteReport()
 	caption := trimCaption(body, botCaptionLimit)
-	if t.sendDocumentWithCaption(chatID, dbData, t.serverService.BackupFilename(""), caption) {
+	if t.sendBackupArtifactWithCaption(chatID, artifact, caption) {
 		// The generated config travels with the DB on both backup paths: an
 		// operator restoring from the file would otherwise lose it silently.
 		if config, err := os.ReadFile(xray.GetConfigPath()); err == nil {
@@ -280,14 +286,6 @@ func (t *Tgbot) sendBackupScreen(chatID int64) {
 	}
 	// The upload failed: the summary is still worth sending.
 	t.sendNotice(chatID, summary)
-}
-
-// screenBanLogs sends the ban log file as a notice, never as a screen.
-func (t *Tgbot) screenBanLogs(chatID int64) {
-	output := t.I18nBot("tgbot.messages.hostname", "Hostname=="+hostname)
-	output += t.I18nBot("tgbot.messages.datetime", "DateTime=="+time.Now().Format("2006-01-02 15:04:05"))
-	t.sendNotice(chatID, output)
-	t.sendBanLogsFile(chatID)
 }
 
 // sendNotice posts a plain bot message that is explicitly not a screen: it
@@ -312,27 +310,4 @@ func (t *Tgbot) sendNoticeReturningID(chatID int64, text string) int {
 		return 0
 	}
 	return sent.MessageID
-}
-
-// sendBanLogsFile delivers the banned-IP log as a notice with a hide button.
-func (t *Tgbot) sendBanLogsFile(chatID int64) {
-	file, err := os.Open(xray.GetIPLimitBannedPrevLogPath())
-	if err != nil {
-		t.sendNotice(chatID, t.I18nBot("tgbot.noResult"))
-		return
-	}
-	defer file.Close()
-	if liveBot() == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	_, err = liveBot().SendDocument(ctx, &telego.SendDocumentParams{
-		ChatID: tu.ID(chatID), MessageThreadID: adminTopic(chatID),
-		Document:    tu.File(file),
-		ReplyMarkup: t.hideButton(),
-	})
-	if err != nil {
-		logger.Warning("Failed to upload the ban log:", err)
-	}
 }

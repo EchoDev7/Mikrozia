@@ -4,8 +4,8 @@ import { Alert, Form, InputNumber, Segmented, Select, Switch } from 'antd';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 
 import { FormField } from '@/components/form/rhf';
+import { TcpCongestionField } from '@/components/xray/TcpCongestionField';
 import { SockoptCustomField } from '@/lib/xray/forms/fields';
-import { TCP_CONGESTION_OPTION } from '@/schemas/primitives';
 
 /* Transport key that carries its own acceptProxyProtocol field (mirrored
    alongside the sockopt-level one so the PROXY preset never silently no-ops). */
@@ -202,15 +202,10 @@ export default function SockoptForm({
           >
             <Switch />
           </FormField>
-          <FormField
+          <TcpCongestionField
             name={['streamSettings', 'sockopt', 'tcpcongestion']}
-            label={t('pages.inbounds.form.tcpCongestion')}
-          >
-            <Select
-              style={{ width: '50%' }}
-              options={Object.values(TCP_CONGESTION_OPTION).map((c) => ({ value: c, label: c }))}
-            />
-          </FormField>
+            style={{ width: '50%' }}
+          />
           <FormField name={['streamSettings', 'sockopt', 'tproxy']} label="TProxy">
             <Select
               style={{ width: '50%' }}

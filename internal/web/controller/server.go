@@ -3,12 +3,14 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/netsafe"
@@ -51,9 +53,7 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/xrayMetricsHistory/:metric/:bucket", a.getXrayMetricsHistoryBucket)
 	g.GET("/xrayObservatory", a.getXrayObservatory)
 	g.GET("/xrayObservatoryHistory/:tag/:bucket", a.getXrayObservatoryHistoryBucket)
-	g.GET("/getXrayVersion", a.getXrayVersion)
 	g.GET("/getPanelUpdateInfo", a.getPanelUpdateInfo)
-	g.GET("/getUpdateStatus", a.getUpdateStatus)
 	g.GET("/getConfigJson", a.getConfigJson)
 	g.GET("/getDb", a.getDb)
 	g.GET("/getMigration", a.getMigration)
@@ -65,15 +65,9 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/getNewmlkem768", a.getNewmlkem768)
 	g.GET("/getNewVlessEnc", a.getNewVlessEnc)
 	g.GET("/clientIps", a.getClientIps)
-	g.GET("/fail2banStatus", a.getFail2banStatus)
 
 	g.POST("/stopXrayService", a.stopXrayService)
 	g.POST("/restartXrayService", a.restartXrayService)
-	g.POST("/installXray/:version", a.installXray)
-	g.POST("/updatePanel", a.updatePanel)
-	g.POST("/setUpdateChannel", a.setUpdateChannel)
-	g.POST("/updateGeofile", a.updateGeofile)
-	g.POST("/updateGeofile/:fileName", a.updateGeofile)
 	g.POST("/logs/:count", a.getLogs)
 	g.POST("/xraylogs/:count", a.getXrayLogs)
 	g.POST("/amneziawglogs/:count", a.getAmneziaWGLogs)
@@ -109,10 +103,6 @@ func (a *ServerController) startTask() {
 
 // status returns the current server status information.
 func (a *ServerController) status(c *gin.Context) { jsonObj(c, a.serverService.CurrentStatus(), nil) }
-
-func (a *ServerController) getFail2banStatus(c *gin.Context) {
-	jsonObj(c, a.serverService.GetFail2banStatus(), nil)
-}
 
 func parseHistoryBucket(c *gin.Context) (int, bool) {
 	bucket, err := strconv.Atoi(c.Param("bucket"))
@@ -184,15 +174,6 @@ func (a *ServerController) getXrayObservatoryHistoryBucket(c *gin.Context) {
 	jsonObj(c, a.xrayMetricsService.AggregateObservatory(tag, bucket, 60), nil)
 }
 
-func (a *ServerController) getXrayVersion(c *gin.Context) {
-	versions, err := a.serverService.GetXrayVersionsCached()
-	if err != nil {
-		jsonMsg(c, I18nWeb(c, "getVersion"), err)
-		return
-	}
-	jsonObj(c, versions, nil)
-}
-
 // getPanelUpdateInfo retrieves the current and latest panel version.
 func (a *ServerController) getPanelUpdateInfo(c *gin.Context) {
 	info, err := a.panelService.GetUpdateInfo()
@@ -202,70 +183,6 @@ func (a *ServerController) getPanelUpdateInfo(c *gin.Context) {
 		return
 	}
 	jsonObj(c, info, nil)
-}
-
-// installXray installs or updates Xray to the specified version.
-func (a *ServerController) installXray(c *gin.Context) {
-	version := c.Param("version")
-	err := a.serverService.UpdateXray(version)
-	jsonMsg(c, I18nWeb(c, "pages.index.xraySwitchVersionPopover"), err)
-}
-
-// updatePanel starts a panel self-update. With no "dev" form value it follows
-// this panel's own channel setting; an explicit "dev" (sent by the master node
-// updater) overrides it for this run. The response's runId identifies this
-// update for a later getUpdateStatus poll.
-func (a *ServerController) updatePanel(c *gin.Context) {
-	devParam := c.PostForm("dev")
-	var runID int64
-	var err error
-	if devParam == "" {
-		runID, err = a.panelService.StartUpdate()
-	} else {
-		dev, perr := strconv.ParseBool(devParam)
-		if perr != nil {
-			jsonMsg(c, "invalid data", perr)
-			return
-		}
-		runID, err = a.panelService.StartUpdateChannel(dev)
-	}
-	var obj any
-	if err == nil {
-		obj = gin.H{"runId": strconv.FormatInt(runID, 10)}
-	}
-	jsonMsgObj(c, I18nWeb(c, "pages.index.panelUpdateStartedPopover"), obj, err)
-}
-
-// getUpdateStatus reports the outcome of the most recently launched panel
-// self-update (see updatePanel). Compare the returned runId against the one
-// updatePanel returned to tell this run's result apart from a stale one.
-func (a *ServerController) getUpdateStatus(c *gin.Context) {
-	jsonObj(c, a.panelService.GetUpdateStatus(), nil)
-}
-
-// setUpdateChannel toggles whether self-update tracks the rolling dev release.
-func (a *ServerController) setUpdateChannel(c *gin.Context) {
-	dev, err := strconv.ParseBool(c.PostForm("dev"))
-	if err != nil {
-		jsonMsg(c, "invalid data", err)
-		return
-	}
-	err = a.settingService.SetDevChannelEnable(dev)
-	jsonMsg(c, I18nWeb(c, "pages.index.updateChannelChanged"), err)
-}
-
-// updateGeofile updates the specified geo file for Xray.
-func (a *ServerController) updateGeofile(c *gin.Context) {
-	fileName := c.Param("fileName")
-
-	if fileName != "" && !a.serverService.IsValidGeofileName(fileName) {
-		jsonMsg(c, I18nWeb(c, "pages.index.geofileUpdatePopover"),
-			fmt.Errorf("invalid filename: contains unsafe characters or path traversal patterns"))
-		return
-	}
-
-	err := a.serverService.UpdateGeofile(fileName)
-	jsonMsg(c, I18nWeb(c, "pages.index.geofileUpdatePopover"), err)
 }
 
 // stopXrayService stops the Xray service.
@@ -302,9 +219,9 @@ func (a *ServerController) restartXrayService(c *gin.Context) {
 	)
 }
 
-// getLogs retrieves the application logs based on count, level, and syslog filters.
+// getLogs retrieves the application logs based on count and level filters.
 func (a *ServerController) getLogs(c *gin.Context) {
-	logs := a.serverService.GetLogs(c.Param("count"), c.PostForm("level"), c.PostForm("syslog"))
+	logs := a.serverService.GetLogs(c.Param("count"), c.PostForm("level"))
 	jsonObj(c, logs, nil)
 }
 
@@ -340,56 +257,86 @@ func (a *ServerController) getConfigJson(c *gin.Context) {
 	jsonObj(c, configJson, nil)
 }
 
-// getDb downloads the database file.
+// getDb downloads the database file by streaming from a prepared file-backed artifact.
 func (a *ServerController) getDb(c *gin.Context) {
-	db, err := a.serverService.GetDb()
+	artifact, err := a.serverService.PrepareBackup(c.Request.Context(), c.Request.Host)
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.index.getDatabaseError"), err)
 		return
 	}
-
-	filename := a.serverService.BackupFilename(c.Request.Host)
-	if !filenameRegex.MatchString(filename) {
-		_ = c.AbortWithError(http.StatusBadRequest, fmt.Errorf("invalid filename"))
-		return
-	}
-
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Disposition", "attachment; filename="+filename)
-	_, _ = c.Writer.Write(db)
+	defer artifact.Cleanup()
+	a.streamDatabaseArtifact(c, artifact)
 }
 
-// getMigration downloads a cross-engine migration file: a .dump on SQLite or a
-// .db SQLite database on PostgreSQL, so the data can seed the other backend.
+// getMigration downloads a cross-engine migration file by streaming from a
+// prepared file-backed artifact: a .dump on SQLite or a .db on PostgreSQL.
 func (a *ServerController) getMigration(c *gin.Context) {
-	data, filename, err := a.serverService.GetMigration()
+	artifact, err := a.serverService.PrepareMigration(c.Request.Context())
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.index.getDatabaseError"), err)
 		return
 	}
-	if !filenameRegex.MatchString(filename) {
+	defer artifact.Cleanup()
+	a.streamDatabaseArtifact(c, artifact)
+}
+
+func (a *ServerController) streamDatabaseArtifact(c *gin.Context, artifact *service.DatabaseArtifact) {
+	if !filenameRegex.MatchString(artifact.Filename) {
 		_ = c.AbortWithError(http.StatusBadRequest, fmt.Errorf("invalid filename"))
 		return
 	}
 
+	f, err := artifact.Open()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.index.getDatabaseError"), err)
+		return
+	}
+	defer f.Close()
+
 	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Disposition", "attachment; filename="+filename)
-	_, _ = c.Writer.Write(data)
+	c.Header("Content-Disposition", "attachment; filename="+artifact.Filename)
+	c.Header("Content-Length", strconv.FormatInt(artifact.Size, 10))
+	c.Status(http.StatusOK)
+	if _, copyErr := io.Copy(c.Writer, f); copyErr != nil {
+		logger.Warningf("database artifact stream interrupted: %v", copyErr)
+	}
 }
 
 // importDB imports a database file and restarts the Xray service.
 func (a *ServerController) importDB(c *gin.Context) {
-	file, _, err := c.Request.FormFile("db")
+	maxImportBytes, err := config.GetDBImportMaxBytes()
 	if err != nil {
-		jsonMsg(c, I18nWeb(c, "pages.index.readDatabaseError"), err)
+		c.JSON(http.StatusInternalServerError, entity.Msg{
+			Success: false,
+			Msg:     err.Error(),
+			Obj:     nil,
+		})
 		return
 	}
-	defer file.Close()
-	// Absent field keeps this machine's own listen addresses, certificates and
-	// node identity: the safe default for the common case of moving a config to
-	// a new host. Send keepHostSettings=false to clone a machine wholesale.
-	keepHostSettings := c.Request.FormValue("keepHostSettings") != "false"
-	if err := a.serverService.ImportDB(file, keepHostSettings); err != nil {
+
+	staged, err := service.StageImportMultipart(c.Request.Context(), c.Request, c.Writer, maxImportBytes)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrImportTooLarge):
+			c.JSON(http.StatusRequestEntityTooLarge, entity.Msg{
+				Success: false,
+				Msg:     err.Error(),
+				Obj:     nil,
+			})
+		case errors.Is(err, service.ErrImportBadRequest):
+			c.JSON(http.StatusBadRequest, entity.Msg{
+				Success: false,
+				Msg:     err.Error(),
+				Obj:     nil,
+			})
+		default:
+			jsonMsg(c, I18nWeb(c, "pages.index.readDatabaseError"), err)
+		}
+		return
+	}
+	defer staged.Cleanup()
+
+	if err := a.serverService.ImportDB(staged, staged.KeepHostSettings); err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.index.importDatabaseError"), err)
 		return
 	}

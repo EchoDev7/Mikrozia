@@ -83,7 +83,6 @@ type clientDraft struct {
 	receiverInboundID  int
 	receiverInboundIDs []int
 	email              string
-	limitIP            int
 	totalGB            int64
 	expiryTime         int64
 	enable             bool

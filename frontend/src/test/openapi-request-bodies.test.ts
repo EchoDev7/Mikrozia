@@ -55,6 +55,9 @@ describe('generated OpenAPI request bodies', () => {
     const logs = requestBody('/panel/api/server/logs/{count}');
     expect(logs.content).toHaveProperty('application/x-www-form-urlencoded');
     expect(logs.content['application/x-www-form-urlencoded'].schema.properties).toHaveProperty(
+      'level',
+    );
+    expect(logs.content['application/x-www-form-urlencoded'].schema.properties).not.toHaveProperty(
       'syslog',
     );
 
@@ -134,7 +137,5 @@ describe('generated OpenAPI request bodies', () => {
 
     const bulkAttach = requestBody('/panel/api/clients/bulkAttach').content['application/json'];
     expect(bulkAttach.schema.properties?.emails?.items).toEqual({ type: 'string' });
-
-    expect(paths['/panel/api/server/updateGeofile'].post).not.toHaveProperty('requestBody');
   });
 });

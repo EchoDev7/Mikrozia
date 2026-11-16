@@ -31,7 +31,7 @@ func TestIsClientSelfCallback(t *testing.T) {
 			t.Errorf("%q should be a per-user client callback", d)
 		}
 	}
-	denied := []string{"get_backup", "reset_all_traffics_c", "add_client", "onlines", "get_banlogs", "get_usage"}
+	denied := []string{"get_backup", "reset_all_traffics_c", "add_client", "onlines", "get_inbounds", "get_usage"}
 	for _, d := range denied {
 		if isClientSelfCallback(d) {
 			t.Errorf("%q is an admin-only callback and must not be treated as per-user", d)

@@ -4,54 +4,79 @@ description: Хранилища данных 3x-ui — SQLite (по умолча
 icon: Database
 ---
 
-3x-ui хранит всё — входящие подключения, клиентов, настройки — в базе данных.
-Бэкенд выбирается во время установки; оба являются полноценными.
+Mikrozia хранит всё — входящие подключения, клиентов, настройки — в базе данных.
+**SQLite** — бэкенд по умолчанию и путь для начинающих. **Внешний PostgreSQL** —
+опциональный расширенный вариант; Mikrozia не устанавливает и не запускает
+локальный сервер PostgreSQL внутри контейнера.
 
 ## SQLite (по умолчанию)
 
-Один файл по пути `/etc/x-ui/x-ui.db`. Никакой настройки не требуется, идеально
-подходит для небольших и средних развёртываний. Папку можно изменить с помощью
-[`XUI_DB_FOLDER`](/docs/reference/env-vars#database) (в Windows по умолчанию она
-располагается рядом с бинарным файлом).
+Один файл по пути `/etc/x-ui/x-ui.db` на постоянном монтировании `/etc/x-ui`.
+Никакой настройки не требуется. Папку можно изменить с помощью
+[`XUI_DB_FOLDER`](/docs/reference/env-vars#database).
 
-## PostgreSQL
+## Внешний PostgreSQL (для опытных)
 
-Рекомендуется при большом количестве клиентов или конфигурациях с несколькими
-узлами. Инсталлятор может установить PostgreSQL локально за вас либо принять DSN
-к уже существующему серверу. Во время выполнения бэкенд выбирается через
-переменные окружения, которые инсталлятор записывает в `/etc/default/x-ui`:
+Подходит для крупных или многоузловых установок с внешним сервером PostgreSQL
+(версии **15–18**; PostgreSQL 19+ не поддерживается для резервного копирования
+через `pg_dump` до выхода образа Mikrozia с совместимым клиентом).
 
-```bash title="/etc/default/x-ui"
-XUI_DB_TYPE=postgres
-XUI_DB_DSN=postgres://xui:password@127.0.0.1:5432/xui?sslmode=disable
+Настройте переменные через `/container/envs` в RouterOS в формате **URI** (`postgres://` или `postgresql://`) или **Keyword/Value** (`host=... port=... user=... password=... dbname=...`):
+
+```text
+/container/envs/add list=mikrozia-env key=XUI_DB_TYPE value="postgres"
+/container/envs/add list=mikrozia-env key=XUI_DB_DSN value="postgres://xui:<CHANGE_ME_PASSWORD>@db.example.internal:5432/xui?sslmode=verify-full&sslrootcert=/root/cert/pg-ca.crt"
 ```
+
+### TLS, учётные данные и ограниченные таймауты
+
+- **Сертификаты TLS:** размещайте CA и клиентские сертификаты в постоянном монтировании `/root/cert`. Рекомендуемый безопасный режим — `sslmode=verify-full`; SAN сертификата должен совпадать с хостом в `XUI_DB_DSN`.
+- **Без `PGPASSWORD` и утечек пароля:** Mikrozia никогда не выводит пароли в CLI или логи, а `PGPASSWORD` не поддерживается. Для `pg_dump` / `pg_restore` создаётся временный файл `PGPASSFILE` с правами `0600`, который удаляется после завершения, ошибки или таймаута.
+- **Ограниченные операции:** повторные попытки подключения при запуске ограничены общим дедлайном (75 с, до 10 с на попытку), а внешние утилиты имеют строгие таймауты (`pg_restore --list` / `--version`: 15 с, `pg_dump`: 10 мин, `pg_restore`: 15 мин).
+- **Точная привязка к схеме:** перед запуском `pg_dump` или `pg_restore` Mikrozia определяет живую схему, выбранную через `search_path` для основных таблиц (`users`, `settings`, `inbounds`), на одном закреплённом соединении и строго ограничивает утилиты этой схемой (`--strict-names`, `--schema=...`); разделение основных таблиц по разным схемам или попадание в системные схемы отклоняется.
+
+Для смены бэкенда пересоздайте контейнер с новым `envlist` и теми же постоянными
+монтированиями (`/etc/x-ui` и `/root/cert`). Не редактируйте `/etc/conf.d/x-ui`.
 
 Настройте пул соединений с помощью `XUI_DB_MAX_OPEN_CONNS` и
 `XUI_DB_MAX_IDLE_CONNS`.
 
-### Docker
+<Callout type="info">
+  Официальный образ включает `pg_dump` и `pg_restore` (клиент PostgreSQL 18) на
+  этапе сборки. В runtime нет `apk add`, `apt install` или `x-ui pgclient` —
+  для обновления клиентских утилит обновите образ Mikrozia.
+</Callout>
 
-`docker compose up -d` продолжает использовать SQLite. Чтобы запустить со
-встроенным сервисом PostgreSQL, раскомментируйте две строки `XUI_DB_*` в
-`docker-compose.yml` и запустите с профилем:
+### Проверка на реальном PostgreSQL 18
 
-```bash
-docker compose --profile postgres up -d
-```
+Текущий набор тестов выполняется на реальном сервере PostgreSQL 18 с клиентскими утилитами PostgreSQL 18 и покрывает инициализацию подключения по URI и Keyword/Value DSN, определение канонической схемы (включая идентификаторы схем в верхнем регистре, с пробелом, точкой и двойной кавычкой), экспорт из PostgreSQL в SQLite, проверенный снимок перед импортом, точный откат после фиксации и оба режима `keepHostSettings`. Это не меняет поддерживаемый диапазон версий сервера, указанный выше.
+
+Разрушающие импорты сначала создают проверенный снимок и при ошибке выполняют точный откат; см. [Резервное копирование и восстановление](/docs/operations/backup-restore#postgresql-backup-and-import-safety).
+
+### Локальная разработка (`docker-compose.yml`)
+
+`docker-compose.yml` предназначен **только для локальной разработки и тестов**,
+а не для установки на RouterOS Container.
 
 ## Миграция SQLite → PostgreSQL
 
-Перенесите существующую установку SQLite на PostgreSQL встроенной командой:
+<Callout type="warn">
+  Запуск `x-ui migrate-db` напрямую по живому, активно изменяемому файлу SQLite
+  **не рекомендуется**, так как shell не останавливает контейнер панели и
+  параллельная запись может нарушить целостность снимка. Сначала снимите
+  согласованный бэкап/снимок SQLite (например, через резервную копию панели или
+  при остановленном контейнере на RouterOS) и выполните миграцию с `--src`.
+</Callout>
+
+Перенесите снимок SQLite во внешний PostgreSQL встроенной командой:
 
 ```bash
-x-ui migrate-db --dsn "postgres://xui:password@127.0.0.1:5432/xui?sslmode=disable"
+x-ui migrate-db --src /etc/x-ui/x-ui-snapshot.db --dsn "postgres://xui:<CHANGE_ME_PASSWORD>@db.example.internal:5432/xui?sslmode=verify-full&sslrootcert=/root/cert/pg-ca.crt"
 ```
 
-Затем задайте `XUI_DB_TYPE` и `XUI_DB_DSN` в `/etc/default/x-ui` и перезапустите:
-
-```bash
-systemctl restart x-ui
-```
+Затем задайте `XUI_DB_TYPE` и `XUI_DB_DSN` в RouterOS `/container/envs` и
+пересоздайте/замените контейнер с теми же постоянными монтированиями (`/etc/x-ui`
+и `/root/cert`).
 
 <Callout type="info">
   Исходный файл SQLite остаётся нетронутым — удаляйте его вручную только после

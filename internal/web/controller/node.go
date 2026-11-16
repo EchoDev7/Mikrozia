@@ -40,7 +40,6 @@ func (a *NodeController) initRouter(g *gin.RouterGroup) {
 	g.POST("/certFingerprint", a.certFingerprint)
 	g.POST("/inbounds", a.inbounds)
 	g.POST("/probe/:id", a.probe)
-	g.POST("/updatePanel", a.updatePanel)
 	g.GET("/history/:id/:metric/:bucket", a.history)
 	g.POST("/mtls/ca", a.mtlsCa)
 	g.POST("/mtls/trustCA", a.setMtlsTrustCA)
@@ -330,23 +329,6 @@ func (a *NodeController) probe(c *gin.Context) {
 		return
 	}
 	jsonObj(c, patch.ToUI(probeErr == nil), nil)
-}
-
-func (a *NodeController) updatePanel(c *gin.Context) {
-	var req struct {
-		Ids []int `json:"ids"`
-		Dev bool  `json:"dev"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
-		return
-	}
-	if len(req.Ids) == 0 {
-		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), fmt.Errorf("no nodes selected"))
-		return
-	}
-	results, err := a.nodeService.UpdatePanels(req.Ids, req.Dev)
-	jsonMsgObj(c, I18nWeb(c, "pages.nodes.toasts.updateStarted"), results, err)
 }
 
 func (a *NodeController) history(c *gin.Context) {

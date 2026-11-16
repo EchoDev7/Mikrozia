@@ -10,8 +10,8 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
 )
 
-// install.sh replaces the credentials only while this reports true, and before
-// the first start a database holds no user at all.
+// First-run provisioning replaces the credentials only while this reports true,
+// and before the first start a database holds no user at all.
 func TestHasDefaultCredential(t *testing.T) {
 	hash := func(t *testing.T, password string) string {
 		t.Helper()

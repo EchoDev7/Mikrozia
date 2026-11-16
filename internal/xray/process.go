@@ -51,21 +51,6 @@ func GetGeoipPath() string {
 	return config.GetBinFolderPath() + "/geoip.dat"
 }
 
-// GetIPLimitLogPath returns the path to the IP limit log file.
-func GetIPLimitLogPath() string {
-	return config.GetLogFolder() + "/3xipl.log"
-}
-
-// GetIPLimitBannedLogPath returns the path to the banned IP log file.
-func GetIPLimitBannedLogPath() string {
-	return config.GetLogFolder() + "/3xipl-banned.log"
-}
-
-// GetIPLimitBannedPrevLogPath returns the path to the previous banned IP log file.
-func GetIPLimitBannedPrevLogPath() string {
-	return config.GetLogFolder() + "/3xipl-banned.prev.log"
-}
-
 func getLogPath(key string) (string, error) {
 	config, err := os.ReadFile(GetConfigPath())
 	if err != nil {

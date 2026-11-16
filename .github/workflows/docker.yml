@@ -1,17 +1,19 @@
 name: Publish Mikrozia Container
 
+# The only supported Mikrozia production release: a versioned RouterOS OCI
+# image. A release is a tag (or an explicit dispatch of the canonical version);
+# merges to main never publish. Every published architecture is built, started,
+# and checked against the RouterOS runtime contract before the manifest push.
+
 on:
   push:
-    branches:
-      - main
     tags:
+      - "v*-mikrozia"
       - "v*.*.*-mikrozia.*"
-    paths:
-      - MIKROZIA_VERSION
   workflow_dispatch:
     inputs:
       version:
-        description: "Docker tag, for example v3.11.0-mikrozia.4"
+        description: "Docker tag, for example v1-mikrozia"
         required: true
         type: string
 
@@ -24,6 +26,8 @@ concurrency:
 
 env:
   IMAGE_NAME: majlot/mikrozia
+  # Must stay in sync with the smoke matrix below and with the docs/tests.
+  SUPPORTED_PLATFORMS: "linux/amd64,linux/arm64/v8,linux/arm/v7"
 
 jobs:
   validate:
@@ -31,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.version.outputs.release_tag }}
+      xray_version: ${{ steps.xray_version.outputs.xray_version }}
+      mtg_version: ${{ steps.mtg_version.outputs.mtg_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -41,95 +47,191 @@ jobs:
         env:
           DISPATCH_VERSION: ${{ inputs.version }}
         run: |
+          canonical_version="$(sh scripts/build/verify-mikrozia-version.sh --canonical-only)"
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             release_tag="${DISPATCH_VERSION}"
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_tag="${GITHUB_REF_NAME}"
           else
-            release_tag="$(tr -d '[:space:]' < MIKROZIA_VERSION)"
+            echo "Mikrozia releases are published from version tags or workflow_dispatch only." >&2
+            exit 1
+          fi
+          if [[ "${release_tag}" != "${canonical_version}" ]]; then
+            echo "Release tag '${release_tag}' does not match canonical MIKROZIA_VERSION '${canonical_version}'." >&2
+            exit 1
           fi
           echo "RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Validate release tag
         shell: bash
+        run: sh scripts/build/verify-mikrozia-version.sh "$RELEASE_TAG" > /dev/null
+
+      - name: Resolve and validate Xray version
+        id: xray_version
+        shell: bash
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-mikrozia\.[0-9]+$ ]]; then
-            echo "Invalid release tag: $RELEASE_TAG" >&2
-            echo "Expected format: v3.11.0-mikrozia.4" >&2
+          xray_version="$(tr -d '[:space:]' < XRAY_VERSION)"
+          if [[ ! "$xray_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid XRAY_VERSION: $xray_version" >&2
+            echo "Expected format: vMAJOR.MINOR.PATCH (e.g. v26.10.21)" >&2
             exit 1
           fi
+          echo "XRAY_VERSION=${xray_version}" >> "$GITHUB_ENV"
+          echo "xray_version=${xray_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve and validate MTG version
+        id: mtg_version
+        shell: bash
+        run: |
+          mtg_version="$(tr -d '[:space:]' < MTG_VERSION)"
+          if [[ ! "$mtg_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid MTG_VERSION: $mtg_version" >&2
+            echo "Expected format: vMAJOR.MINOR.PATCH (e.g. v1.16.1)" >&2
+            exit 1
+          fi
+          echo "MTG_VERSION=${mtg_version}" >> "$GITHUB_ENV"
+          echo "mtg_version=${mtg_version}" >> "$GITHUB_OUTPUT"
 
       - name: Run Mikrozia compatibility tests
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Validate shell syntax
         run: |
-          sh -n DockerEntrypoint.sh
+          bash -n DockerEntrypoint.sh
           sh -n DockerInit.sh
+          sh -n scripts/build/verify-xray-checksum.sh
+          sh -n scripts/build/verify-mtg-checksum.sh
+          sh -n scripts/build/verify-geo-checksum.sh
+          sh -n scripts/build/verify-mikrozia-version.sh
           bash -n x-ui.sh
 
-      - name: Assert firewall-free RouterOS installers
+      - name: Assert firewall-free runtime image
         shell: bash
         run: |
-          if grep -R '/ip/firewall' scripts/routeros scripts/generator; then
-            echo "RouterOS installer/generator must not manage firewall or NAT." >&2
-            exit 1
-          fi
           if grep -E -i '\b(iptables|ip6tables|nftables|ufw|fail2ban)\b' DockerEntrypoint.sh Dockerfile x-ui.sh; then
             echo "The MikroTik container image must not include firewall-management tooling or commands." >&2
             exit 1
           fi
 
-  smoke-amd64:
-    name: Build and smoke-test linux/amd64
+  smoke:
+    name: Build and smoke-test ${{ matrix.platform }}
     needs: validate
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            xray_bin: xray-linux-amd64
+            mtg_bin: mtg-linux-amd64
+            integration: true
+          - platform: linux/arm64/v8
+            arch: arm64
+            xray_bin: xray-linux-arm64
+            mtg_bin: mtg-linux-arm64
+            integration: false
+          - platform: linux/arm/v7
+            arch: armv7
+            xray_bin: xray-linux-arm32
+            mtg_bin: mtg-linux-arm
+            integration: false
     env:
       RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      XRAY_VERSION: ${{ needs.validate.outputs.xray_version }}
+      MTG_VERSION: ${{ needs.validate.outputs.mtg_version }}
+      SMOKE_IMAGE: mikrozia-smoke:${{ needs.validate.outputs.release_tag }}-${{ matrix.arch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Set up QEMU
+        if: matrix.arch != 'amd64'
+        uses: docker/setup-qemu-action@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build local amd64 image
+      - name: Build local ${{ matrix.platform }} image
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           load: true
           push: false
-          tags: mikrozia-smoke:${{ env.RELEASE_TAG }}
+          tags: ${{ env.SMOKE_IMAGE }}
           build-args: |
             MIKROZIA_VERSION=${{ env.RELEASE_TAG }}
+            XRAY_VERSION=${{ env.XRAY_VERSION }}
+            MTG_VERSION=${{ env.MTG_VERSION }}
 
       - name: Verify RouterOS runtime contract
         shell: bash
         run: |
-          docker image inspect "mikrozia-smoke:$RELEASE_TAG"
-          docker run --rm --entrypoint /bin/sh "mikrozia-smoke:$RELEASE_TAG" -ec '
+          set -euo pipefail
+          image="$SMOKE_IMAGE"
+          platform="${{ matrix.platform }}"
+          docker image inspect "$image" >/dev/null
+          actual_mikrozia_ver=$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
+          test "$actual_mikrozia_ver" = "$RELEASE_TAG"
+          runtime_mikrozia_ver=$(docker run --rm --platform "$platform" --entrypoint /app/x-ui "$image" -v)
+          test "$runtime_mikrozia_ver" = "$RELEASE_TAG"
+          actual_xray_ver=$(docker inspect --format '{{ index .Config.Labels "io.mikrozia.xray.version" }}' "$image")
+          test "$actual_xray_ver" = "$XRAY_VERSION"
+          actual_mtg_ver=$(docker inspect --format '{{ index .Config.Labels "io.mikrozia.mtg.version" }}' "$image")
+          test "$actual_mtg_ver" = "$MTG_VERSION"
+          xray_no_v="${XRAY_VERSION#v}"
+          xray_out=$(docker run --rm --platform "$platform" --entrypoint "/app/bin/${{ matrix.xray_bin }}" "$image" version)
+          echo "$xray_out"
+          echo "$xray_out" | grep -Fq "Xray ${xray_no_v}"
+          mtg_no_v="${MTG_VERSION#v}"
+          mtg_out=$(docker run --rm --platform "$platform" --entrypoint "/app/bin/${{ matrix.mtg_bin }}" "$image" --version)
+          echo "$mtg_out"
+          echo "$mtg_out" | grep -Fq "${mtg_no_v}"
+          docker run --rm --platform "$platform" --entrypoint /bin/sh "$image" -ec '
             test -x /app/x-ui
             test -x /app/DockerEntrypoint.sh
-            test -x /app/bin/xray-linux-amd64
+            test -x /app/bin/${{ matrix.xray_bin }}
+            test -x /app/bin/${{ matrix.mtg_bin }}
+            test -f /app/bin/geoip.dat
+            test -f /app/bin/geosite.dat
+            test -f /app/bin/geoip_IR.dat
+            test -f /app/bin/geosite_IR.dat
+            test -f /app/bin/geoip_RU.dat
+            test -f /app/bin/geosite_RU.dat
+            test -f /app/GEO_DATA_SOURCES
+            while read -r geo_file geo_url geo_sha; do
+              case "$geo_file" in "" | "#"*) continue ;; esac
+              printf "%s  %s\n" "$geo_sha" "/app/bin/$geo_file" | sha256sum -c -
+            done < /app/GEO_DATA_SOURCES
+            test ! -e /app/update.sh
+            test ! -e /app/verify-xray-checksum.sh
+            test ! -e /app/scripts/build/verify-xray-checksum.sh
+            test ! -e /app/verify-mtg-checksum.sh
+            test ! -e /app/scripts/build/verify-mtg-checksum.sh
             test -d /etc/x-ui
             test -d /root/cert
             test "$XUI_IN_DOCKER" = true
             test "$HOME" = /root
+            ! grep -Fq "/server/getXrayVersion" /app/x-ui
+            ! grep -Fq "/server/installXray" /app/x-ui
           '
 
-      - name: Run image integration tests
+      - name: Run image integration tests (amd64)
+        if: matrix.integration
         env:
-          MIKROZIA_TEST_IMAGE: mikrozia-smoke:${{ env.RELEASE_TAG }}
+          MIKROZIA_TEST_IMAGE: ${{ env.SMOKE_IMAGE }}
         run: python3 -m unittest tests.test_first_login_and_credentials
 
   publish:
     name: Publish multi-architecture image
-    needs: [validate, smoke-amd64]
+    needs: [validate, smoke]
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      XRAY_VERSION: ${{ needs.validate.outputs.xray_version }}
+      MTG_VERSION: ${{ needs.validate.outputs.mtg_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -158,8 +260,10 @@ jobs:
             org.opencontainers.image.title=Mikrozia
             org.opencontainers.image.description=3x-ui adapted for MikroTik RouterOS containers
             org.opencontainers.image.version=${{ env.RELEASE_TAG }}
+            io.mikrozia.xray.version=${{ env.XRAY_VERSION }}
+            io.mikrozia.mtg.version=${{ env.MTG_VERSION }}
 
-      - name: Build and push RouterOS-supported architectures
+      - name: Build and push smoke-tested RouterOS architectures
         id: build
         uses: docker/build-push-action@v7
         with:
@@ -167,11 +271,13 @@ jobs:
           push: true
           provenance: mode=max
           sbom: true
-          platforms: linux/amd64,linux/arm64/v8,linux/arm/v7
+          platforms: ${{ env.SUPPORTED_PLATFORMS }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             MIKROZIA_VERSION=${{ env.RELEASE_TAG }}
+            XRAY_VERSION=${{ env.XRAY_VERSION }}
+            MTG_VERSION=${{ env.MTG_VERSION }}
 
       - name: Write release summary
         run: |
@@ -179,6 +285,8 @@ jobs:
             echo "## Published Mikrozia"
             echo ""
             echo "- Image: \`$IMAGE_NAME:$RELEASE_TAG\`"
-            echo "- Architectures: linux/amd64, linux/arm64/v8, linux/arm/v7"
+            echo "- Xray Version: \`$XRAY_VERSION\`"
+            echo "- MTG Version: \`$MTG_VERSION\`"
+            echo "- Architectures (each smoke-tested before publish): \`$SUPPORTED_PLATFORMS\`"
             echo "- Digest: \`${{ steps.build.outputs.digest }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

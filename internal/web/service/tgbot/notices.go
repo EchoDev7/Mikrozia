@@ -1,12 +1,15 @@
 package tgbot
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
 
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -129,17 +132,26 @@ func (t *Tgbot) dropNoticeFor(chatID int64, msgID int) {
 	}
 }
 
-// sendDocumentWithCaption uploads a file with its summary as caption: a document
-// cannot hold a screen, so one message does the work of two.
+// sendDocumentWithCaption uploads a small in-memory file (such as config.json)
+// with its summary as caption.
 func (t *Tgbot) sendDocumentWithCaption(chatID int64, data []byte, name, caption string) bool {
-	if liveBot() == nil || data == nil {
+	if data == nil {
+		return false
+	}
+	return t.sendDocumentReaderWithCaption(chatID, bytes.NewReader(data), name, caption)
+}
+
+// sendDocumentReaderWithCaption streams a file from reader with its summary as
+// caption: a document cannot hold a screen, so one message does the work of two.
+func (t *Tgbot) sendDocumentReaderWithCaption(chatID int64, reader io.Reader, name, caption string) bool {
+	if liveBot() == nil || reader == nil || strings.TrimSpace(name) == "" {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	_, err := liveBot().SendDocument(ctx, &telego.SendDocumentParams{
 		ChatID: tu.ID(chatID), MessageThreadID: adminTopic(chatID),
-		Document:    tu.FileFromBytes(data, name),
+		Document:    tu.FileFromReader(reader, name),
 		Caption:     caption,
 		ParseMode:   "HTML",
 		ReplyMarkup: t.hideButton(),
@@ -149,6 +161,21 @@ func (t *Tgbot) sendDocumentWithCaption(chatID int64, data []byte, name, caption
 		return false
 	}
 	return true
+}
+
+// sendBackupArtifactWithCaption opens artifact for reading, streams it to
+// Telegram with artifact.Filename, and closes the file handle on return.
+func (t *Tgbot) sendBackupArtifactWithCaption(chatID int64, artifact *service.DatabaseArtifact, caption string) bool {
+	if artifact == nil {
+		return false
+	}
+	f, err := artifact.Open()
+	if err != nil {
+		logger.Warning("Failed to open backup artifact:", err)
+		return false
+	}
+	defer func() { _ = f.Close() }()
+	return t.sendDocumentReaderWithCaption(chatID, f, artifact.Filename, caption)
 }
 
 // trimCaption cuts a summary down to what a caption can carry, on a line break

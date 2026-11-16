@@ -91,19 +91,21 @@ func TestRemoteSendsPlainWhenNoCap(t *testing.T) {
 	}
 }
 
-// TestRemoteRefusesKernelAmneziaWGOnNodeWithoutCap: an older node drops the
-// kernelMode flag and silently runs the inbound on the embedded datapath.
-func TestRemoteRefusesKernelAmneziaWGOnNodeWithoutCap(t *testing.T) {
+// TestRemoteAmneziaWGCompatibility verifies that nodes without any awg-kernel
+// capability accept normal userspace AmneziaWG inbounds while legacy
+// kernelMode=true payloads are rejected cleanly before reaching the wire.
+func TestRemoteAmneziaWGCompatibility(t *testing.T) {
+	trueFlag := true
+	falseFlag := false
 	cases := []struct {
 		name       string
 		caps       string
-		kernel     bool
+		kernelFlag *bool
 		wantRefuse bool
 	}{
-		{"old node, kernel inbound", wirecodec.CapZstd, true, true},
-		{"node without any caps, kernel inbound", "", true, true},
-		{"kernel-capable node, kernel inbound", wirecodec.NodeCaps, true, false},
-		{"old node, embedded inbound", wirecodec.CapZstd, false, false},
+		{"old node without awg-kernel cap accepts userspace inbound", wirecodec.CapZstd, nil, false},
+		{"old node without caps accepts legacy kernelMode false", "", &falseFlag, false},
+		{"node refuses legacy kernelMode true", wirecodec.NodeCaps, &trueFlag, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -121,8 +123,8 @@ func TestRemoteRefusesKernelAmneziaWGOnNodeWithoutCap(t *testing.T) {
 			defer srv.Close()
 
 			r := NewRemote(nodeForPlainServer(t, srv, "verify", "tok"), nil)
-			err := r.AddInbound(context.Background(), datapathInbound(t, 1, 51820, tc.kernel))
-			if refused := err != nil && strings.Contains(err.Error(), "does not support AmneziaWG kernel mode"); refused != tc.wantRefuse {
+			err := r.AddInbound(context.Background(), datapathInbound(t, 1, 51820, tc.kernelFlag))
+			if refused := err != nil && strings.Contains(err.Error(), "kernel mode is not supported"); refused != tc.wantRefuse {
 				t.Fatalf("refused = %v (err %v), want %v", refused, err, tc.wantRefuse)
 			}
 			if pushed == tc.wantRefuse {

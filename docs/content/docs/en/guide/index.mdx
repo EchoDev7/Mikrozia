@@ -1,24 +1,25 @@
 ---
-title: Meet 3x-ui
-description: A web panel for Xray-core — manage inbounds, protocols, clients, and subscriptions from your browser instead of editing JSON by hand.
+title: Meet Mikrozia
+description: A RouterOS Container product built on the 3x-ui panel and Xray-core — manage inbounds, protocols, clients, and subscriptions from your browser.
 icon: Info
 ---
 
-**3x-ui** is a web control panel that sits on top of
-[Xray-core](https://github.com/XTLS/Xray-core), the proxy engine that actually
-moves your traffic. Instead of writing and reloading Xray's JSON configuration
-by hand, you manage everything — inbounds, protocols, clients, certificates,
-subscriptions — from a browser dashboard.
+**Mikrozia** is a web control panel for
+[Xray-core](https://github.com/XTLS/Xray-core) packaged as an immutable
+MikroTik RouterOS Container image. Instead of writing and reloading Xray's JSON
+configuration by hand, you manage everything — inbounds, protocols, clients,
+certificates, subscriptions — from a browser dashboard.
 
 ## How the pieces fit together
 
 <Mermaid
   chart={`
 flowchart LR
-  Admin["Admin browser"] -->|HTTPS panel| Panel["3x-ui panel"]
-  Panel -->|writes config, reloads| Xray["Xray-core"]
-  Panel --- DB[("SQLite or PostgreSQL")]
-  Clients["Client apps"] -->|VLESS / VMess / Trojan / ...| Xray
+  Admin["Admin browser"] -->|panel port| ROS["RouterOS network policy (user-managed)"]
+  ROS -->|container address| Panel["Mikrozia panel (container)"]
+  Panel -->|writes config, reloads| Xray["Xray-core (same image)"]
+  Panel --- DB[("SQLite or external PostgreSQL")]
+  Clients["Client apps"] -->|VLESS / VMess / Trojan / ...| ROS
   Xray -->|proxied traffic| Internet["Internet"]
 `}
 />
@@ -30,42 +31,54 @@ flowchart LR
   **inbounds** and forwards traffic to its destination.
 - **Client apps** (such as v2rayNG, Clash/Mihomo, Hiddify, and others) connect
   using a share link or a subscription that the panel generates for each client.
+- **RouterOS** owns the container runtime, the network path, and all firewall,
+  NAT, and routing policy.
 
 ## What it gives you
 
 - A dashboard for **inbounds** across every major protocol — VLESS, VMess,
-  Trojan, Shadowsocks, WireGuard, AmneziaWG, TUIC v5, Hysteria2, SOCKS, HTTP, and Dokodemo-door.
+  Trojan, Shadowsocks, WireGuard, AmneziaWG (userspace), TUIC v5, Hysteria2,
+  SOCKS, HTTP, and Dokodemo-door.
 - First-class **REALITY** and **XTLS-Vision** support for stealthy, fast
   transports.
-- **Per-client** traffic quotas, expiry dates, IP limits, online status, and
+- **Per-client** traffic quotas, expiry dates, IP logging, online status, and
   one-click share links / QR codes.
 - **Subscriptions** in VLESS, Clash/Mihomo, and JSON formats.
 - Operational tooling: **multi-node** management, **Telegram and Discord bots**, backups,
-  Fail2ban-based IP limiting, and a documented REST API.
+  and a documented REST API.
+
+## What it is not
+
+- Not a Linux VPS or systemd service; there is no host installer, distro
+  package, tarball, Windows build, or Docker Compose production path.
+- Not a firewall, NAT, port-forwarding, or access-control manager.
+- Not a certificate authority or ACME client; certificates are mounted by path.
+- Not self-updating: panel, Xray, sidecars, and Geo data change only by replacing
+  the image.
 
 ## Under the hood
 
-| Layer        | Technology                                   |
-| ------------ | -------------------------------------------- |
-| Backend      | Go with the Gin web framework                |
-| Frontend     | TypeScript / React                           |
-| Database     | SQLite (default) or PostgreSQL               |
-| Proxy engine | Xray-core (bundled and managed by the panel) |
+| Layer        | Technology |
+| ------------ | ---------- |
+| Platform     | MikroTik RouterOS Container (CHR x86_64 reference) |
+| Backend      | Go with the Gin web framework |
+| Frontend     | TypeScript / React |
+| Database     | SQLite on `/etc/x-ui` (default) or external PostgreSQL |
+| Proxy engine | Xray-core (bundled in the image) |
 
 The default SQLite database lives at `/etc/x-ui/x-ui.db`, and the panel listens
-on port **2053** by default. Both are configurable — see
+on port **2053** inside the container. Both are configurable — see
 [First login](/docs/guide/first-login) and the environment variable reference.
 
 ## Who it's for
 
-3x-ui is aimed at anyone running their own Xray server: from a single personal
-VPS to operators managing many nodes and clients. If you want the power of
-Xray-core without living in JSON config files, this is for you.
+Mikrozia is for RouterOS operators who want an Xray panel without giving up
+RouterOS ownership of the network. If you need a systemd VPS install, use
+upstream [3x-ui](https://github.com/MHSanaei/3x-ui) instead.
 
 <Callout type="info">
-  3x-ui is an enhanced fork of the original X-UI project, adding broader protocol
-  support, improved stability, per-client traffic accounting, multi-node
-  management, and many quality-of-life features.
+  Mikrozia is derived from 3x-ui, an enhanced fork of the original X-UI project.
+  The upstream project and its GPL-3.0 license are preserved and credited.
 </Callout>
 
 Ready to install? Continue to [Installation](/docs/guide/installation).

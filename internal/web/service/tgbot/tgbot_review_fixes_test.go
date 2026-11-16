@@ -243,7 +243,7 @@ func TestUsageGivesAClientNoAdminButtons(t *testing.T) {
 	}
 	markup, _ := json.Marshal(sc.markup)
 	for _, action := range []string{
-		"reset_traffic", "limit_traffic", "ip_limit", "ip_log",
+		"reset_traffic", "limit_traffic", "ip_log",
 		"toggle_enable", "tg_user", "reset_exp", "client_invite_link",
 	} {
 		if strings.Contains(string(markup), action) {

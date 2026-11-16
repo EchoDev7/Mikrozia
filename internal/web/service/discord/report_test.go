@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,25 +16,45 @@ import (
 )
 
 type mockServerProvider struct {
-	status   *service.Status
-	dbData   []byte
-	dbErr    error
-	filename string
+	status       *service.Status
+	dbData       []byte
+	dbErr        error
+	filename     string
+	prepareCalls int
+	cleanedUp    int
+	tempDir      string
 }
 
 func (m *mockServerProvider) GetStatus(lastStatus *service.Status) *service.Status {
 	return m.status
 }
 
-func (m *mockServerProvider) GetDb() ([]byte, error) {
-	return m.dbData, m.dbErr
-}
-
-func (m *mockServerProvider) BackupFilename(requestHost string) string {
-	if m.filename != "" {
-		return m.filename
+func (m *mockServerProvider) PrepareBackup(ctx context.Context, requestHost string) (*service.DatabaseArtifact, error) {
+	m.prepareCalls++
+	if m.dbErr != nil {
+		return nil, m.dbErr
 	}
-	return "x-ui_test.db"
+	dir := m.tempDir
+	if dir == "" {
+		var err error
+		dir, err = os.MkdirTemp("", "discord-mock-backup-*")
+		if err != nil {
+			return nil, err
+		}
+	}
+	path := filepath.Join(dir, "backup.db")
+	if err := os.WriteFile(path, m.dbData, 0o600); err != nil {
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
+	name := m.filename
+	if name == "" {
+		name = "x-ui_test.db"
+	}
+	return service.NewDatabaseArtifact(path, name, "sqlite", int64(len(m.dbData)), func() {
+		m.cleanedUp++
+		_ = os.RemoveAll(dir)
+	}), nil
 }
 
 type mockInboundProvider struct {
@@ -81,7 +103,7 @@ func TestBuildReport_NoBackup(t *testing.T) {
 	}
 
 	svc := NewDiscordService(settingService)
-	payload, files, err := svc.BuildReport(context.Background(), mockServer, mockInbound)
+	payload, err := svc.BuildReport(context.Background(), mockServer, mockInbound)
 	if err != nil {
 		t.Fatalf("BuildReport failed: %v", err)
 	}
@@ -93,8 +115,8 @@ func TestBuildReport_NoBackup(t *testing.T) {
 	if embed.Color != ColorBlue {
 		t.Errorf("expected ColorBlue, got %X", embed.Color)
 	}
-	if len(files) != 0 {
-		t.Errorf("expected 0 files when backup is disabled, got %d", len(files))
+	if mockServer.prepareCalls != 0 {
+		t.Errorf("expected BuildReport not to call PrepareBackup, got %d", mockServer.prepareCalls)
 	}
 
 	foundHost, foundUptime, foundXray := false, false, false
@@ -133,19 +155,65 @@ func TestBuildReport_WithBackup(t *testing.T) {
 	}
 
 	svc := NewDiscordService(settingService)
-	_, files, err := svc.BuildReport(context.Background(), mockServer, nil)
+	payload, err := svc.BuildReport(context.Background(), mockServer, nil)
 	if err != nil {
 		t.Fatalf("BuildReport failed: %v", err)
 	}
+	if len(payload.Embeds) != 1 {
+		t.Fatalf("expected 1 embed, got %d", len(payload.Embeds))
+	}
+	if mockServer.prepareCalls != 0 {
+		t.Errorf("expected BuildReport not to hold open backup handles, got prepareCalls=%d", mockServer.prepareCalls)
+	}
+}
 
-	if len(files) == 0 {
-		t.Fatal("expected at least 1 backup file, got 0")
+func TestSendReport_BackupHTTP413StillDeliversReportAndCleansUp(t *testing.T) {
+	settingService := setupTestDB(t)
+	_ = settingService.SetDiscordBotToken("test-token")
+	_ = settingService.SetDiscordChannelId("998877")
+	_ = settingService.SetDiscordBotBackup(true)
+
+	var gotReportEmbed bool
+	var gotMultipartUpload bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ct := r.Header.Get("Content-Type")
+		if strings.HasPrefix(ct, "multipart/form-data;") {
+			gotMultipartUpload = true
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			_, _ = w.Write([]byte(`{"message":"Request entity too large"}`))
+			return
+		}
+		gotReportEmbed = true
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"report-msg"}`))
+	}))
+	defer server.Close()
+
+	mockServer := &mockServerProvider{
+		status:   &service.Status{Uptime: 3600},
+		dbData:   []byte("sqlite-backup-payload"),
+		filename: "x-ui_backup.db",
 	}
-	if files[0].Filename != "x-ui_backup.db" {
-		t.Errorf("expected filename 'x-ui_backup.db', got %q", files[0].Filename)
+
+	svc := NewDiscordService(settingService)
+	svc.SetBaseURL(server.URL)
+	svc.SetHTTPClient(server.Client())
+
+	err := svc.SendReport(context.Background(), mockServer, nil)
+	if err == nil {
+		t.Fatal("expected SendReport to return HTTP 413 error from backup upload")
 	}
-	if string(files[0].Data) != "test-db-content" {
-		t.Errorf("expected db content 'test-db-content', got %q", string(files[0].Data))
+	if !gotReportEmbed {
+		t.Fatal("expected status report embed to be delivered before backup upload")
+	}
+	if !gotMultipartUpload {
+		t.Fatal("expected backup multipart upload to be attempted")
+	}
+	if mockServer.prepareCalls != 1 {
+		t.Fatalf("prepareCalls = %d, want 1", mockServer.prepareCalls)
+	}
+	if mockServer.cleanedUp != 1 {
+		t.Fatalf("cleanedUp = %d, want 1", mockServer.cleanedUp)
 	}
 }
 
@@ -242,7 +310,7 @@ func TestBuildReportShowsUnavailableUptime(t *testing.T) {
 			}
 			server := &mockServerProvider{status: status}
 			svc := NewDiscordService(settings)
-			report, _, err := svc.BuildReport(context.Background(), server, nil)
+			report, err := svc.BuildReport(context.Background(), server, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,25 +1,30 @@
 ---
 title: FAQ
-description: Frequently asked questions about 3x-ui — licensing, supported systems, databases, and clients.
+description: Frequently asked questions about Mikrozia on MikroTik RouterOS Container — licensing, supported platform, databases, updates, and support.
 icon: CircleQuestionMark
 ---
 
-## Is 3x-ui free and open source?
+## Is Mikrozia free and open source?
 
-Yes. 3x-ui is open source under the GPL-3.0 license. The source is on
-[GitHub](https://github.com/MHSanaei/3x-ui).
+Yes. Mikrozia is released under GPL-3.0 and preserves the copyright and
+attribution of its upstream project, [3x-ui](https://github.com/MHSanaei/3x-ui).
 
-## What systems does it run on?
+## What platform does it run on?
 
-Most major Linux distributions (Ubuntu, Debian, CentOS/RHEL and derivatives,
-Fedora, Arch, Alpine, and more) across `amd64`, `arm64`, and other architectures.
-It also runs as a Docker container. See [Installation](/docs/guide/installation).
+MikroTik **RouterOS Container**, RouterOS `7.25+` with the matching Container
+package. CHR x86_64 is the reference environment. Published images are
+`linux/amd64`, `linux/arm64/v8`, and `linux/arm/v7`. Mikrozia does not run on a
+systemd VPS, from a tarball, on Windows, or as a Docker Compose production
+stack.
 
 ## SQLite or PostgreSQL?
 
-SQLite is the default and is fine for most deployments. PostgreSQL is available
-for larger setups via `XUI_DB_TYPE=postgres` and `XUI_DB_DSN` — see the
-[environment variables](/docs/reference/env-vars).
+SQLite is the default and is fine for most deployments; the database lives on the
+persistent `/etc/x-ui` mount. External PostgreSQL is optional and configured
+through RouterOS `/container/envs` (`XUI_DB_TYPE=postgres` and `XUI_DB_DSN`) —
+see the [environment variables](/docs/reference/env-vars) and
+[database](/docs/reference/database) references. Mikrozia never installs a
+PostgreSQL server inside the container.
 
 ## Which client apps work with it?
 
@@ -27,21 +32,36 @@ Any Xray-compatible client — for example v2rayNG, Hiddify, and Clash/Mihomo.
 Import a client's share link or QR code, or use a
 [subscription](/docs/config/subscription).
 
-## How is 3x-ui different from x-ui?
+## Does Mikrozia manage firewall or NAT?
 
-3x-ui is an enhanced fork of the original X-UI project. It adds broader protocol
-support, improved stability, per-client traffic accounting, multi-node
-management, a 14-language UI, and many quality-of-life features.
+No. Firewall, NAT, masquerade, port-forwarding, routing policy, address lists,
+and access control are user-managed in RouterOS. Mikrozia only documents the
+ports it listens on inside the container. See
+[Ports & firewall](/docs/reference/ports-firewall).
+
+## Does it issue or renew TLS certificates?
+
+No. Certificates are user-managed: obtain and renew them outside the container,
+place the files on the persistent `/root/cert` mount, and configure their paths
+in the panel. See [TLS certificates](/docs/config/ssl-certificates).
 
 ## How do I update?
 
-Re-run the install script (it updates in place), or pull the new Docker image.
-See [Installation](/docs/guide/installation) and the
-[releases page](https://github.com/MHSanaei/3x-ui/releases).
+Replace the container image. Pull the new versioned tag from Docker Hub
+`majlot/mikrozia`, recreate the container with the same `/etc/x-ui` and
+`/root/cert` mounts, and keep the previous image until the new one is verified.
+There is no in-container panel, Xray, Geo, or software updater. See
+[Update & uninstall](/docs/guide/update-uninstall).
+
+## How is Mikrozia different from 3x-ui?
+
+Mikrozia is built for RouterOS Container from the 3x-ui code base: immutable
+images, no systemd, no host-firewall management, no runtime software updates,
+and RouterOS-owned network policy. Upstream 3x-ui remains the historical source
+and is credited as required by the license.
 
 ## Where can I get help?
 
-Join the official Telegram channel [@XrayUI](https://t.me/XrayUI) for
-announcements and community support, or open an issue on
-[GitHub](https://github.com/MHSanaei/3x-ui/issues). For common problems, start
-with [Troubleshooting](/docs/help/troubleshooting).
+Start with [Troubleshooting](/docs/help/troubleshooting). When reporting a
+problem, include the RouterOS version, the Mikrozia image tag, container status,
+and the relevant container log lines — never private keys or passwords.

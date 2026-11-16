@@ -78,7 +78,6 @@ export interface InboundInfoModalProps {
   clientIndex?: number;
   expireDiff?: number;
   trafficDiff?: number;
-  ipLimitEnable?: boolean;
   tgBotEnable?: boolean;
   nodeAddress?: string;
   subSettings?: SubSettings;

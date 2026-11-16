@@ -1,162 +1,85 @@
 ---
-title: SSL 证书
-description: 为 3x-ui 面板和入站获取并续期 TLS 证书——可使用 x-ui 的 ACME 菜单（域名或裸 IP）、Cloudflare DNS-01 通配符，或手动 Certbot。
+title: TLS 证书
+description: 为 Mikrozia 面板和入站提供并轮换 TLS 证书。Mikrozia 不会在容器内部签发或续期证书。
 icon: ShieldCheck
 ---
 
-TLS 证书让你能够通过 HTTPS 提供**面板**服务（这样你的登录和 API
-流量都会被加密），并在**入站**上终止 TLS（VLESS-TLS、Trojan、
-Shadowsocks-TLS 等等）。获取证书有三种方式：
-
-- **`x-ui` 菜单**——内置的 [ACME](https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment)
-  客户端。对于单个域名或裸 IP 来说最为简单。
-- **Cloudflare DNS-01**——同样在菜单中提供；适用于**通配符**证书，或者
-  当 80 端口被封锁 / 服务器位于 Cloudflare 代理之后时。
-- **手动 Certbot**——如果你更愿意自己管理 `acme.sh`/Certbot。
-
-<Callout type="info">
-  如果你将面板置于 Nginx 或 Caddy 之后，可以改为让反向代理来处理
-  证书——参见[反向代理](/docs/operations/reverse-proxy)。
-  [REALITY](/docs/config/reality) 入站**完全不需要**证书；它们
-  借用真实站点的 TLS。本页面针对的是面板和传统的 TLS 入站。
-</Callout>
-
-## `x-ui` SSL 菜单（Let's Encrypt）
-
-运行 `x-ui` 并选择 **`20` — SSL Certificate Management**。它会调用
-[acme.sh](https://github.com/acmesh-official/acme.sh)，并提供以下功能：
-
-| 选项                           | 作用                                                                |
-| ------------------------------ | ------------------------------------------------------------------- |
-| Get SSL (Domain)               | 通过 HTTP 验证为域名签发证书。                                       |
-| Get SSL for IP Address         | 为**裸 IP** 签发短期（6 天、自动续期）证书。                         |
-| Revoke                         | 吊销现有证书。                                                       |
-| Force Renew                    | 在到期前立即续期。                                                   |
-| Show Existing Domains          | 列出服务器上已有的证书。                                             |
-| Set Cert paths for the panel   | 将面板的 TLS 指向已签发的证书（自动为你填写相关字段）。             |
-
-### 为域名签发证书
-
-<Steps>
-
-<Step>
-### 将域名指向服务器
-
-为你的域名创建一条 `A`（和/或 `AAAA`）记录，解析到该
-服务器的公网 IP。在 DNS 完成传播之前，验证将会失败。
-</Step>
-
-<Step>
-### 腾出 80 端口
-
-HTTP 验证需要 **80 端口**可从互联网访问且未被占用。请在验证期间
-停止任何绑定该端口的程序，并在[防火墙](/docs/reference/ports-firewall)中放行它。
-</Step>
-
-<Step>
-### 运行签发程序
-
-`x-ui` → `20` → **Get SSL (Domain)**，然后输入域名。acme.sh 会请求
-证书，并将其保存在 `/root/cert/<domain>/` 目录下，文件名为 `fullchain.pem`
-（证书链）和 `privkey.pem`（私钥）。
-</Step>
-
-<Step>
-### 接入面板
-
-选择 **Set Cert paths for the panel** 来填写 `webCertFile` 和
-`webKeyFile` 并重启面板，或者在
-[面板设置](/docs/config/panel#tls)中自行设置。两项都设置完成后，面板便会
-立即提供 HTTPS 服务。
-</Step>
-
-</Steps>
-
-### 为裸 IP 签发证书
-
-没有域名？选择 **Get SSL for IP Address** 来获取一个绑定到服务器 IP 的
-短期证书（有效期约 6 天，自动续期）。
-在你设置好域名之前，这对于通过 HTTPS 访问面板很有用。
-
-## Cloudflare（DNS-01 通配符）
-
-DNS 验证通过创建 TXT 记录来证明你对域名的控制权，而无需在 80 端口上
-作出应答——因此它能在 **Cloudflare 代理之后**、在 80 端口被封锁的
-服务器上，以及为**通配符**证书（`*.example.com`）正常工作。
-
-你的域名 DNS 必须由 Cloudflare 托管，并且你需要具备以下两者之一：
-
-- 一个具有 `Zone:DNS:Edit` 权限的**受限范围 API 令牌**（推荐），或
-- 你的账户**邮箱 + Global API Key**。
-
-<Steps>
-
-<Step>
-### 创建受限范围 API 令牌
-
-在 Cloudflare 控制台中进入 **My Profile → API Tokens →
-[Create Token](https://dash.cloudflare.com/profile/api-tokens)**，选择
-**Edit zone DNS** 模板，将其范围限定到你要签发证书的区域，然后创建
-它。复制该令牌——它只会显示一次。
-</Step>
-
-<Step>
-### 运行 Cloudflare 签发程序
-
-`x-ui` → **`21` — Cloudflare SSL Certificate**。当提示时，选择 **`t`** 使用
-API 令牌（默认），或选择 **`g`** 使用 Global API Key，然后输入你的
-域名（如果使用 Global API Key，还需输入你的账户邮箱和密钥）。acme.sh 会创建
-TXT 记录、完成验证，并在之后将其清理。
-</Step>
-
-<Step>
-### 将面板指向证书
-
-与域名流程一样，使用 **Set Cert paths for the panel**（菜单 `20`）或在
-[面板设置](/docs/config/panel#tls)中设置
-`webCertFile` / `webKeyFile`。
-</Step>
-
-</Steps>
-
-<Callout type="info">
-  请优先使用受限范围令牌而非 Global API Key——它只授予对你所选区域的
-  DNS 编辑权限，因此即使泄露也无法波及你 Cloudflare 账户的其余部分。
-</Callout>
-
-## 手动（Certbot）
-
-如果你不想使用菜单，可以用 Certbot 的 standalone 插件来签发证书
-（同样需要 80 端口空闲，且域名已解析到服务器）：
-
-```bash
-apt-get install certbot -y
-certbot certonly --standalone --agree-tos --register-unsafely-without-email -d yourdomain.com
-certbot renew --dry-run
-```
-
-Certbot 会将证书写入 `/etc/letsencrypt/live/yourdomain.com/`
-（`fullchain.pem` 和 `privkey.pem`）。在[面板设置](/docs/config/panel#tls)中
-将面板指向这两个文件，并设置好续期——`certbot renew`
-默认会在 systemd 定时器上运行。
-
-## 使用证书
-
-- **面板**——在[面板设置](/docs/config/panel#tls)中设置 `webCertFile`（完整证书链）
-  和 `webKeyFile`（私钥）。两项都必须设置，面板才会
-  切换到 HTTPS。菜单选项 **`11` — View Current Settings** 会打印
-  当前正在使用的路径。
-- **入站**——当你在某个入站上启用 TLS 时，在该入站的 TLS
-  设置中引用相同的证书和密钥文件（或粘贴其内容）。参见
-  [入站](/docs/config/inbounds)和
-  [传输](/docs/config/transports)。
+TLS 证书让你通过 HTTPS 提供**面板**服务（加密登录和 API 流量），并在**入站**
+（VLESS-TLS、Trojan、Shadowsocks-TLS 等）上终止 TLS。Mikrozia 只**读取**你提供
+的证书文件，不会在容器内运行 ACME 客户端、certbot 或任何其他证书签发工具。
 
 <Callout type="warn">
-  证书会过期（Let's Encrypt：90 天；IP 证书：约 6 天）。菜单和
-  Certbot 都会自动续期，但面板始终读取固定路径下的**文件**——
-  因此请**原地**续期，而不要移动文件，这样面板会在下次重启时
-  自动加载新证书。**Force Renew**（菜单 `20`）可
-  按需触发一次续期。
+  证书的获取和续期由**用户自行管理**。Mikrozia 从不在运行时下载或安装证书工具，
+  也从不创建或修改 RouterOS 的防火墙、NAT 或端口转发规则。如果你的验证方式需要
+  公网端口，请自行在 RouterOS 中配置相应访问。
+</Callout>
+
+## 在容器外获取证书
+
+在你控制的宿主机上，按证书颁发机构提供的签发和续期流程操作，然后把生成的文件
+复制到路由器的持久证书存储。不要在 Mikrozia 容器内安装软件包或运行证书安装程序。
+
+证书及其私钥通常是两个文件：
+
+- `fullchain.pem` — 证书及中间证书链。
+- `privkey.pem` — 私钥。请妥善保密，切勿放入镜像、支持包或日志。
+
+## 放到持久证书挂载目录
+
+在 `/root/cert`（RouterOS 证书挂载在容器内的路径）下为每份证书创建一个目录：
+
+```text
+/root/cert/vpn.example.com/fullchain.pem
+/root/cert/vpn.example.com/privkey.pem
+```
+
+配置面板前，两个文件都必须已存在于最终路径。该目录是持久挂载，因此证书在替换
+容器镜像和回滚后仍会保留。
+
+## 让面板使用这些文件
+
+任选一种等效方式：
+
+- 运行 `x-ui`，选择 **`14` — TLS Certificate Paths**，然后选择 **`2` — Set
+  certificate paths for the panel**。
+- 或直接运行命令：
+
+  ```bash
+  x-ui cert -webCert /root/cert/vpn.example.com/fullchain.pem \
+    -webCertKey /root/cert/vpn.example.com/privkey.pem
+  x-ui restart
+  ```
+
+- 或在[面板设置](/docs/config/panel#tls)中设置 `webCertFile` 和
+  `webKeyFile`。
+
+只有**两个**路径都已设置且两个文件都可读时，面板才会切换到 HTTPS。要清除它们，
+请运行 `x-ui cert -reset`。
+
+## 在入站中使用证书
+
+为入站启用 TLS 时，在入站的 TLS 设置中引用相同的证书和密钥路径（或粘贴其
+内容）。参见[入站](/docs/config/inbounds)和[传输](/docs/config/transports)。
+[REALITY](/docs/config/reality) 入站**不需要**证书，它们借用真实站点的 TLS。
+
+## 续期与轮换
+
+续期在容器外按你管理的时间表进行。当证书颁发机构签发新证书后，覆盖相同的
+`fullchain.pem` 和 `privkey.pem` 文件，使面板中保存的路径继续有效，然后重载
+面板：
+
+```bash
+x-ui restart
+```
+
+`x-ui restart` 会重载面板的 Web 和订阅服务，并重启运行中容器内的 Xray。容器内
+没有续期守护进程或 cron 任务，也不会自动获取任何证书。
+
+如果证书移动到其他路径，请通过菜单 `14` 或 `x-ui cert` 再次更新面板设置。
+
+<Callout type="info">
+  证书会过期。请使用外部签发工具监控有效期，并在到期前替换已挂载的文件；面板会
+  持续从配置的路径读取文件。
 </Callout>
 
 ## 后续步骤
@@ -165,16 +88,16 @@ Certbot 会将证书写入 `/etc/letsencrypt/live/yourdomain.com/`
   <Card
     title="面板设置"
     href="/docs/config/panel#tls"
-    description="webCertFile / webKeyFile 以及其余的 Web 服务器设置。"
+    description="webCertFile / webKeyFile 以及其余 Web 服务器设置。"
   />
   <Card
     title="反向代理"
     href="/docs/operations/reverse-proxy"
-    description="改为让 Nginx 或 Caddy 替你终止 TLS。"
+    description="在容器外终止 TLS。"
   />
   <Card
     title="REALITY"
     href="/docs/config/reality"
-    description="面向入站的隐身 TLS——无需任何证书。"
+    description="入站的隐蔽 TLS——无需证书。"
   />
 </Cards>

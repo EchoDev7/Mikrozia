@@ -49,25 +49,21 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: install-method
+  - type: input
+    id: routeros-version
     attributes:
-      label: How did you install 3x-ui?
-      options:
-        - install.sh script
-        - Docker / Docker Compose
-        - Manual build from source
-        - Other
+      label: RouterOS version
+      placeholder: 7.25.1
     validations:
       required: true
 
   - type: input
-    id: os
+    id: device
     attributes:
-      label: Operating system
-      placeholder: Ubuntu 24.04 / Debian 12 / CentOS Stream 9 …
+      label: RouterOS device or architecture
+      placeholder: CHR x86_64 / ARM64 / ARM v7
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: screenshots

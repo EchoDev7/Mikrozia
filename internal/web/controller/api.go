@@ -48,14 +48,9 @@ func (a *APIController) checkAPIAuth(c *gin.Context) {
 			matchedScope = row.Scope
 		}
 	}
-	// Verified mTLS keeps its historical node-sync identity. Only an explicit
-	// node-admin bearer elevates it to software-update authority.
+	// Verified mTLS maintains node-sync identity.
 	if c.Request.TLS != nil && len(c.Request.TLS.VerifiedChains) > 0 {
-		scope := model.ApiScopeNodeSync
-		if matchedScope == model.ApiScopeNodeAdmin {
-			scope = model.ApiScopeNodeAdmin
-		}
-		setAuthenticated(scope)
+		setAuthenticated(model.ApiScopeNodeSync)
 		c.Next()
 		return
 	}
@@ -89,7 +84,6 @@ var monitorScopeAllow = map[string]struct{}{
 	"/server/xrayMetricsHistory/:metric/:bucket":  {},
 	"/server/xrayObservatory":                     {},
 	"/server/xrayObservatoryHistory/:tag/:bucket": {},
-	"/server/getXrayVersion":                      {},
 	"/server/getPanelUpdateInfo":                  {},
 	"/nodes/history/:id/:metric/:bucket":          {},
 }
@@ -122,10 +116,6 @@ var nodeSyncScopeAllow = map[string]map[string]struct{}{
 	"/server/clientIps":            {http.MethodGet: {}, http.MethodPost: {}},
 	"/clients/clientIpsByGuid":     {http.MethodPost: {}},
 	"/hosts/list":                  {http.MethodGet: {}},
-}
-
-var nodeAdminScopeAllow = map[string]map[string]struct{}{
-	"/server/updatePanel": {http.MethodPost: {}},
 }
 
 func scopeAllows(allow map[string]map[string]struct{}, path, method string) bool {
@@ -165,11 +155,6 @@ func (a *APIController) enforceTokenScope(c *gin.Context) {
 		}
 	case model.ApiScopeNodeSync:
 		if scopeAllows(nodeSyncScopeAllow, rel, c.Request.Method) {
-			c.Next()
-			return
-		}
-	case model.ApiScopeNodeAdmin:
-		if scopeAllows(nodeSyncScopeAllow, rel, c.Request.Method) || scopeAllows(nodeAdminScopeAllow, rel, c.Request.Method) {
 			c.Next()
 			return
 		}

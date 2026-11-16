@@ -1,7 +1,9 @@
+[فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
+
 # Mikrozia — 3x-ui for MikroTik RouterOS Container
 
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-majlot%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/majlot/mikrozia)
-[![Release](https://img.shields.io/badge/release-v3.11.0--mikrozia.4-green.svg)](https://hub.docker.com/r/majlot/mikrozia/tags)
+[![Release](https://img.shields.io/badge/release-v1--mikrozia-green.svg)](https://hub.docker.com/r/majlot/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -16,9 +18,8 @@ Mikrozia بسته‌ای از 3x-ui و Xray است که برای محدودیت�
 این پروژه موارد زیر را فراهم می‌کند:
 
 - Image چندمعماری قابل دریافت از Docker Hub؛
-- مسیرهای پایدار دیتابیس، Certificate و ACME state؛
+- مسیرهای پایدار دیتابیس و گواهی TLS (تهیه و تمدید گواهی بر عهدهٔ کاربر است)؛
 - EntryPoint سازگار با RootFS موقت Container؛
-- Cron تمدید Certificate؛
 - حذف کامل ابزارها و دستورات Firewall از Image کانتینری؛
 - اسکریپت‌های Container-only برای نصب و حذف؛
 - Preflight و Generator تشخیص معماری، RAM، Storage و تداخل شبکه؛
@@ -29,7 +30,7 @@ Mikrozia هیچ Rule مربوط به Firewall، NAT، Port Forward، Masquerade 
 ## نسخه فعلی
 
 ```text
-majlot/mikrozia:v3.11.0-mikrozia.4
+majlot/mikrozia:v1-mikrozia
 ```
 
 معماری‌های انتشار:
@@ -37,6 +38,8 @@ majlot/mikrozia:v3.11.0-mikrozia.4
 - `linux/amd64` برای CHR؛
 - `linux/arm64/v8`؛
 - `linux/arm/v7`.
+
+این سه معماری در CI برای همان Platform ساخته، اجرا و با قرارداد Runtime (نسخه‌ها، Mountها، Geo و نبود ابزار Firewall) بررسی می‌شوند. CHR x86_64 محیط مرجع و مسیر نصب مبتدی است؛ اعتبارسنجی نهایی روی سخت‌افزار RouterBOARD بخشی از ماتریس آزمون فاز ۱ است.
 
 برای محیط Production از Tag نسخه‌دار استفاده کنید، نه `latest`.
 
@@ -53,39 +56,76 @@ majlot/mikrozia:v3.11.0-mikrozia.4
 
 1. RouterOS و بسته Container هم‌نسخه را نصب کنید.
 2. Device Mode را فعال و CHR را Cold Reboot کنید.
-3. فایل زیر را با WinBox آپلود کنید:
+3. دستورهای زیر را به ترتیب در Terminal RouterOS یا WinBox اجرا کنید.
 
-```text
-scripts/routeros/mikrozia-clean-room-deploy.rsc
-```
+> این مسیر با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا است. پذیرش روی
+> CHR تمیز برای P1-CHR-01 هنوز کامل نشده است؛ پیش از Production کل مسیر را روی
+> یک CHR موقت آزمایش کنید. این مستند ادعای پذیرش واقعی CHR ندارد.
 
-4. Import کنید:
+اگر `172.16.10.0/24`، نام Bridge/VETH یا مسیر ذخیره‌سازی پیش‌فرض آزاد نیست،
+مقادیر را در همهٔ دستورها یکسان تغییر دهید. اشیای Mikrozia با
+`[Mikrozia:container]` علامت‌گذاری می‌شوند.
+
+ساخت پوشه‌های پایدار و موقت:
 
 ```routeros
-/import file-name=mikrozia-clean-room-deploy.rsc verbose=yes
+/file/add name=containers type=directory
+/file/add name=containers/mikrozia type=directory
+/file/add name=containers/mikrozia/data type=directory
+/file/add name=containers/mikrozia/cert type=directory
+/file/add name=containers/mikrozia/tmp type=directory
 ```
 
-5. Extract را دنبال کنید:
+اگر پوشه‌ای از قبل وجود دارد، خط `/file/add` آن را اجرا نکنید. پوشهٔ Root نسخه‌دار
+را RouterOS هنگام Extract می‌سازد.
+
+ساخت Bridge و VETH:
+
+```routeros
+/interface/bridge/add name=br-mikrozia comment="[Mikrozia:container] Bridge"
+/ip/address/add address=172.16.10.1/24 interface=br-mikrozia comment="[Mikrozia:container] Gateway"
+/interface/veth/add name=veth-mikrozia address=172.16.10.2/24 gateway=172.16.10.1 comment="[Mikrozia:container] VETH"
+/interface/bridge/port/add bridge=br-mikrozia interface=veth-mikrozia comment="[Mikrozia:container] Bridge Port"
+```
+
+Mountهای پایدار و متغیرهای محیطی:
+
+```routeros
+/container/mounts/add list=MIKROZIA_DATA src=containers/mikrozia/data dst="/etc/x-ui" comment="[Mikrozia:container] Data Mount"
+/container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
+/container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+```
+
+تنظیم Registry و ساخت Container با Image نسخه‌دار:
+
+```routeros
+/container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
+/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+```
+
+Monitor استخراج:
 
 ```routeros
 /container/print detail
 /log/print follow-only where topics~"container"
 ```
 
-6. پس از پایان Extract:
+پس از پایان Extract:
 
 ```routeros
 /container/start [find where comment="[Mikrozia:container] Container"]
 ```
 
-نصب‌کننده فقط Bridge/VETH، Mountها، Environment و Container را ایجاد می‌کند.
+این دستورها فقط Bridge/VETH، Mountها، Environment و Container را ایجاد می‌کنند و
+هیچ Rule مربوط به Firewall، NAT، Port Forward یا Routing نمی‌سازند.
 
 ## قرارداد Runtime
 
 | مورد | مقدار |
 |---|---|
 | دیتابیس و تنظیمات | `/etc/x-ui` |
-| گواهی و ACME | `/root/cert` |
+| گواهی TLS (کاربر) | `/root/cert` |
 | HOME | `/root` |
 | پنل داخلی | `2053/TCP` |
 | Subscription داخلی | `2096/TCP` |
@@ -102,24 +142,20 @@ scripts/routeros/mikrozia-clean-room-deploy.rsc
 /root/cert/vpn.yourdomain.com/privkey.pem
 ```
 
-## Generator پیشرفته
+### مدیریت Lifecycle و تفاوت `x-ui` با RouterOS
 
-Preflight روی RouterOS:
+- دستورهای `x-ui start`، `x-ui stop`، `x-ui enable` و `x-ui disable` داخل کانتینر تغییری در کانتینر ایجاد نمی‌کنند و دستور معادل RouterOS را با شناسه `[find where comment="[Mikrozia:container] Container"]` (از جمله `/container/start`، `/container/stop` و `/container/set ... start-on-boot=yes|no restart-policy=always|no`) نمایش می‌دهند.
+- `x-ui restart` سرویس وب پنل (`SIGHUP`) را Reload و Xray (`SIGUSR1`) را داخل کانتینر Restart می‌کند و خود کانتینر را متوقف یا ری‌استارت نمی‌کند؛ `x-ui restart-xray` نیز فقط Xray را ری‌استارت می‌کند.
+- برای Restart کامل خود کانتینر از Terminal یا WinBox اجرا کنید: `/container/restart [find where comment="[Mikrozia:container] Container"]`.
 
-```text
-scripts/routeros/mikrozia-preflight.rsc
-```
+## سفارشی‌سازی مقادیر
 
-Generator روی کامپیوتر:
-
-```bash
-python3 scripts/generator/mikrozia_generator.py \
-  --preflight preflight.json \
-  --target-storage containers \
-  --container-subnet 172.16.10.0/24
-```
-
-فرمان بالا Dry Run است. برای نوشتن فایل‌ها `--write` اضافه کنید. Generator نیز هیچ دستور Firewall/NAT تولید نمی‌کند.
+اگر نام Bridge/VETH، Subnet، پورت داخلی یا مسیر ذخیره‌سازی را تغییر می‌دهید،
+مقادیر مرتبط را در همهٔ دستورهای نصب یکسان به‌روزرسانی کنید؛ از جمله مبدأ
+Mountها، `mountlists` و `root-dir`. Commentهای `[Mikrozia:container]` را حفظ کنید
+تا دستورهای Lifecycle و حذف بتوانند اشیای متعلق به Mikrozia را پیدا کنند. از
+Subnet یا نام‌های متداخل استفاده نکنید و هیچ Rule شبکه‌ای به Mikrozia نسبت داده
+نشود؛ سیاست Firewall/NAT همچنان در اختیار مدیر RouterOS است.
 
 ## انتشار نسخه‌ها در Docker Hub
 
@@ -139,17 +175,31 @@ DOCKER_HUB_TOKEN
 فرمت Tag انتشار:
 
 ```text
-v<upstream-version>-mikrozia.<revision>
+v<major>-mikrozia
 ```
 
 نمونه:
 
 ```bash
-git tag v3.11.0-mikrozia.4
-git push origin v3.11.0-mikrozia.4
+git tag v1-mikrozia
+git push origin v1-mikrozia
 ```
 
-Workflow تست‌ها و Smoke Test amd64 را اجرا می‌کند و سپس Imageهای `amd64`، `arm64` و `arm/v7` را همراه SBOM، provenance و Digest در `majlot/mikrozia` منتشر می‌کند.
+Workflow تست‌ها و Smoke Test را برای **هر سه معماری منتشرشده** اجرا می‌کند و سپس Imageهای `amd64`، `arm64` و `arm/v7` را همراه SBOM، provenance و Digest در `majlot/mikrozia` منتشر می‌کند. انتشار فقط از روی Tag نسخه‌دار یا Dispatch صریح همان نسخه انجام می‌شود؛ Push روی `main` یا Pull Request هیچ Image‌ای منتشر نمی‌کند.
+
+هر نسخه فقط به‌صورت Image نسخه‌دار OCI منتشر می‌شود. برای نسخه‌های Mikrozia هیچ Tarball باینری، Package سیستم‌عامل یا Installer مبتنی بر systemd به‌عنوان Artifact انتشار ساخته یا منتشر نمی‌شود؛ مسیر پشتیبانی‌شده همان Image نسخه‌دار و Mountهای پایدار است.
+
+### ساخت محلی Docker Image
+
+برای ساخت محلی Docker Image باید نسخه‌های `MIKROZIA_VERSION`، `XRAY_VERSION` و `MTG_VERSION` را از فایل‌های ریشه مخزن بخوانید و به‌عنوان Build Arg ارسال کنید:
+
+```bash
+docker build \
+  --build-arg MIKROZIA_VERSION="$(cat MIKROZIA_VERSION)" \
+  --build-arg XRAY_VERSION="$(tr -d '[:space:]' < XRAY_VERSION)" \
+  --build-arg MTG_VERSION="$(tr -d '[:space:]' < MTG_VERSION)" \
+  -t mikrozia:local .
+```
 
 ## به‌روزرسانی
 
@@ -176,7 +226,7 @@ Workflow تست‌ها و Smoke Test amd64 را اجرا می‌کند و سپس
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py'
-sh -n DockerEntrypoint.sh
+bash -n DockerEntrypoint.sh
 sh -n DockerInit.sh
 bash -n x-ui.sh
 ```

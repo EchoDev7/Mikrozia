@@ -11,11 +11,9 @@ import (
 	"log"
 	"math"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -198,6 +196,9 @@ func initModels() error {
 		return err
 	}
 	if err := migrateVmessRemovedSecurities(); err != nil {
+		return err
+	}
+	if err := migrateAmneziaWGKernelMode(); err != nil {
 		return err
 	}
 	if err := migrateTgIDIndex(); err != nil {
@@ -1297,6 +1298,82 @@ func migrateVmessRemovedSecurities() error {
 	return nil
 }
 
+// migrateAmneziaWGKernelMode removes the retired server.kernelMode setting
+// from stored AmneziaWG inbound settings while preserving all other fields,
+// peers, obfuscation settings, unknown JSON keys, counters, and enable state.
+// A malformed JSON payload aborts and rolls back the entire transaction.
+func migrateAmneziaWGKernelMode() error {
+	migrated := int64(0)
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var inbounds []model.Inbound
+		if err := tx.Where("protocol = ?", model.AmneziaWG).Order("id ASC").Find(&inbounds).Error; err != nil {
+			return err
+		}
+		for _, inbound := range inbounds {
+			if strings.TrimSpace(inbound.Settings) == "" {
+				continue
+			}
+			dec := json.NewDecoder(strings.NewReader(inbound.Settings))
+			dec.UseNumber()
+			var root any
+			if err := dec.Decode(&root); err != nil {
+				err = fmt.Errorf("migrateAmneziaWGKernelMode: inbound %d has invalid JSON settings: %w", inbound.Id, err)
+				log.Print(err)
+				return err
+			}
+			var extra any
+			if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+				if err == nil {
+					err = errors.New("trailing JSON content")
+				}
+				err = fmt.Errorf("migrateAmneziaWGKernelMode: inbound %d has malformed JSON settings: %w", inbound.Id, err)
+				log.Print(err)
+				return err
+			}
+			rootMap, ok := root.(map[string]any)
+			if !ok {
+				err := fmt.Errorf("migrateAmneziaWGKernelMode: inbound %d settings must be a JSON object", inbound.Id)
+				log.Print(err)
+				return err
+			}
+			rawServer, exists := rootMap["server"]
+			if !exists || rawServer == nil {
+				continue
+			}
+			serverMap, ok := rawServer.(map[string]any)
+			if !ok {
+				err := fmt.Errorf("migrateAmneziaWGKernelMode: inbound %d server settings must be a JSON object", inbound.Id)
+				log.Print(err)
+				return err
+			}
+			if _, hasKernelMode := serverMap["kernelMode"]; !hasKernelMode {
+				continue
+			}
+			delete(serverMap, "kernelMode")
+			rootMap["server"] = serverMap
+			newSettings, err := json.MarshalIndent(rootMap, "", "  ")
+			if err != nil {
+				err = fmt.Errorf("migrateAmneziaWGKernelMode: inbound %d marshal failed: %w", inbound.Id, err)
+				log.Print(err)
+				return err
+			}
+			if err := tx.Model(&model.Inbound{}).Where("id = ?", inbound.Id).
+				Update("settings", string(newSettings)).Error; err != nil {
+				return err
+			}
+			migrated++
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if migrated > 0 {
+		log.Printf("Migrated %d AmneziaWG inbound(s) off removed kernelMode setting", migrated)
+	}
+	return nil
+}
+
 // migrateTgIDIndex creates an index on the clients.tg_id column so that
 // lookups by Telegram ID do not require a full table scan. The index tag
 // on the struct field already causes AutoMigrate to create it on new
@@ -1527,7 +1604,7 @@ func runSeeders(isUsersEmpty bool) error {
 	}
 
 	if empty && isUsersEmpty {
-		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix2", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix", "FreedomFinalRulesPrivateEgressBlock", "UppercaseFreedomFinalRulesFix", "InboundRealityFinalmaskTcpStrip", "ApiTokensHash", "LegacyProxySettingsCleanup", "OutboundRemovedKeysFix", "FreedomDomainStrategyFix", "DNSOutboundLegacyKeysFix", "DNSOutboundQTypeZeroFix", "WireguardDomainStrategyFix", "XdnsFinalmaskNamesAddrsFix", "UDPHopClientMaskFix", "HostVerifyPeerCertByNameBoolFix", "HostMihomoX25519Reset", "WireguardPeersToClients", "MtprotoSecretsToClients", "NodeInboundsAdopted", "NodeDownNotified", "ResetIpLimitNoFail2ban"}
+		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix2", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix", "FreedomFinalRulesPrivateEgressBlock", "UppercaseFreedomFinalRulesFix", "InboundRealityFinalmaskTcpStrip", "ApiTokensHash", "LegacyProxySettingsCleanup", "OutboundRemovedKeysFix", "FreedomDomainStrategyFix", "DNSOutboundLegacyKeysFix", "DNSOutboundQTypeZeroFix", "WireguardDomainStrategyFix", "XdnsFinalmaskNamesAddrsFix", "UDPHopClientMaskFix", "HostVerifyPeerCertByNameBoolFix", "HostMihomoX25519Reset", "WireguardPeersToClients", "MtprotoSecretsToClients", "NodeInboundsAdopted", "NodeDownNotified"}
 		for _, name := range seeders {
 			if err := db.Create(&model.HistoryOfSeeders{SeederName: name}).Error; err != nil {
 				return err
@@ -1712,10 +1789,6 @@ func runSeeders(isUsersEmpty bool) error {
 		return err
 	}
 
-	if err := resetIpLimitsWithoutFail2ban(); err != nil {
-		return err
-	}
-
 	if err := seedWireguardPeersToClients(); err != nil {
 		return err
 	}
@@ -1785,108 +1858,6 @@ func backfillEmptyHostGroupIds() error {
 		}
 		return nil
 	})
-}
-
-func resetIpLimitsWithoutFail2ban() error {
-	var history []string
-	if err := db.Model(&model.HistoryOfSeeders{}).Pluck("seeder_name", &history).Error; err != nil {
-		return err
-	}
-	if slices.Contains(history, "ResetIpLimitNoFail2ban") {
-		return nil
-	}
-
-	state, probeErr := fail2banEnforcementState()
-	if state == fail2banEnforcing {
-		return db.Create(&model.HistoryOfSeeders{SeederName: "ResetIpLimitNoFail2ban"}).Error
-	}
-	if state == fail2banUnknown {
-		log.Printf("ResetIpLimitNoFail2ban: fail2ban-client present but not runnable (%v); keeping configured IP limits, will retry next start", probeErr)
-		return nil
-	}
-
-	var inbounds []model.Inbound
-	if err := db.Find(&inbounds).Error; err != nil {
-		return err
-	}
-
-	return db.Transaction(func(tx *gorm.DB) error {
-		for _, inbound := range inbounds {
-			if strings.TrimSpace(inbound.Settings) == "" {
-				continue
-			}
-			var settings map[string]any
-			if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
-				log.Printf("ResetIpLimitNoFail2ban: skip inbound %d (invalid settings json): %v", inbound.Id, err)
-				continue
-			}
-			clients, ok := settings["clients"].([]any)
-			if !ok {
-				continue
-			}
-			mutated := false
-			for i, raw := range clients {
-				obj, ok := raw.(map[string]any)
-				if !ok {
-					continue
-				}
-				v, present := obj["limitIp"]
-				if !present {
-					continue
-				}
-				if n, isNum := v.(float64); isNum && n == 0 {
-					continue
-				}
-				obj["limitIp"] = 0
-				clients[i] = obj
-				mutated = true
-			}
-			if !mutated {
-				continue
-			}
-			settings["clients"] = clients
-			newSettings, err := json.MarshalIndent(settings, "", "  ")
-			if err != nil {
-				log.Printf("ResetIpLimitNoFail2ban: skip inbound %d (marshal failed): %v", inbound.Id, err)
-				continue
-			}
-			if err := tx.Model(&model.Inbound{}).Where("id = ?", inbound.Id).
-				Update("settings", string(newSettings)).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Model(&model.ClientRecord{}).Where("limit_ip <> ?", 0).
-			Update("limit_ip", 0).Error; err != nil {
-			return err
-		}
-		return tx.Create(&model.HistoryOfSeeders{SeederName: "ResetIpLimitNoFail2ban"}).Error
-	})
-}
-
-type fail2banState int
-
-const (
-	fail2banEnforcing fail2banState = iota
-	fail2banAbsent
-	fail2banUnknown
-)
-
-// fail2banEnforcementState separates "fail2ban is not installed" from "the probe
-// itself failed", so a transient failure never drives an irreversible cleanup.
-func fail2banEnforcementState() (fail2banState, error) {
-	if v, ok := os.LookupEnv("XUI_ENABLE_FAIL2BAN"); ok && v != "true" {
-		return fail2banAbsent, nil
-	}
-	if runtime.GOOS == "windows" {
-		return fail2banAbsent, nil
-	}
-	if _, err := exec.LookPath("fail2ban-client"); err != nil {
-		return fail2banAbsent, nil
-	}
-	if err := exec.CommandContext(context.Background(), "fail2ban-client", "-h").Run(); err != nil {
-		return fail2banUnknown, err
-	}
-	return fail2banEnforcing, nil
 }
 
 func clearLegacyProxySettings() error {
@@ -3354,33 +3325,92 @@ func migrateApiTokenScopeAndExpiry() error {
 			return err
 		}
 	}
-	return db.Model(&model.ApiToken{}).Where("scope IS NULL OR TRIM(scope) = ''").
-		Updates(map[string]any{"scope": model.ApiScopeAdmin, "expires_at": 0}).Error
+	if err := db.Model(&model.ApiToken{}).Where("scope IS NULL OR TRIM(scope) = ''").
+		Updates(map[string]any{"scope": model.ApiScopeAdmin, "expires_at": 0}).Error; err != nil {
+		return err
+	}
+	return db.Model(&model.ApiToken{}).Where("scope = ?", "node-admin").
+		Update("scope", model.ApiScopeNodeSync).Error
 }
 
-// openPostgresWithRetry retries the initial PostgreSQL connection with
-// backoff so a database that starts slower than the panel (or drops out
-// briefly) does not immediately kill the process and trip systemd's
-// restart loop. Every failed attempt logs the real driver error, which
-// used to be buried behind a generic startup failure.
+const (
+	pgStartupDeadline       = 75 * time.Second
+	pgStartupAttemptTimeout = 10 * time.Second
+)
+
+// openPostgresWithRetry retries the initial PostgreSQL connection within a
+// bounded overall deadline and per-attempt PingContext timeout.
 func openPostgresWithRetry(dsn string, c *gorm.Config) (*gorm.DB, error) {
+	if _, err := ParsePostgresConnSpec(dsn); err != nil {
+		return nil, err
+	}
 	delays := []time.Duration{0, 2 * time.Second, 5 * time.Second, 10 * time.Second, 20 * time.Second, 30 * time.Second}
+	return openPostgresWithRetryPolicy(dsn, c, pgStartupDeadline, pgStartupAttemptTimeout, delays, openAndPingPostgres)
+}
+
+func openAndPingPostgres(ctx context.Context, dsn string, c *gorm.Config) (*gorm.DB, error) {
+	sqlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		_ = sqlDB.Close()
+		return nil, err
+	}
+	conn, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), c)
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
+func openPostgresWithRetryPolicy(
+	dsn string,
+	c *gorm.Config,
+	deadline time.Duration,
+	attemptTimeout time.Duration,
+	delays []time.Duration,
+	openAndPing func(context.Context, string, *gorm.Config) (*gorm.DB, error),
+) (*gorm.DB, error) {
+	deadlineCtx, cancelDeadline := context.WithTimeout(context.Background(), deadline)
+	defer cancelDeadline()
+
 	var lastErr error
-	for i, delay := range delays {
-		if delay > 0 {
-			time.Sleep(delay)
+	attempts := 0
+	for _, delay := range delays {
+		if deadlineCtx.Err() != nil {
+			break
 		}
-		conn, err := gorm.Open(postgres.Open(dsn), c)
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			select {
+			case <-timer.C:
+			case <-deadlineCtx.Done():
+				timer.Stop()
+			}
+			if deadlineCtx.Err() != nil {
+				break
+			}
+		}
+
+		attempts++
+		attemptCtx, cancelAttempt := context.WithTimeout(deadlineCtx, attemptTimeout)
+		conn, err := openAndPing(attemptCtx, dsn, c)
+		cancelAttempt()
 		if err == nil {
-			if i > 0 {
-				log.Printf("postgres connection established on attempt %d/%d", i+1, len(delays))
+			if attempts > 1 {
+				log.Printf("postgres connection established on attempt %d", attempts)
 			}
 			return conn, nil
 		}
-		lastErr = err
-		log.Printf("postgres connection attempt %d/%d failed: %v", i+1, len(delays), err)
+		lastErr = RedactPostgresError(err, dsn)
+		log.Printf("postgres connection attempt %d failed: %v", attempts, lastErr)
 	}
-	return nil, fmt.Errorf("postgres unreachable after %d attempts: %w", len(delays), lastErr)
+	if lastErr == nil {
+		lastErr = RedactPostgresError(deadlineCtx.Err(), dsn)
+	}
+	return nil, fmt.Errorf("postgres unreachable within %s (%d attempts): %w", deadline, attempts, lastErr)
 }
 
 // The store holds client secrets, so it and its WAL/SHM side files stay
@@ -3403,12 +3433,7 @@ func sqliteJournalMode() string {
 	}
 }
 
-func backupSQLiteStepPages() int {
-	if sqliteJournalMode() == "DELETE" {
-		return 128
-	}
-	return -1
-}
+const backupSQLiteBatchPages = 128
 
 func cleanupSQLiteBackupDirs(dir string) error {
 	entries, err := os.ReadDir(dir)
@@ -3454,13 +3479,19 @@ func envInt(key string, def int) int {
 }
 
 func CloseDB() error {
-	if db != nil {
-		sqlDB, err := db.DB()
-		if err != nil {
-			return err
-		}
-		return sqlDB.Close()
+	if db == nil {
+		return nil
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	if err := sqlDB.Close(); err != nil {
+		return err
+	}
+	// A closed pool is no longer the active dialect: IsPostgres/Dialect must
+	// fall back to configuration instead of reporting the stale driver name.
+	db = nil
 	return nil
 }
 
@@ -3482,17 +3513,40 @@ func IsSQLiteDB(file io.ReaderAt) (bool, error) {
 	return bytes.Equal(buf, signature), nil
 }
 
-func BackupSQLite(dstPath string) (err error) {
+// BackupSQLite writes a consistent online SQLite snapshot to dstPath.
+func BackupSQLite(dstPath string) error {
+	return BackupSQLiteContext(context.Background(), dstPath)
+}
+
+// BackupSQLiteContext writes a consistent online SQLite snapshot to dstPath
+// while respecting caller cancellation and backupSQLiteTimeout.
+func BackupSQLiteContext(ctx context.Context, dstPath string) (err error) {
 	if IsPostgres() {
 		return errors.New("sqlite backup is unavailable for PostgreSQL")
 	}
 	if db == nil {
 		return errors.New("database is not initialized")
 	}
-	if _, err := os.Lstat(dstPath); err == nil {
-		return fmt.Errorf("sqlite backup destination already exists: %s", dstPath)
-	} else if !errors.Is(err, os.ErrNotExist) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	// Atomically create the destination file with 0600 permissions before
+	// SQLite opens it, so it is never world-readable and cannot clobber an
+	// existing file.
+	dstFile, openErr := os.OpenFile(dstPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
+	if openErr != nil {
+		if errors.Is(openErr, os.ErrExist) {
+			return fmt.Errorf("sqlite backup destination already exists: %s", dstPath)
+		}
+		return openErr
+	}
+	if closeErr := dstFile.Close(); closeErr != nil {
+		_ = os.Remove(dstPath)
+		return closeErr
 	}
 	defer func() {
 		if err != nil {
@@ -3500,7 +3554,7 @@ func BackupSQLite(dstPath string) (err error) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), backupSQLiteTimeout)
+	ctx, cancel := context.WithTimeout(ctx, backupSQLiteTimeout)
 	defer cancel()
 
 	sourceDB, err := db.DB()
@@ -3524,7 +3578,7 @@ func BackupSQLite(dstPath string) (err error) {
 	}
 	defer destinationConn.Close()
 
-	return sourceConn.Raw(func(sourceDriver any) error {
+	err = sourceConn.Raw(func(sourceDriver any) error {
 		source, ok := sourceDriver.(*sqlite3.SQLiteConn)
 		if !ok {
 			return fmt.Errorf("unexpected SQLite source connection type %T", sourceDriver)
@@ -3545,7 +3599,7 @@ func BackupSQLite(dstPath string) (err error) {
 				}
 			}()
 			for {
-				done, err := backup.Step(backupSQLiteStepPages())
+				done, err := backup.Step(backupSQLiteBatchPages)
 				if err != nil {
 					return err
 				}
@@ -3556,11 +3610,18 @@ func BackupSQLite(dstPath string) (err error) {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case <-time.After(10 * time.Millisecond):
+				default:
 				}
 			}
 		})
 	})
+	if err != nil {
+		return err
+	}
+	if err := os.Chmod(dstPath, 0o600); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ValidateSQLiteDB(dbPath string) error {

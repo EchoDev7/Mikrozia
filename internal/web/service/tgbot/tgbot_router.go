@@ -694,113 +694,6 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 						return
 					}
 				}
-			case "ip_limit":
-				inlineKeyboard := tu.InlineKeyboard(
-					tu.InlineKeyboardRow(
-						tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancelIpLimit")).WithCallbackData(t.encodeQuery("client_cancel "+email)),
-					),
-					tu.InlineKeyboardRow(
-						tu.InlineKeyboardButton(t.I18nBot("tgbot.unlimited")).WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 0")),
-						tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.custom")).WithCallbackData(t.encodeQuery("ip_limit_in "+email+" 0")),
-					),
-					tu.InlineKeyboardRow(
-						tu.InlineKeyboardButton("1").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 1")),
-						tu.InlineKeyboardButton("2").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 2")),
-					),
-					tu.InlineKeyboardRow(
-						tu.InlineKeyboardButton("3").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 3")),
-						tu.InlineKeyboardButton("4").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 4")),
-					),
-					tu.InlineKeyboardRow(
-						tu.InlineKeyboardButton("5").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 5")),
-						tu.InlineKeyboardButton("6").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 6")),
-						tu.InlineKeyboardButton("7").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 7")),
-					),
-					tu.InlineKeyboardRow(
-						tu.InlineKeyboardButton("8").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 8")),
-						tu.InlineKeyboardButton("9").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 9")),
-						tu.InlineKeyboardButton("10").WithCallbackData(t.encodeQuery("ip_limit_c "+email+" 10")),
-					),
-				)
-				t.renderPickerOnClient(chatId, email, inlineKeyboard.InlineKeyboard)
-			case "ip_limit_c":
-				if len(dataArray) == 3 {
-					count, err := strconv.Atoi(dataArray[2])
-					if err == nil {
-						needRestart, err := t.clientService.ResetClientIpLimitByEmail(&t.inboundService, email, count)
-						if needRestart {
-							t.xrayService.SetToNeedRestart()
-						}
-						if err == nil {
-							t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.resetIpSuccess", "Email=="+email, "Count=="+strconv.Itoa(count)))
-							t.searchClientScreen(chatId, email)
-							return
-						}
-					}
-				}
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
-				t.searchClientScreen(chatId, email)
-			case "ip_limit_in":
-				if len(dataArray) >= 3 {
-					oldInputNumber, err := strconv.Atoi(dataArray[2])
-					inputNumber := oldInputNumber
-					if err == nil {
-						if len(dataArray) == 4 {
-							num, err := strconv.Atoi(dataArray[3])
-							if err == nil {
-								inputNumber = updateNumericInput(inputNumber, num)
-							}
-							if inputNumber == oldInputNumber {
-								t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.successfulOperation"))
-								return
-							}
-							if inputNumber >= 999999 {
-								t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
-								return
-							}
-						}
-						inlineKeyboard := t.numericKeypad(numericKeypadSpec{dataBase: "ip_limit", dataArgs: email + " ", cancelData: "client_cancel " + email, confirmLabelKey: "tgbot.buttons.confirmNumber"}, inputNumber)
-						t.renderPickerOnClient(chatId, email, inlineKeyboard.InlineKeyboard)
-						return
-					}
-				}
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
-				t.searchClientScreen(chatId, email)
-			case "add_client_ip_limit_c":
-				if len(dataArray) == 2 {
-					count, _ := strconv.Atoi(dataArray[1])
-					draft.limitIP = count
-				}
-
-				messageId := callbackQuery.Message.GetMessageID()
-				message_text := t.BuildClientDraftMessage(draft)
-
-				t.addClient(callbackQuery.Message.GetChat().ID, draft, message_text, messageId)
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.successfulOperation"))
-			case "add_client_ip_limit_in":
-				if len(dataArray) >= 2 {
-					oldInputNumber, err := strconv.Atoi(dataArray[1])
-					inputNumber := oldInputNumber
-					if err == nil {
-						if len(dataArray) == 3 {
-							num, err := strconv.Atoi(dataArray[2])
-							if err == nil {
-								inputNumber = updateNumericInput(inputNumber, num)
-							}
-							if inputNumber == oldInputNumber {
-								t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.successfulOperation"))
-								return
-							}
-							if inputNumber >= 999999 {
-								t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
-								return
-							}
-						}
-						inlineKeyboard := t.numericKeypad(numericKeypadSpec{dataBase: "add_client_ip_limit", cancelData: "add_client_default_ip_limit", confirmLabelKey: "tgbot.buttons.confirmNumber"}, inputNumber)
-						t.renderPickerOnClient(chatId, email, inlineKeyboard.InlineKeyboard)
-						return
-					}
-				}
 			case "clear_ips":
 				inlineKeyboard := tu.InlineKeyboard(
 					tu.InlineKeyboardRow(
@@ -995,9 +888,6 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	case "bkp", "get_backup":
 		t.answerSilent(callbackQuery.ID)
 		t.sendBackupScreen(chatId)
-	case "ban", "get_banlogs":
-		t.answerSilent(callbackQuery.ID)
-		t.screenBanLogs(chatId)
 	case "inline_help":
 		t.answerSilent(callbackQuery.ID)
 		t.screenInlineHelp(chatId)
@@ -1101,35 +991,6 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			),
 		)
 		t.renderDraftPicker(chatId, draft, inlineKeyboard.InlineKeyboard)
-	case "add_client_ch_default_ip_limit":
-		inlineKeyboard := tu.InlineKeyboard(
-			tu.InlineKeyboardRow(
-				tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData(t.encodeQuery("add_client_default_ip_limit")),
-			),
-			tu.InlineKeyboardRow(
-				tu.InlineKeyboardButton(t.I18nBot("tgbot.unlimited")).WithCallbackData(t.encodeQuery("add_client_ip_limit_c 0")),
-				tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.custom")).WithCallbackData(t.encodeQuery("add_client_ip_limit_in 0")),
-			),
-			tu.InlineKeyboardRow(
-				tu.InlineKeyboardButton("1").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 1")),
-				tu.InlineKeyboardButton("2").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 2")),
-			),
-			tu.InlineKeyboardRow(
-				tu.InlineKeyboardButton("3").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 3")),
-				tu.InlineKeyboardButton("4").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 4")),
-			),
-			tu.InlineKeyboardRow(
-				tu.InlineKeyboardButton("5").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 5")),
-				tu.InlineKeyboardButton("6").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 6")),
-				tu.InlineKeyboardButton("7").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 7")),
-			),
-			tu.InlineKeyboardRow(
-				tu.InlineKeyboardButton("8").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 8")),
-				tu.InlineKeyboardButton("9").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 9")),
-				tu.InlineKeyboardButton("10").WithCallbackData(t.encodeQuery("add_client_ip_limit_c 10")),
-			),
-		)
-		t.renderDraftPicker(chatId, draft, inlineKeyboard.InlineKeyboard)
 	case "add_client_default_info":
 		userStateMgr.clear(actor)
 		t.addClient(chatId, draft, t.BuildClientDraftMessage(draft), callbackQuery.Message.GetMessageID())
@@ -1137,7 +998,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		userStateMgr.clear(actor)
 		addClientDrafts.reset(actor)
 		t.renderScreen(chatId, t.newScreen("main", t.I18nBot("tgbot.messages.cancel"), t.homeRows()...))
-	case "add_client_default_traffic_exp", "add_client_default_ip_limit":
+	case "add_client_default_traffic_exp":
 		// The picker was cancelled: the draft comes back unchanged.
 		t.addClient(chatId, draft, t.BuildClientDraftMessage(draft), callbackQuery.Message.GetMessageID())
 	case "add_client_attach_more":

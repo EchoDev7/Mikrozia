@@ -64,7 +64,6 @@ func (p *panel) env() []string {
 		"XUI_DB_FOLDER="+filepath.Join(p.dir, "db"),
 		"XUI_LOG_FOLDER="+filepath.Join(p.dir, "log"),
 		"XUI_BIN_FOLDER="+filepath.Join(p.dir, "bin"),
-		"XUI_ENABLE_FAIL2BAN=false",
 		"MSYS_NO_PATHCONV=1",
 	)
 }

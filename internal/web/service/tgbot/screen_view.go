@@ -22,7 +22,6 @@ const (
 	cbDeplete        = "dep"
 	cbReport         = "rep"
 	cbBackup         = "bkp"
-	cbBanLogs        = "ban"
 	cbAddClient      = "addc"
 	cbCatServer      = "cat:server"
 	cbCatClients     = "cat:clients"
@@ -78,7 +77,6 @@ func (t *Tgbot) categoryRows(category string) [][]telego.InlineKeyboardButton {
 	case "maintenance":
 		return [][]telego.InlineKeyboardButton{
 			tu.InlineKeyboardRow(t.btn("tgbot.buttons.dbBackup", cbBackup)),
-			tu.InlineKeyboardRow(t.btn("tgbot.buttons.getBanLogs", cbBanLogs)),
 			tu.InlineKeyboardRow(t.btn("tgbot.buttons.restartXray", cbRestartXry)),
 			tu.InlineKeyboardRow(t.btn("tgbot.buttons.ResetAllTraffics", cbResetAll)),
 			home,

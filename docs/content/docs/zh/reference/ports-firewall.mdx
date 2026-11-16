@@ -1,35 +1,56 @@
 ---
 title: 端口与防火墙
-description: 3x-ui 默认使用的端口，以及用于开放这些端口的现成 ufw / nftables 规则。
+description: Mikrozia 在 RouterOS 容器内部监听的端口。所有 firewall、NAT、端口转发和访问策略均由 RouterOS 管理员管理。
 icon: Network
 ---
 
-只开放你实际会用到的端口。下面列出了常用端口，并提供了一个用于生成
-`ufw` 和 `nftables` 规则的生成器。
+Mikrozia 只在容器**内部**监听少量端口。它从不创建或修改 RouterOS 的
+firewall、NAT、masquerade、端口转发、路由或访问控制规则，镜像中也不包含
+`ufw`、`iptables` 或 `nftables`。
 
-## 常用端口
+## 容器内部端口
 
-| Port (default) | Purpose                                   |
-| -------------- | ----------------------------------------- |
-| `22`           | SSH（务必保持开放！）。                    |
-| `2053`         | 面板（可配置）。                          |
-| `2096`         | 订阅服务器（如果单独部署）。              |
-| `443`          | 常用的入站端口（TLS / REALITY）。         |
-| `80` / `443`   | 反向代理（如果你运行了反向代理）。        |
+| 端口（默认） | 用途 |
+| ------------ | ---- |
+| `2053` | 面板（可在 Panel Settings 中修改） |
+| `2096` | 订阅服务器（如已启用） |
+| inbound 端口 | 你为每个 Xray inbound 指定的端口 |
 
-实际的入站端口取决于你创建的入站配置。
+入门布局中的容器地址为 `172.16.10.2`。
 
-## 生成防火墙规则
+## 网络策略由你决定
 
-<FirewallRulesGenerator />
+在 RouterOS 中决定这些端口如何被访问：
+
+- 哪个接口或地址列表可以访问面板；
+- 是否以及如何将 inbound 端口转发到 `172.16.10.2`；
+- 容器如何访问互联网；
+- drop、限速和日志策略。
+
+Mikrozia 会记录所需端口，但不会自动执行这些步骤。请遵循 MikroTik 的 RouterOS
+文档配置 firewall、NAT 和路由。
 
 <Callout type="warn">
-  在启用默认拒绝策略之前，请始终保持 SSH 处于允许状态，并在另一个会话中进行测试，以免把自己锁在外面。
+  应用任何限制性策略前，请确保对 RouterOS 本身的管理访问仍然可用。请从第二个
+  会话进行测试，以免把自己锁在外面。
 </Callout>
 
-## 相关内容
+## 从内部检查
+
+如果客户端无法连接，先确认面板和 Xray 在容器内运行：
+
+```text
+/container/print detail where comment="[Mikrozia:container] Container"
+/log/print follow-only where topics~"container"
+```
+
+然后确认你的 RouterOS 策略确实将流量送达容器地址和端口。参见
+[故障排查](/docs/help/troubleshooting)。
+
+## 相关
 
 <Cards>
-  <Card title="安全" href="/docs/operations/security" description="Fail2ban、IP 限制与安全加固。" />
-  <Card title="环境变量" href="/docs/reference/env-vars" description="XUI_PORT 及相关变量。" />
+  <Card title="安全" href="/docs/operations/security" description="面板加固与 RouterOS 内核边界。" />
+  <Card title="环境变量" href="/docs/reference/env-vars" description="XUI_PORT 等。" />
+  <Card title="CHR 安装" href="/docs/guide/installation" description="受支持的 RouterOS 安装路径。" />
 </Cards>

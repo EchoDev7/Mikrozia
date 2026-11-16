@@ -3,7 +3,7 @@
   "info": {
     "title": "3X-UI Panel API",
     "version": "3.x",
-    "description": "Programmatic interface to a 3X-UI panel. Authenticate either by logging in (cookie) or with a scoped API token from Settings → Security → API Token (Bearer). Token access is limited by its admin, monitor, node-sync, or node-admin scope; treat admin tokens like the panel password."
+    "description": "Programmatic interface to a 3X-UI panel. Authenticate either by logging in (cookie) or with a scoped API token from Settings → Security → API Token (Bearer). Token access is limited by its admin, monitor, or node-sync scope; treat admin tokens like the panel password."
   },
   "servers": [
     {
@@ -80,9 +80,6 @@
           },
           "happLinkEnable": {
             "type": "boolean"
-          },
-          "ipLimitAllowlist": {
-            "type": "string"
           },
           "ldapAutoCreate": {
             "type": "boolean"
@@ -626,7 +623,6 @@
           "externalTrafficInformEnable",
           "externalTrafficInformURI",
           "happLinkEnable",
-          "ipLimitAllowlist",
           "ldapAutoCreate",
           "ldapAutoDelete",
           "ldapBaseDN",
@@ -871,9 +867,6 @@
           },
           "hasWarpSecret": {
             "type": "boolean"
-          },
-          "ipLimitAllowlist": {
-            "type": "string"
           },
           "ldapAutoCreate": {
             "type": "boolean"
@@ -1425,7 +1418,6 @@
           "hasTgBotToken",
           "hasTwoFactorToken",
           "hasWarpSecret",
-          "ipLimitAllowlist",
           "ldapAutoCreate",
           "ldapAutoDelete",
           "ldapBaseDN",
@@ -1700,23 +1692,6 @@
           "id",
           "name",
           "scope"
-        ],
-        "type": "object"
-      },
-      "Blocker": {
-        "description": "Blocker is one unmet requirement.",
-        "properties": {
-          "code": {
-            "example": "tools",
-            "type": "string"
-          },
-          "detail": {
-            "example": "awg",
-            "type": "string"
-          }
-        },
-        "required": [
-          "code"
         ],
         "type": "object"
       },
@@ -4195,32 +4170,33 @@
         ],
         "type": "object"
       },
-      "PanelUpdateStatus": {
-        "description": "PanelUpdateStatus reports the outcome of the most recently launched panel\nself-update. RunID lets the caller confirm this status belongs to the\nupdate it started rather than a stale result left over from an earlier\nrun; State is one of \"pending\", \"success\", or \"failed\". RunID is a decimal\nstring, not a JSON number: it's a formatted UnixNano timestamp, and\nJavaScript's number type can't represent that precisely (it exceeds\nNumber.MAX_SAFE_INTEGER), which would let two different runs round to the\nsame value on the wire and defeat the whole point of this field.",
+      "PanelUpdateInfo": {
+        "description": "PanelUpdateInfo contains current panel version information for read-only display.",
         "properties": {
-          "exitCode": {
-            "example": 0,
-            "type": "integer"
-          },
-          "finishedAt": {
-            "example": 1735689612,
-            "format": "int64",
-            "type": "integer"
-          },
-          "runId": {
-            "example": "1735689600123456789",
+          "channel": {
             "type": "string"
           },
-          "state": {
-            "example": "success",
+          "currentCommit": {
             "type": "string"
+          },
+          "currentVersion": {
+            "type": "string"
+          },
+          "latestCommit": {
+            "type": "string"
+          },
+          "latestVersion": {
+            "type": "string"
+          },
+          "updateAvailable": {
+            "type": "boolean"
           }
         },
         "required": [
-          "exitCode",
-          "finishedAt",
-          "runId",
-          "state"
+          "channel",
+          "currentVersion",
+          "latestVersion",
+          "updateAvailable"
         ],
         "type": "object"
       },
@@ -4345,37 +4321,6 @@
           "xrayError",
           "xrayState",
           "xrayVersion"
-        ],
-        "type": "object"
-      },
-      "Readiness": {
-        "description": "Readiness is the host's ability to run any kernel-mode inbound at all.",
-        "properties": {
-          "blockers": {
-            "example": [
-              {
-                "code": "tools",
-                "detail": "awg"
-              }
-            ],
-            "items": {
-              "$ref": "#/components/schemas/Blocker"
-            },
-            "type": "array"
-          },
-          "installCommand": {
-            "example": "sudo /usr/local/x-ui/x-ui install-awg-kernel",
-            "type": "string"
-          },
-          "ready": {
-            "example": false,
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "blockers",
-          "installCommand",
-          "ready"
         ],
         "type": "object"
       },
@@ -4560,10 +4505,6 @@
           },
           "keepaliveTimeout": {
             "type": "string"
-          },
-          "kernelMode": {
-            "description": "KernelMode runs this inbound on the AmneziaWG kernel module (internal/amneziawgkern)\ninstead of the embedded amneziawg-go + gVisor stack.",
-            "type": "boolean"
           },
           "maxHandshakeAttempts": {
             "type": "string"
@@ -5052,7 +4993,7 @@
     },
     {
       "name": "API Tokens",
-      "description": "Manage scoped Bearer tokens for programmatic auth. admin grants the full panel API; monitor is read-only for status and metrics; node-sync manages node configuration without panel updates; node-admin adds panel self-update to node-sync. Tokens may expire and are stored as SHA-256 hashes. The plaintext is returned only once at creation."
+      "description": "Manage scoped Bearer tokens for programmatic auth. admin grants the full panel API; monitor is read-only for status and metrics; node-sync manages node configuration without panel updates. Tokens may expire and are stored as SHA-256 hashes. The plaintext is returned only once at creation."
     },
     {
       "name": "Xray Settings",
@@ -5509,51 +5450,6 @@
                       "wgPublicKey": ""
                     }
                   ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/panel/api/inbounds/amneziawgKernelReadiness": {
-      "get": {
-        "tags": [
-          "Inbounds"
-        ],
-        "summary": "Whether this host can run an AmneziaWG inbound on the kernel module. Returns ready, host blocker codes (root/tools/module/nft), and the command that fixes them. Saving an inbound also checks its features and rejects IPv6, port forwarding, routeThroughXray, or a pinned listen address that the kernel backend cannot honor.",
-        "operationId": "get_panel_api_inbounds_amneziawgKernelReadiness",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {
-                      "$ref": "#/components/schemas/Readiness"
-                    }
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "obj": {
-                    "blockers": [
-                      {
-                        "code": "tools",
-                        "detail": "awg"
-                      }
-                    ],
-                    "installCommand": "sudo /usr/local/x-ui/x-ui install-awg-kernel",
-                    "ready": false
-                  }
                 }
               }
             }
@@ -6499,45 +6395,6 @@
         }
       }
     },
-    "/panel/api/server/fail2banStatus": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Reports whether per-client IP limits can be enforced on this host. The panel uses it to gate the \"IP Limit\" field, since enforcement depends on Fail2ban being installed.",
-        "operationId": "get_panel_api_server_fail2banStatus",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "obj": {
-                    "enabled": true,
-                    "installed": true,
-                    "usable": true,
-                    "windows": false
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/panel/api/server/cpuHistory/{bucket}": {
       "get": {
         "tags": [
@@ -6802,50 +6659,12 @@
         }
       }
     },
-    "/panel/api/server/getXrayVersion": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "List Xray binary versions available for install on this host.",
-        "operationId": "get_panel_api_server_getXrayVersion",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "obj": [
-                    "v25.10.31",
-                    "v25.9.15",
-                    "v25.8.1"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/panel/api/server/getPanelUpdateInfo": {
       "get": {
         "tags": [
           "Server"
         ],
-        "summary": "Check whether a newer 3x-ui release is available on GitHub.",
+        "summary": "Get current running Mikrozia version information.",
         "operationId": "get_panel_api_server_getPanelUpdateInfo",
         "responses": {
           "200": {
@@ -6862,47 +6681,6 @@
                       "type": "string"
                     },
                     "obj": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/panel/api/server/getUpdateStatus": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Report the outcome of the most recently launched panel self-update (see POST updatePanel). Compare the returned runId against the one updatePanel returned to tell this run apart from a stale result.",
-        "operationId": "get_panel_api_server_getUpdateStatus",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {
-                      "$ref": "#/components/schemas/PanelUpdateStatus"
-                    }
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "obj": {
-                    "exitCode": 0,
-                    "finishedAt": 1735689612,
-                    "runId": "1735689600123456789",
-                    "state": "success"
                   }
                 }
               }
@@ -7380,219 +7158,6 @@
         }
       }
     },
-    "/panel/api/server/installXray/{version}": {
-      "post": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Download and install the specified Xray version. Pass \"latest\" for the newest release.",
-        "operationId": "post_panel_api_server_installXray_version",
-        "parameters": [
-          {
-            "name": "version",
-            "in": "path",
-            "required": true,
-            "description": "Xray tag (e.g. v25.10.31) or \"latest\".",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/panel/api/server/updatePanel": {
-      "post": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Self-update the panel to the latest version. The server restarts on success. Bearer-token callers need admin or node-admin scope.",
-        "operationId": "post_panel_api_server_updatePanel",
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "dev": {
-                    "type": "boolean",
-                    "description": "Override this run's channel. Omit to use the panel's configured channel."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "obj": {
-                    "runId": "1735689600123456789"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/panel/api/server/setUpdateChannel": {
-      "post": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Toggle the panel update channel between stable and the rolling per-commit dev release. Only effective on dev builds.",
-        "operationId": "post_panel_api_server_setUpdateChannel",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "dev": {
-                    "type": "boolean",
-                    "description": "true = dev channel, false = stable."
-                  }
-                },
-                "required": [
-                  "dev"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/panel/api/server/updateGeofile": {
-      "post": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Refresh the default GeoIP / GeoSite data files. Use the /:fileName variant to update one file.",
-        "operationId": "post_panel_api_server_updateGeofile",
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/panel/api/server/updateGeofile/{fileName}": {
-      "post": {
-        "tags": [
-          "Server"
-        ],
-        "summary": "Refresh a single Geo file by filename (e.g. geoip.dat, geosite.dat).",
-        "operationId": "post_panel_api_server_updateGeofile_fileName",
-        "parameters": [
-          {
-            "name": "fileName",
-            "in": "path",
-            "required": true,
-            "description": "Filename of the data file to refresh.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/panel/api/server/logs/{count}": {
       "post": {
         "tags": [
@@ -7621,10 +7186,6 @@
                   "level": {
                     "type": "string",
                     "description": "Minimum log level filter."
-                  },
-                  "syslog": {
-                    "type": "boolean",
-                    "description": "Read system logs instead of the panel log."
                   }
                 }
               }
@@ -12048,70 +11609,6 @@
         }
       }
     },
-    "/panel/api/nodes/updatePanel": {
-      "post": {
-        "tags": [
-          "Nodes"
-        ],
-        "summary": "Trigger the official panel self-updater on each given node (downloads the latest release and restarts). Only enabled, online nodes are updated; offline/disabled ones are reported as skipped. Set \"dev\": true to move the nodes to the rolling per-commit dev channel instead of the latest stable release. Returns a per-node result list.",
-        "operationId": "post_panel_api_nodes_updatePanel",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              },
-              "example": {
-                "ids": [
-                  1,
-                  2,
-                  3
-                ],
-                "dev": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "msg": {
-                      "type": "string"
-                    },
-                    "obj": {}
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "obj": [
-                    {
-                      "id": 1,
-                      "name": "de-1",
-                      "ok": true
-                    },
-                    {
-                      "id": 2,
-                      "name": "fr-1",
-                      "ok": false,
-                      "error": "node is offline"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/panel/api/nodes/history/{id}/{metric}/{bucket}": {
       "get": {
         "tags": [
@@ -13703,7 +13200,7 @@
                       "name": "central-panel-a",
                       "enabled": true,
                       "createdAt": 1736000000,
-                      "scope": "node-admin",
+                      "scope": "node-sync",
                       "expiresAt": 0
                     }
                   ]
@@ -13737,10 +13234,9 @@
                     "enum": [
                       "admin",
                       "monitor",
-                      "node-sync",
-                      "node-admin"
+                      "node-sync"
                     ],
-                    "description": "admin (default), monitor, node-sync, or node-admin. node-admin inherits node-sync and may also start a panel update."
+                    "description": "admin (default), monitor, or node-sync."
                   },
                   "expiresAt": {
                     "type": "integer",
@@ -13753,7 +13249,7 @@
               },
               "example": {
                 "name": "central-panel-a",
-                "scope": "node-admin",
+                "scope": "node-sync",
                 "expiresAt": 1798761600000
               }
             }

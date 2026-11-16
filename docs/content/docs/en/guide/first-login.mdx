@@ -1,6 +1,6 @@
 ---
 title: First Login
-description: Find your generated 3x-ui credentials, reach the panel, enable two-factor auth, and harden it before exposing anything.
+description: Find the credentials generated on first boot, reach the panel, enable two-factor auth, and harden it before exposing anything.
 icon: KeyRound
 ---
 
@@ -9,40 +9,37 @@ exposing anything else.
 
 ## Reach the panel
 
-The panel is served at:
+The panel listens inside the container:
 
 ```text
-http://<your-server-ip>:<port>/<web-base-path>
+http://172.16.10.2:2053/<web-base-path>
 ```
 
-The default port is **2053** and the default base path is `/` — but a script
-install **randomly generates** the username, password, **port**, and web base
-path, so check your actual values.
+Reaching that address from your management network is your RouterOS network
+design; see [Ports & firewall](/docs/reference/ports-firewall). The default panel
+port is **2053** and the default base path is `/`.
 
 ### Find your credentials
 
-A script install prints a credential summary when it finishes and also writes it
-to a root-only file:
+On first boot the panel generates a random username and password and prints them
+once to the container log:
 
-```bash title="/etc/x-ui/install-result.env (mode 600)"
-XUI_USERNAME=...
-XUI_PASSWORD=...
-XUI_PANEL_PORT=...
-XUI_WEB_BASE_PATH=...
-XUI_ACCESS_URL=...
-XUI_API_TOKEN=...
-XUI_DB_TYPE=sqlite
+```text
+/log/print where topics~"container"
 ```
 
-If you missed them, use the management tools:
+If the log is gone, open a container shell and reset them:
 
-```bash
-x-ui              # menu → 11 (View Current Settings)
-x-ui settings     # or the one-shot form
+```text
+/container/shell [find where comment="[Mikrozia:container] Container"]
 ```
 
-For **Docker**, read the generated credentials from the container logs, or run
-`docker exec -it <container> x-ui setting -show`.
+```sh
+/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
+exit
+```
+
+Inside the container, `x-ui settings` shows the current settings.
 
 <Callout type="warn">
   If your panel still uses the default `admin` / `admin` (the panel warns when it
@@ -55,17 +52,17 @@ A non-default port and a long, random **web base path** make the panel much
 harder to find. Change them from **Panel Settings** in the UI, or from the
 `x-ui` menu:
 
-- **7 — Reset Username & Password** (optionally disabling 2FA at the same time)
-- **8 — Reset Web Base Path** (randomizes it)
-- **10 — Change Port**
+- **1 — Reset Username & Password** (optionally disabling 2FA at the same time)
+- **2 — Reset Web Base Path** (randomizes it)
+- **4 — Change Port**
 
 Changing your username or password **logs out all existing sessions** and, if
 two-factor auth was on, disables it.
 
 ## Two-factor authentication (2FA)
 
-3x-ui supports TOTP two-factor auth (compatible with Google Authenticator, Aegis,
-etc.). Enable it in **Panel Settings** — once enabled, the login page asks for a
+3x-ui-derived panel supports TOTP two-factor auth (compatible with Google
+Authenticator, Aegis, etc.). Enable it in **Panel Settings** — once enabled, the login page asks for a
 6-digit code in addition to your password, and turning it on forces everyone to
 log in again. You can disable it from the menu's **Reset Username & Password**
 step or with `x-ui setting -resetTwoFactor`.
@@ -105,14 +102,16 @@ Turn on 2FA so a leaked password alone can't grant access.
 <Step>
 ### Put the panel behind TLS
 
-Use a valid certificate (via the `x-ui` menu's SSL management, or a reverse
-proxy) so the panel is only reachable over HTTPS.
+Mikrozia does not issue certificates. Obtain one outside the container, place it
+on the `/root/cert` mount, and configure the panel paths (menu `14` or
+`x-ui cert`), or terminate TLS at a [reverse proxy](/docs/operations/reverse-proxy).
 </Step>
 
 <Step>
-### Restrict access with a firewall
+### Restrict access in RouterOS
 
-Open only the ports you actually need, and consider limiting panel access by IP.
+Open only the ports you actually need, and limit who can reach the panel with
+RouterOS firewall and routing policy. Mikrozia does not create those rules.
 </Step>
 
 </Steps>

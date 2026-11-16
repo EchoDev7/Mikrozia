@@ -1,13 +1,19 @@
 ---
 title: پراکسی معکوس
-description: قرار دادن پنل و اشتراک 3x-ui پشت Nginx یا Caddy همراه با TLS از Let's Encrypt.
+description: ارائهٔ پنل و اشتراک Mikrozia پشت Nginx یا Caddy روی میزبان جداگانه، با سیاست RouterOS برای رساندن ترافیک به کانتینر.
 icon: Waypoints
 ---
 
 پراکسی معکوس به شما امکان می‌دهد پنل و اشتراک را روی یک دامنه تمیز با HTTPS خودکار
-ارائه دهید و پورت‌های واقعی را پشت پورت‌های 80/443 پنهان کنید. ترجیح می‌دهید خودِ
-پنل مستقیماً TLS را مدیریت کند؟ به‌جای آن، گواهی را از طریق
-[منوی SSL در `x-ui`](/docs/config/ssl-certificates) دریافت کنید.
+ارائه دهید و پورت‌های واقعی را پشت پورت‌های 80/443 پنهان کنید. پراکسی بیرون از
+کانتینر و معمولاً روی میزبانی دیگر اجرا می‌شود. خودِ پنل هم می‌تواند TLS را مستقیماً
+با گواهی‌هایی که روی `/root/cert` Mount کرده‌اید مدیریت کند — به
+[گواهی‌های TLS](/docs/config/ssl-certificates) مراجعه کنید.
+
+پراکسی باید پنل را در آدرس کانتینر (`172.16.10.2:2053` در چیدمان مبتدی) ببیند.
+برقرارکردن این مسیر — از جمله Port Forward یا Routing — سیاست RouterOS است که خودتان
+تنظیم می‌کنید و Mikrozia آن را ایجاد نمی‌کند. به
+[پورت‌ها و فایروال](/docs/reference/ports-firewall) مراجعه کنید.
 
 ## ساخت یک پیکربندی
 
@@ -21,8 +27,8 @@ icon: Waypoints
 
 ## Nginx + گواهی
 
-با Nginx، گواهی را با `certbot` (یا `acme.sh`) دریافت کنید و در بلوک server به آن
-ارجاع دهید:
+با Nginx، گواهی را روی میزبان پروکسی (بیرون از کانتینر Mikrozia) با `certbot`
+(یا `acme.sh`) دریافت کنید و در بلوک server به آن ارجاع دهید:
 
 ```bash title="certbot"
 certbot certonly --nginx -d panel.example.com
@@ -38,7 +44,7 @@ Caddy گواهی‌ها را برای شما دریافت و تمدید می‌�
 
 ```text title="Caddyfile"
 panel.example.com {
-    reverse_proxy 127.0.0.1:2053 {
+    reverse_proxy 172.16.10.2:2053 {
         header_up X-Real-IP {remote_host}
     }
 }

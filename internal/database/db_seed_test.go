@@ -58,8 +58,8 @@ func TestInitDB_GeneratesPerPanelSubscriptionPaths(t *testing.T) {
 	}
 }
 
-// Every launcher but install.sh serves the panel on the database as InitDB left
-// it, so a credential seeded here is one anyone on the network can log in with.
+// Every launcher serves the panel on the database as InitDB left it, so a
+// credential seeded here is one anyone on the network can log in with.
 func TestInitDBLeavesNoGuessableCredential(t *testing.T) {
 	if err := InitDB(filepath.Join(t.TempDir(), "x-ui.db")); err != nil {
 		t.Fatalf("InitDB: %v", err)

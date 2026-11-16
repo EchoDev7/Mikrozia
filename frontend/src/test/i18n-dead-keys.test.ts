@@ -95,4 +95,21 @@ describe('i18n keys', () => {
       expect(orphans, `${file} has keys absent from en-US:\n  ${orphans.join('\n  ')}`).toEqual([]);
     }
   });
+
+  it('panelOutboundDesc in all 14 locales does not mention panel/Xray version checks or downloads', () => {
+    const forbidden =
+      /panel\/Xray|version check|بررسی نسخه|دانلود پنل|فحص إصدار|comprobaciones de versión|pemeriksaan versi|バージョンチェック|verificações de versão|проверки версий|kontroly.*verzi|sürüm kontrol|перевірки версій|kiểm tra phiên bản|版本检查|版本檢查|self-update|install xray/i;
+    for (const file of readdirSync(translationDir)) {
+      if (!file.endsWith('.json')) continue;
+      const data = JSON.parse(readFileSync(join(translationDir, file), 'utf8')) as {
+        pages?: { settings?: { panelOutboundDesc?: string } };
+      };
+      const desc = data?.pages?.settings?.panelOutboundDesc ?? '';
+      expect(desc.length, `${file} must have non-empty panelOutboundDesc`).toBeGreaterThan(20);
+      expect(
+        forbidden.test(desc),
+        `${file} panelOutboundDesc still contains legacy version check/download phrasing: ${desc}`,
+      ).toBe(false);
+    }
+  });
 });

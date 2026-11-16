@@ -1,30 +1,26 @@
 ---
-title: 3x-ui Documentation
-description: Official documentation for 3x-ui — an advanced web panel for managing Xray-core servers, proxies, clients, and subscriptions.
+title: Mikrozia Documentation
+description: Documentation for Mikrozia — the 3x-ui-derived panel packaged as an immutable MikroTik RouterOS Container image.
 icon: House
 ---
 
-**3x-ui** is an open-source web panel for deploying and managing
-[Xray-core](https://github.com/XTLS/Xray-core) servers. It gives you a modern
-dashboard for inbounds, protocols, clients, traffic accounting, subscriptions,
-and more — without hand-editing Xray JSON on the command line.
+**Mikrozia** packages the [3x-ui](https://github.com/MHSanaei/3x-ui) panel and
+[Xray-core](https://github.com/XTLS/Xray-core) as a versioned OCI image for
+**MikroTik RouterOS Container**, with CHR x86_64 as the reference platform. It
+gives you the panel dashboard, inbounds, clients, traffic accounting,
+subscriptions, and a REST API — without systemd, host-firewall management, or
+runtime software updates.
 
-This site is the official documentation and a set of **interactive, in-browser
-tools** (config generators) that run entirely on your device — no data ever
-leaves the page.
+This site also contains **interactive, in-browser tools** (config generators)
+that run entirely on your device — no data ever leaves the page.
 
 ## Start here
 
 <Cards>
   <Card
-    title="What is 3x-ui?"
-    href="/docs/guide"
-    description="The big picture: Xray-core, the panel, and who it's for."
-  />
-  <Card
-    title="Installation"
+    title="Install on RouterOS"
     href="/docs/guide/installation"
-    description="Install via script, Docker, or manually."
+    description="The one supported path: versioned image, persistent mounts."
   />
   <Card
     title="First login"
@@ -32,23 +28,41 @@ leaves the page.
     description="Reach the panel and harden it before anything else."
   />
   <Card
-    title="REALITY"
-    href="/docs/config/reality"
-    description="Set up VLESS + REALITY with XTLS-Vision."
+    title="Update & uninstall"
+    href="/docs/guide/update-uninstall"
+    description="Replace the image while keeping your data mounts."
+  />
+  <Card
+    title="Ports & firewall"
+    href="/docs/reference/ports-firewall"
+    description="What Mikrozia listens on, and who owns network policy."
   />
 </Cards>
+
+## The RouterOS contract
+
+- Mikrozia runs only as a RouterOS Container; it is not a VPS or systemd
+  installation.
+- The supported update is a new versioned image with the same persistent mounts
+  (`/etc/x-ui` and `/root/cert`).
+- RouterOS firewall, NAT, port-forwarding, routing, and access-control policy is
+  user-managed. Mikrozia never changes it and ships no firewall tooling.
+- Certificates are user-managed: obtain and renew them outside the container and
+  configure their paths. There is no ACME client or renewal daemon inside.
+- Panel, Xray, sidecars, and Geo data are immutable image content. There is no
+  runtime software updater.
 
 ## Highlights
 
 - **Every major protocol** — VLESS, VMess, Trojan, Shadowsocks, WireGuard,
-  AmneziaWG, TUIC v5, Hysteria2, SOCKS, HTTP, and Dokodemo-door.
+  AmneziaWG (userspace), TUIC v5, Hysteria2, SOCKS, HTTP, and Dokodemo-door.
 - **REALITY & XTLS-Vision** — modern, censorship-resistant transports.
-- **Per-client controls** — traffic quotas, expiry dates, IP limits, share
+- **Per-client controls** — traffic quotas, expiry dates, IP logging, share
   links, and QR codes.
 - **Subscriptions** — VLESS, Clash/Mihomo, and JSON formats.
 - **Operations** — multi-node management, Telegram and Discord bots, backups, and a REST API.
 
 <Callout type="info">
-  New to Xray? Read [What is 3x-ui?](/docs/guide) first — it explains how the panel, Xray-core, and
-  your client apps fit together.
+  New to Mikrozia? Read [Meet Mikrozia](/docs/guide) first, then follow the
+  [installation guide](/docs/guide/installation).
 </Callout>

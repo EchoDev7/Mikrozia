@@ -1,0 +1,24 @@
+# Bundled Xray Geo data for the Mikrozia container image.
+#
+# Format: <local-file> <upstream-release-url> <sha256>
+#
+# Every line pins an immutable, date-tagged GitHub release asset. The Docker
+# build downloads exactly these URLs and fails closed unless the SHA-256 of the
+# downloaded bytes matches. `releases/latest` is forbidden here: the image
+# RootFS is immutable, so bundled Geo data may only change through a reviewed
+# manifest update and a new image.
+#
+# Updating: pick a new upstream tag, download the asset, compare it with the
+# upstream .sha256sum sidecar, and record that digest here.
+#
+# Loyalsoldier/v2ray-rules-dat — global geoip/geosite.
+geoip.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/202611142203/geoip.dat 304ac8a1cbcc8166e4f5a4f32955e4d0fb77a1bd713583e371b30ee27f3659d8
+geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/202611142203/geosite.dat 0eb5e3cc3ced44a4dd36eb198b4ad4252a4017971979d7faa16d5c5e184c7462
+#
+# Chocolate4U/Iran-v2ray-rules — geoip_IR/geosite_IR.
+geoip_IR.dat https://github.com/Chocolate4U/Iran-v2ray-rules/releases/download/202611141143/geoip.dat d9d9f64bb1873677dd9cbe34fec5246145bdb2c9c0eee386b8fdb2b2b69ccbb8
+geosite_IR.dat https://github.com/Chocolate4U/Iran-v2ray-rules/releases/download/202611141143/geosite.dat a936e0d2edce376754f3035dc19568da191e8c96328eb424a4d61090de5ea44f
+#
+# runetfreedom/russia-v2ray-rules-dat — geoip_RU/geosite_RU.
+geoip_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/download/202611150112/geoip.dat b3fdc5e24ac7d6620f2bd47e743610c78637efde68796e7ea339fee5852df500
+geosite_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/download/202611150112/geosite.dat 3472727d09b4541ee21c9d3ddf413fbeb91e80ce1d11775e880fd25a30ca32d6

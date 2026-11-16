@@ -105,7 +105,7 @@ func TestGetApiTokenAppliesGivenScope(t *testing.T) {
 	}
 }
 
-// install.sh records the token it gets on a fresh panel. A later bare
+// First-run provisioning records the token it gets on a fresh panel. A later bare
 // -getApiToken must rotate the fallback slot and leave that record valid.
 func TestGetApiTokenPreservesInstallTokenWhenRotating(t *testing.T) {
 	newTokenCLIEnv(t)

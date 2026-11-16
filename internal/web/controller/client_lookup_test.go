@@ -119,7 +119,7 @@ func TestClientGetBySubIDRequiresAdmin(t *testing.T) {
 	if err := database.GetDB().Create(&model.ClientRecord{Email: "private@example.com", SubID: "private-sub", UUID: "private-uuid"}).Error; err != nil {
 		t.Fatal(err)
 	}
-	for _, scope := range []string{model.ApiScopeAdmin, model.ApiScopeMonitor, model.ApiScopeNodeSync, model.ApiScopeNodeAdmin} {
+	for _, scope := range []string{model.ApiScopeAdmin, model.ApiScopeMonitor, model.ApiScopeNodeSync} {
 		if err := database.GetDB().Create(&model.ApiToken{Name: scope, Token: crypto.HashTokenSHA256(scope), Enabled: true, Scope: scope}).Error; err != nil {
 			t.Fatal(err)
 		}
@@ -131,7 +131,6 @@ func TestClientGetBySubIDRequiresAdmin(t *testing.T) {
 		{"", http.StatusUnauthorized},
 		{model.ApiScopeMonitor, http.StatusForbidden},
 		{model.ApiScopeNodeSync, http.StatusForbidden},
-		{model.ApiScopeNodeAdmin, http.StatusForbidden},
 		{model.ApiScopeAdmin, http.StatusOK},
 	} {
 		t.Run("scope="+tt.scope, func(t *testing.T) {

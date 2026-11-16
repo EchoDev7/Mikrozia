@@ -113,7 +113,7 @@ func TestDraftCanBeFilledBeforeAnyInboundIsAttached(t *testing.T) {
 	for _, want := range []string{
 		"add_client_ch_default_email", "add_client_ch_default_comment",
 		"add_client_ch_default_traffic", "add_client_ch_default_exp",
-		"add_client_ch_default_ip_limit", "add_client_ch_default_tg_id",
+		"add_client_ch_default_tg_id",
 		"add_client_attach_more", "add_client_submit_enable", "add_client_cancel",
 	} {
 		if !strings.Contains(string(markup), want) {

@@ -1,5 +1,9 @@
 # frontend/CLAUDE.md
 
+Read the root `AGENTS.md` and `docs/MIKROZIA_PROJECT_CHARTER.md` first. This
+file adds frontend implementation rules; it does not override Mikrozia product
+direction or the RouterOS platform contract.
+
 Frontend agent guide. Full detail: `frontend/README.md` and the root
 `CONTRIBUTING.md` ("Working on the frontend"). This is the short version.
 

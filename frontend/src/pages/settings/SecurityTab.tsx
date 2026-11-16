@@ -29,7 +29,7 @@ interface ApiMsg<T = unknown> {
   obj?: T;
 }
 
-type ApiTokenScope = 'admin' | 'monitor' | 'node-sync' | 'node-admin';
+type ApiTokenScope = 'admin' | 'monitor' | 'node-sync';
 
 interface ApiTokenRow {
   id: number;
@@ -252,11 +252,6 @@ export default function SecurityTab({ allSetting, updateSetting, saveSetting }: 
       description: t('pages.settings.security.apiTokenScopeNodeSyncDesc'),
       color: 'gold',
     },
-    'node-admin': {
-      label: t('pages.settings.security.apiTokenScopeNodeAdmin'),
-      description: t('pages.settings.security.apiTokenScopeNodeAdminDesc'),
-      color: 'purple',
-    },
   };
 
   function toggleTwoFactor() {
@@ -395,8 +390,8 @@ export default function SecurityTab({ allSetting, updateSetting, saveSetting }: 
                             <span id={`${uid}-token-${row.id}`} className="api-token-name">
                               {row.name}
                             </span>
-                            <Tag color={scopeMeta[row.scope].color}>
-                              {scopeMeta[row.scope].label}
+                            <Tag color={(scopeMeta[row.scope] || scopeMeta['node-sync']).color}>
+                              {(scopeMeta[row.scope] || scopeMeta['node-sync']).label}
                             </Tag>
                           </div>
                           <span className="api-token-created">

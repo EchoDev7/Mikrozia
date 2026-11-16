@@ -63,9 +63,6 @@ func newAPIAuthTestEngine(t *testing.T) (*gin.Engine, *APIController) {
 		scope, _ := c.Get("api_token_scope")
 		c.JSON(http.StatusOK, gin.H{"api_authed": c.GetBool("api_authed"), "scope": scope})
 	})
-	api.POST("/server/updatePanel", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"reached": true})
-	})
 	api.POST("/clients/:email/detach", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"reached": true})
 	})
@@ -73,6 +70,9 @@ func newAPIAuthTestEngine(t *testing.T) (*gin.Engine, *APIController) {
 		c.JSON(http.StatusOK, gin.H{"reached": true})
 	})
 	api.POST("/clients/clientIpsByGuid", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"reached": true})
+	})
+	api.POST("/server/adminOnly", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"reached": true})
 	})
 	return engine, a
@@ -107,43 +107,6 @@ func TestCheckAPIAuth_BearerSuccess(t *testing.T) {
 	}
 }
 
-func TestPanelUpdateRequiresNodeAdminScope(t *testing.T) {
-	engine, _ := newAPIAuthTestEngine(t)
-
-	cases := []struct {
-		name     string
-		scope    string
-		wantCode int
-		wantBody string
-	}{
-		{"node sync denied", model.ApiScopeNodeSync, http.StatusForbidden, `{"msg":"this API token is not permitted to access this endpoint","success":false}`},
-		{"node admin allowed", model.ApiScopeNodeAdmin, http.StatusOK, `{"reached":true}`},
-		{"monitor denied", model.ApiScopeMonitor, http.StatusForbidden, `{"msg":"this API token is not permitted to access this endpoint","success":false}`},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			plaintext := tc.name + "-token"
-			if err := database.GetDB().Create(&model.ApiToken{
-				Name:    tc.name,
-				Token:   crypto.HashTokenSHA256(plaintext),
-				Enabled: true,
-				Scope:   tc.scope,
-			}).Error; err != nil {
-				t.Fatalf("seed token: %v", err)
-			}
-
-			req := httptest.NewRequest(http.MethodPost, "/panel/api/server/updatePanel", nil)
-			req.Header.Set("Authorization", "Bearer "+plaintext)
-			w := httptest.NewRecorder()
-			engine.ServeHTTP(w, req)
-
-			if w.Code != tc.wantCode || w.Body.String() != tc.wantBody {
-				t.Fatalf("response = %d %s, want %d %s", w.Code, w.Body.String(), tc.wantCode, tc.wantBody)
-			}
-		})
-	}
-}
-
 // TestCheckAPIAuth_AcceptsVerifiedClientCert ensures verified mTLS authenticates
 // as node-sync rather than bypassing scope checks as admin.
 func TestCheckAPIAuth_AcceptsVerifiedClientCert(t *testing.T) {
@@ -163,14 +126,14 @@ func TestCheckAPIAuth_AcceptsVerifiedClientCert(t *testing.T) {
 		t.Fatalf("body = %s, want node-sync scope", got)
 	}
 
-	forbidden := httptest.NewRequest(http.MethodPost, "/panel/api/server/updatePanel", nil)
+	forbidden := httptest.NewRequest(http.MethodPost, "/panel/api/server/adminOnly", nil)
 	forbidden.TLS = &tls.ConnectionState{
 		VerifiedChains: [][]*x509.Certificate{{&x509.Certificate{}}},
 	}
 	w = httptest.NewRecorder()
 	engine.ServeHTTP(w, forbidden)
 	if w.Code != http.StatusForbidden {
-		t.Fatalf("updatePanel status = %d, want 403; body=%s", w.Code, w.Body.String())
+		t.Fatalf("adminOnly status = %d, want 403; body=%s", w.Code, w.Body.String())
 	}
 
 	for _, legacyScope := range []string{model.ApiScopeAdmin, model.ApiScopeMonitor, model.ApiScopeNodeSync} {
@@ -200,19 +163,69 @@ func TestCheckAPIAuth_AcceptsVerifiedClientCert(t *testing.T) {
 		Name:    "mtls-node-admin",
 		Token:   crypto.HashTokenSHA256(plaintext),
 		Enabled: true,
-		Scope:   model.ApiScopeNodeAdmin,
+		Scope:   "node-admin",
 	}).Error; err != nil {
 		t.Fatalf("seed node-admin token: %v", err)
 	}
-	allowed := httptest.NewRequest(http.MethodPost, "/panel/api/server/updatePanel", nil)
-	allowed.Header.Set("Authorization", "Bearer "+plaintext)
-	allowed.TLS = &tls.ConnectionState{
+	syncReq := httptest.NewRequest(http.MethodPost, "/panel/api/clients/clientIpsByGuid", nil)
+	syncReq.Header.Set("Authorization", "Bearer "+plaintext)
+	syncReq.TLS = &tls.ConnectionState{
 		VerifiedChains: [][]*x509.Certificate{{&x509.Certificate{}}},
 	}
 	w = httptest.NewRecorder()
-	engine.ServeHTTP(w, allowed)
+	engine.ServeHTTP(w, syncReq)
 	if w.Code != http.StatusOK || w.Body.String() != `{"reached":true}` {
-		t.Fatalf("mTLS node-admin response = %d %s, want 200 update launch", w.Code, w.Body.String())
+		t.Fatalf("mTLS node-admin response = %d %s, want 200", w.Code, w.Body.String())
+	}
+}
+
+// TestMigratedTokenStrictNodeSyncAuthority verifies that tokens migrated to
+// node-sync have exactly node-sync permissions and no admin privileges.
+func TestMigratedTokenStrictNodeSyncAuthority(t *testing.T) {
+	engine, _ := newAPIAuthTestEngine(t)
+
+	const tokenVal = "migrated-node-sync-token"
+	if err := database.GetDB().Create(&model.ApiToken{
+		Name:    "migrated-token",
+		Token:   crypto.HashTokenSHA256(tokenVal),
+		Enabled: true,
+		Scope:   model.ApiScopeNodeSync,
+	}).Error; err != nil {
+		t.Fatalf("seed migrated token: %v", err)
+	}
+
+	// 1. Allowed on node-sync endpoints
+	req1 := httptest.NewRequest(http.MethodGet, "/panel/api/server/status", nil)
+	req1.Header.Set("Authorization", "Bearer "+tokenVal)
+	w1 := httptest.NewRecorder()
+	engine.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("status on /server/status = %d, want 200", w1.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "/panel/api/clients/clientIpsByGuid", nil)
+	req2.Header.Set("Authorization", "Bearer "+tokenVal)
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("status on /clients/clientIpsByGuid = %d, want 200", w2.Code)
+	}
+
+	// 2. Forbidden on admin endpoints
+	reqAdmin := httptest.NewRequest(http.MethodPost, "/panel/api/server/adminOnly", nil)
+	reqAdmin.Header.Set("Authorization", "Bearer "+tokenVal)
+	wAdmin := httptest.NewRecorder()
+	engine.ServeHTTP(wAdmin, reqAdmin)
+	if wAdmin.Code != http.StatusForbidden {
+		t.Fatalf("admin endpoint accessed with node-sync token! status = %d, want 403", wAdmin.Code)
+	}
+
+	reqPing := httptest.NewRequest(http.MethodGet, "/panel/api/ping", nil)
+	reqPing.Header.Set("Authorization", "Bearer "+tokenVal)
+	wPing := httptest.NewRecorder()
+	engine.ServeHTTP(wPing, reqPing)
+	if wPing.Code != http.StatusForbidden {
+		t.Fatalf("ping endpoint accessed with node-sync token! status = %d, want 403", wPing.Code)
 	}
 }
 
@@ -227,7 +240,7 @@ func TestNodeSyncScopeUsesFullPathPatterns(t *testing.T) {
 		{"detach email parameter", http.MethodPost, "/panel/api/clients/alice@example.com/detach", http.StatusOK},
 		{"reset inbound id parameter", http.MethodPost, "/panel/api/inbounds/42/resetTraffic", http.StatusOK},
 		{"client IP by guid endpoint", http.MethodPost, "/panel/api/clients/clientIpsByGuid", http.StatusOK},
-		{"update panel forbidden", http.MethodPost, "/panel/api/server/updatePanel", http.StatusForbidden},
+		{"admin endpoint forbidden", http.MethodPost, "/panel/api/server/adminOnly", http.StatusForbidden},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

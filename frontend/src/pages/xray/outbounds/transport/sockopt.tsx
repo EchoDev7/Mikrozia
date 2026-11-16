@@ -4,8 +4,9 @@ import { Form, Input, InputNumber, Select, Switch } from 'antd';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 
 import { FormField } from '@/components/form/rhf';
+import { TcpCongestionField } from '@/components/xray/TcpCongestionField';
 import { SockoptCustomField } from '@/lib/xray/forms/fields';
-import { DOMAIN_STRATEGY_OPTION, TCP_CONGESTION_OPTION } from '@/schemas/primitives';
+import { DOMAIN_STRATEGY_OPTION } from '@/schemas/primitives';
 import {
   HappyEyeballsSchema,
   SockoptStreamSettingsSchema,
@@ -131,17 +132,7 @@ export default function SockoptForm({
               ]}
             />
           </FormField>
-          <FormField
-            label={t('pages.inbounds.form.tcpCongestion')}
-            name={['streamSettings', 'sockopt', 'tcpcongestion']}
-          >
-            <Select
-              options={Object.values(TCP_CONGESTION_OPTION).map((v) => ({
-                value: v,
-                label: v,
-              }))}
-            />
-          </FormField>
+          <TcpCongestionField name={['streamSettings', 'sockopt', 'tcpcongestion']} />
           <FormField
             label={t('pages.xray.outboundForm.tcpUserTimeoutMs')}
             name={['streamSettings', 'sockopt', 'tcpUserTimeout']}

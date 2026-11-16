@@ -1,51 +1,63 @@
 ---
-title: 3x-ui 文档
-description: 3x-ui 官方文档 —— 用于管理 Xray-core 服务器、代理、客户端与订阅的高级 Web 面板。
+title: Mikrozia 文档
+description: Mikrozia 文档——基于 3x-ui 面板、以不可变 MikroTik RouterOS 容器镜像形式交付的产品。
 icon: House
 ---
 
-**3x-ui** 是一个开源 Web 面板，用于部署和管理
-[Xray-core](https://github.com/XTLS/Xray-core) 服务器。它为入站、协议、客户端、流量统计、订阅
-等提供了现代化的控制台 —— 无需在命令行手动编辑 Xray JSON。
+**Mikrozia** 将 [3x-ui](https://github.com/MHSanaei/3x-ui) 面板与
+[Xray-core](https://github.com/XTLS/Xray-core) 打包为面向 **MikroTik RouterOS
+容器** 的版本化 OCI 镜像，参考平台为 CHR x86_64。你因此获得面板仪表盘、
+入站、客户端、流量统计、订阅和 REST API——无需 systemd、主机防火墙管理或运行时
+软件更新。
 
-本站点是官方文档，同时提供一套**交互式、在浏览器内运行的工具**（配置生成器），它们完全运行在你的设备上 —— 任何数据都不会离开页面。
+本站还包含完全在你的浏览器中运行的**交互式工具**（配置生成器），数据不会离开页面。
 
 ## 从这里开始
 
 <Cards>
   <Card
-    title="什么是 3x-ui？"
-    href="/docs/guide"
-    description="全景概览：Xray-core、面板，以及它适合谁使用。"
-  />
-  <Card
-    title="安装"
+    title="在 RouterOS 上安装"
     href="/docs/guide/installation"
-    description="通过脚本、Docker 或手动方式安装。"
+    description="唯一受支持的路径：版本化镜像与持久化挂载。"
   />
   <Card
     title="首次登录"
     href="/docs/guide/first-login"
-    description="访问面板，并在进行其他操作之前对其进行加固。"
+    description="访问面板，并首先完成加固。"
   />
   <Card
-    title="REALITY"
-    href="/docs/config/reality"
-    description="搭配 XTLS-Vision 配置 VLESS + REALITY。"
+    title="更新与卸载"
+    href="/docs/guide/update-uninstall"
+    description="替换镜像，同时保留数据挂载。"
+  />
+  <Card
+    title="端口与防火墙"
+    href="/docs/reference/ports-firewall"
+    description="Mikrozia 监听的端口，以及网络策略由谁管理。"
   />
 </Cards>
 
+## RouterOS 约定
+
+- Mikrozia 仅作为 RouterOS 容器运行；它不是 VPS 或 systemd 安装。
+- 受支持的更新方式是使用新版本镜像，并保留相同的持久化挂载
+  （`/etc/x-ui` 与 `/root/cert`）。
+- RouterOS 的防火墙、NAT、端口转发、路由和访问控制策略由用户管理。Mikrozia
+  从不修改它们，也不内置防火墙工具。
+- 证书由用户管理：在容器外获取和续期，并以路径方式配置。容器内没有 ACME
+  客户端或续期进程。
+- 面板、Xray、sidecar 组件和 Geo 数据都是不可变的镜像内容，没有运行时软件更新器。
+
 ## 亮点
 
-- **覆盖所有主流协议** —— VLESS、VMess、Trojan、Shadowsocks、WireGuard、
-  AmneziaWG、TUIC v5、Hysteria2、SOCKS、HTTP 以及 Dokodemo-door。
-- **REALITY 与 XTLS-Vision** —— 现代化、抗审查的传输方式。
-- **细粒度的客户端管理** —— 流量配额、到期日期、IP 限制、分享
-  链接以及 QR 码。
-- **订阅** —— 支持 VLESS、Clash/Mihomo 以及 JSON 格式。
-- **运维能力** —— 多节点管理、Telegram 和 Discord 机器人、备份以及 REST API。
+- **覆盖主要协议**——VLESS、VMess、Trojan、Shadowsocks、WireGuard、
+  AmneziaWG（用户态）、TUIC v5、Hysteria2、SOCKS、HTTP 和 Dokodemo-door。
+- **REALITY 与 XTLS-Vision**——现代、抗审查的传输方式。
+- **按客户端控制**——流量配额、到期时间、IP 记录、分享链接和二维码。
+- **订阅**——VLESS、Clash/Mihomo 与 JSON 格式。
+- **运维**——多节点管理、Telegram 与 Discord 机器人、备份以及 REST API。
 
 <Callout type="info">
-  初次接触 Xray？请先阅读 [什么是 3x-ui？](/docs/guide) —— 它解释了面板、Xray-core 与
-  你的客户端应用如何协同工作。
+  初次使用 Mikrozia？请先阅读[认识 Mikrozia](/docs/guide)，再按照
+  [安装指南](/docs/guide/installation)操作。
 </Callout>

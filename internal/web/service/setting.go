@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
@@ -76,7 +75,6 @@ var defaultValueMap = map[string]string{
 	"sessionMaxAge":               "360",
 	"trustedProxyCIDRs":           DefaultTrustedProxyCIDRs,
 	"realityScanCandidates":       DefaultRealityScanCandidatesCSV,
-	"ipLimitAllowlist":            "",
 	"pageSize":                    "25",
 	"expireDiff":                  "0",
 	"trafficDiff":                 "0",
@@ -205,7 +203,6 @@ var defaultValueMap = map[string]string{
 	"restartXrayOnClientDisable":  "true",
 	"xrayOutboundTestUrl":         "https://www.google.com/generate_204",
 	"panelOutbound":               "",
-	"devChannelEnable":            "false",
 
 	// LDAP defaults
 	"ldapEnable":             "false",
@@ -743,12 +740,6 @@ func (s *SettingService) GetTrafficDiff() (int, error) {
 
 func (s *SettingService) GetSessionMaxAge() (int, error) {
 	return s.getInt("sessionMaxAge")
-}
-
-// GetIpLimitAllowlist returns the operator's trusted addresses and networks,
-// which the IP limit neither counts nor bans.
-func (s *SettingService) GetIpLimitAllowlist() (string, error) {
-	return s.getString("ipLimitAllowlist")
 }
 
 func (s *SettingService) GetTrustedProxyCIDRs() (string, error) {
@@ -1333,27 +1324,8 @@ func (s *SettingService) SetRestartXrayOnClientDisable(value bool) error {
 	return s.setBool("restartXrayOnClientDisable", value)
 }
 
-// GetDevChannelEnable reports whether the panel self-update tracks the rolling
-// per-commit dev release instead of the latest stable tag.
-func (s *SettingService) GetDevChannelEnable() (bool, error) {
-	return s.getBool("devChannelEnable")
-}
-
-func (s *SettingService) SetDevChannelEnable(value bool) error {
-	return s.setBool("devChannelEnable", value)
-}
-
-// GetIpLimitEnable reports whether the IP-limit feature is available. Always
-// true since the panel enforces limits via the core's online-stats API; on an
-// older core the job falls back to access-log parsing and warns there when the
-// log is missing, so the UI no longer hides the field behind that condition.
-func (s *SettingService) GetIpLimitEnable() (bool, error) {
-	return true, nil
-}
-
 // GetAccessLogEnable reports whether an Xray access log is configured. Used by
-// the UI for features that genuinely read the log file (the xray log viewer) —
-// distinct from IP limiting, which works without it.
+// the UI for features that genuinely read the log file (the xray log viewer).
 func (s *SettingService) GetAccessLogEnable() (bool, error) {
 	accessLogPath, err := xray.GetAccessLogPath()
 	if err != nil {
@@ -1953,28 +1925,25 @@ func (s *SettingService) BuildSubURIBase(host string) string {
 func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 	type settingFunc func() (any, error)
 	settings := map[string]settingFunc{
-		"expireDiff":       func() (any, error) { return s.GetExpireDiff() },
-		"trafficDiff":      func() (any, error) { return s.GetTrafficDiff() },
-		"pageSize":         func() (any, error) { return s.GetPageSize() },
-		"defaultCert":      func() (any, error) { return s.GetCertFile() },
-		"defaultKey":       func() (any, error) { return s.GetKeyFile() },
-		"tgBotEnable":      func() (any, error) { return s.GetTgbotEnabled() },
-		"subThemeDir":      func() (any, error) { return s.GetSubThemeDir() },
-		"happLinkEnable":   func() (any, error) { return s.GetHappLinkEnable() },
-		"subEnable":        func() (any, error) { return s.GetSubEnable() },
-		"subJsonEnable":    func() (any, error) { return s.GetSubJsonEnable() },
-		"subClashEnable":   func() (any, error) { return s.GetSubClashEnable() },
-		"subTitle":         func() (any, error) { return s.GetSubTitle() },
-		"subURI":           func() (any, error) { return s.GetSubURI() },
-		"subJsonURI":       func() (any, error) { return s.GetSubJsonURI() },
-		"subClashURI":      func() (any, error) { return s.GetSubClashURI() },
-		"datepicker":       func() (any, error) { return s.GetDatepicker() },
-		"ipLimitEnable":    func() (any, error) { return s.GetIpLimitEnable() },
-		"accessLogEnable":  func() (any, error) { return s.GetAccessLogEnable() },
-		"webDomain":        func() (any, error) { return s.GetWebDomain() },
-		"subDomain":        func() (any, error) { return s.GetSubDomain() },
-		"devChannelEnable": func() (any, error) { return s.GetDevChannelEnable() },
-		"isDevBuild":       func() (any, error) { return config.IsDevBuild(), nil },
+		"expireDiff":      func() (any, error) { return s.GetExpireDiff() },
+		"trafficDiff":     func() (any, error) { return s.GetTrafficDiff() },
+		"pageSize":        func() (any, error) { return s.GetPageSize() },
+		"defaultCert":     func() (any, error) { return s.GetCertFile() },
+		"defaultKey":      func() (any, error) { return s.GetKeyFile() },
+		"tgBotEnable":     func() (any, error) { return s.GetTgbotEnabled() },
+		"subThemeDir":     func() (any, error) { return s.GetSubThemeDir() },
+		"happLinkEnable":  func() (any, error) { return s.GetHappLinkEnable() },
+		"subEnable":       func() (any, error) { return s.GetSubEnable() },
+		"subJsonEnable":   func() (any, error) { return s.GetSubJsonEnable() },
+		"subClashEnable":  func() (any, error) { return s.GetSubClashEnable() },
+		"subTitle":        func() (any, error) { return s.GetSubTitle() },
+		"subURI":          func() (any, error) { return s.GetSubURI() },
+		"subJsonURI":      func() (any, error) { return s.GetSubJsonURI() },
+		"subClashURI":     func() (any, error) { return s.GetSubClashURI() },
+		"datepicker":      func() (any, error) { return s.GetDatepicker() },
+		"accessLogEnable": func() (any, error) { return s.GetAccessLogEnable() },
+		"webDomain":       func() (any, error) { return s.GetWebDomain() },
+		"subDomain":       func() (any, error) { return s.GetSubDomain() },
 	}
 
 	result := make(map[string]any)

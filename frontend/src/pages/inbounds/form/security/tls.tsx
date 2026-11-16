@@ -23,6 +23,7 @@ import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { CipherSuitesSelect } from '@/components/form';
 import DynamicEchHelper from '@/components/form/DynamicEchHelper';
 import { FormField } from '@/components/form/rhf';
+import { TcpCongestionField } from '@/components/xray/TcpCongestionField';
 import {
   ALPN_OPTION,
   DOMAIN_STRATEGY_OPTION,
@@ -230,6 +231,9 @@ function EchSockoptSection() {
           >
             <Switch />
           </FormField>
+          <TcpCongestionField
+            name={['streamSettings', 'tlsSettings', 'echSockopt', 'tcpcongestion']}
+          />
         </>
       )}
     </>

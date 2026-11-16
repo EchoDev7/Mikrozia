@@ -7,7 +7,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
-func TestFreshInstallFastPathMarksResetIpLimitSeeder(t *testing.T) {
+func TestFreshInstallFastPathDoesNotCreateResetIpLimitSeeder(t *testing.T) {
 	if err := InitDB(filepath.Join(t.TempDir(), "x-ui.db")); err != nil {
 		t.Fatalf("InitDB: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestFreshInstallFastPathMarksResetIpLimitSeeder(t *testing.T) {
 		Count(&cnt).Error; err != nil {
 		t.Fatalf("count seeder history: %v", err)
 	}
-	if cnt != 1 {
-		t.Fatal("fresh-install fast path must mark ResetIpLimitNoFail2ban done so it cannot wipe admin-set IP limits on the next boot")
+	if cnt != 0 {
+		t.Fatalf("fresh-install fast path must not create ResetIpLimitNoFail2ban seeder, got %d", cnt)
 	}
 }

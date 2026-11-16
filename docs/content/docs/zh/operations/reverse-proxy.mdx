@@ -1,11 +1,14 @@
 ---
 title: 反向代理
-description: 通过 Nginx 或 Caddy 为 3x-ui 面板和订阅提供 Let's Encrypt TLS 保护。
+description: 在独立代理主机上通过 Nginx 或 Caddy 提供 Mikrozia 面板与订阅，并由 RouterOS 将流量送达容器。
 icon: Waypoints
 ---
 
-反向代理让你能够在一个简洁的域名上提供面板和订阅服务，并自动启用 HTTPS，同时将真实端口隐藏在 80/443 端口之后。更希望让面板直接终结 TLS？可以改用
-[`x-ui` SSL 菜单](/docs/config/ssl-certificates)来获取证书。
+反向代理让你能够在一个简洁的域名上提供面板和订阅服务，并自动启用 HTTPS，同时将真实端口隐藏在 80/443 端口之后。代理运行在容器之外，通常位于另一台主机。面板本身也可以使用你挂载到 `/root/cert` 的证书直接终结 TLS——参见
+[TLS 证书](/docs/config/ssl-certificates)。
+
+代理必须通过容器地址（初学者布局中为 `172.16.10.2:2053`）访问面板。建立这条路径——包括任何端口转发或路由——属于由你配置的 RouterOS 策略，Mikrozia 不会创建它。参见
+[端口与防火墙](/docs/reference/ports-firewall)。
 
 ## 生成配置
 
@@ -19,7 +22,8 @@ icon: Waypoints
 
 ## Nginx + 证书
 
-使用 Nginx 时，请通过 `certbot`（或 `acme.sh`）获取证书，并在 server 块中引用它：
+使用 Nginx 时，请在代理主机上（Mikrozia 容器之外）通过 `certbot`（或 `acme.sh`）
+获取证书，并在 server 块中引用它：
 
 ```bash title="certbot"
 certbot certonly --nginx -d panel.example.com
@@ -33,7 +37,7 @@ Caddy 会为你获取并续期证书——只需让 Caddyfile 指向面板，它
 
 ```text title="Caddyfile"
 panel.example.com {
-    reverse_proxy 127.0.0.1:2053 {
+    reverse_proxy 172.16.10.2:2053 {
         header_up X-Real-IP {remote_host}
     }
 }

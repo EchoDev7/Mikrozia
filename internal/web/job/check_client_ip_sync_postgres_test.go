@@ -61,7 +61,6 @@ func clientIpWritersPreserveCanonicalBytes(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Callback().Create().Remove(callback) })
 	j := NewCheckClientIpJob()
-	j.allowlist = parseIpLimitAllowlist("10.0.0.1")
 	observed := map[string]map[string]int64{email: {"192.0.2.9": now, "10.0.0.1": now, "192.0.2.1": now}}
 	for iteration := range 4 {
 		blob, err := json.Marshal(entries)
@@ -71,7 +70,7 @@ func clientIpWritersPreserveCanonicalBytes(t *testing.T) {
 		if err := (&service.InboundService{}).MergeInboundClientIps([]model.InboundClientIps{{ClientEmail: email, Ips: string(blob)}}); err != nil {
 			t.Fatal(err)
 		}
-		j.processObserved(observed, true, false)
+		j.processObserved(observed, false)
 		var got model.InboundClientIps
 		if err := db.Where("client_email = ?", email).First(&got).Error; err != nil {
 			t.Fatal(err)
@@ -84,7 +83,7 @@ func clientIpWritersPreserveCanonicalBytes(t *testing.T) {
 		t.Fatalf("unchanged alternating writers performed %d flat updates, want 0", flatWrites)
 	}
 	beforeAttribution := attributionWrites
-	j.processObserved(map[string]map[string]int64{email: {"192.0.2.9": now + 1}}, true, false)
+	j.processObserved(map[string]map[string]int64{email: {"192.0.2.9": now + 1}}, false)
 	if flatWrites != 1 {
 		t.Fatalf("advancing observation flat updates = %d, want 1", flatWrites)
 	}
@@ -144,7 +143,7 @@ func processObservedCreateConflictPreservesUnion(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Callback().Create().Remove(callback) })
-	NewCheckClientIpJob().processObserved(map[string]map[string]int64{email: {"192.0.2.1": now, "198.51.100.2": now - 5}}, true, true)
+	NewCheckClientIpJob().processObserved(map[string]map[string]int64{email: {"192.0.2.1": now, "198.51.100.2": now - 5}}, true)
 	if !injected {
 		t.Fatal("missing-row insert was not exercised")
 	}

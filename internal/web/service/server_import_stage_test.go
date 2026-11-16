@@ -19,21 +19,13 @@ func TestStageSQLiteUploadRebuildsFromDump(t *testing.T) {
 	}
 
 	uploadPath := filepath.Join(dir, "upload.dump")
-	if err := os.WriteFile(uploadPath, dump, 0o644); err != nil {
+	if err := os.WriteFile(uploadPath, dump, 0o600); err != nil {
 		t.Fatalf("write upload: %v", err)
 	}
-	upload, err := os.Open(uploadPath)
-	if err != nil {
-		t.Fatalf("open upload: %v", err)
-	}
-	defer upload.Close()
 
 	staged := filepath.Join(dir, "x-ui.db.temp")
-	if err := stageSQLiteUpload(upload, importKindSQLiteDump, staged); err != nil {
+	if err := stageSQLiteUpload(uploadPath, importKindSQLiteDump, staged); err != nil {
 		t.Fatalf("stageSQLiteUpload: %v", err)
-	}
-	if _, err := os.Stat(staged + ".dump"); !os.IsNotExist(err) {
-		t.Errorf("intermediate dump file %s.dump was not cleaned up", staged)
 	}
 	if err := database.ValidateSQLiteDB(staged); err != nil {
 		t.Errorf("staged database fails integrity check: %v", err)

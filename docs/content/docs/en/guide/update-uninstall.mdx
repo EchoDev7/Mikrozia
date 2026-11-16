@@ -1,10 +1,10 @@
 ---
 title: Update & Uninstall
-description: Manage 3x-ui with the x-ui menu and CLI — update (stable, dev, or legacy), change settings, and uninstall cleanly.
+description: Manage Mikrozia with the x-ui menu and CLI, update via container replacement, and uninstall cleanly on RouterOS.
 icon: RefreshCw
 ---
 
-After a script install, the `x-ui` command is your control center. Run it with
+Inside the container or via terminal, the `x-ui` command is your management center. Run it with
 no arguments for the interactive menu, or pass a subcommand for a one-shot action.
 
 ```bash
@@ -13,87 +13,72 @@ x-ui
 
 ## The `x-ui` management menu
 
-The menu (items `0`–`28`) shows the panel/Xray status at the top, then:
+The menu (items `0`–`16`) displays the panel and Xray status at the top:
 
 | #     | Item                                   | What it does                                              |
 | ----- | -------------------------------------- | --------------------------------------------------------- |
-| 1     | Install                                | (Re)install from the remote script                        |
-| 2     | Update                                 | Update to the latest **stable** release                   |
-| 3     | Update to Dev Channel (latest commit)  | Update to the rolling `dev-latest` build                  |
-| 4     | Update Menu                            | Update just the `x-ui` menu script                        |
-| 5     | Legacy Version                         | Install a specific older version (prompts for a tag)      |
-| 6     | Uninstall                              | Remove 3x-ui (see below)                                  |
-| 7     | Reset Username & Password              | Set new credentials; optionally disable 2FA               |
-| 8     | Reset Web Base Path                    | Randomize the web base path                               |
-| 9     | Reset Settings                         | Reset panel settings (your account is preserved)          |
-| 10    | Change Port                            | Change the panel port                                     |
-| 11    | View Current Settings                  | Show username, port, web base path, cert paths            |
-| 12–14 | Start / Stop / Restart                 | Control the panel service                                 |
-| 15    | Restart Xray                           | Reload only Xray-core                                     |
-| 16    | Check Status                           | Service status                                            |
-| 17    | Logs Management                        | View debug logs / clear logs                              |
-| 18–19 | Enable / Disable Autostart             | Toggle start-on-boot                                      |
-| 20    | SSL Certificate Management             | Let's Encrypt (domain or IP), custom paths, renew/revoke  |
-| 21    | Cloudflare SSL Certificate             | DNS-01 wildcard cert via Cloudflare                       |
-| 22    | IP Limit Management                    | Fail2ban-based per-client IP limits                       |
-| 23    | Firewall Management                    | `ufw` install and port rules                              |
-| 24    | SSH Port Forwarding Management         | Bind the panel to localhost and tunnel over SSH           |
-| 25    | PostgreSQL Management                  | Install/migrate/manage PostgreSQL                         |
-| 26    | Enable BBR                             | Toggle the BBR congestion-control sysctl                  |
-| 27    | Update Geo Files                       | Update geoip/geosite data (Loyalsoldier, IR, RU)          |
-| 28    | Speedtest by Ookla                     | Run an Ookla speed test                                   |
-| 0     | Exit                                   | —                                                         |
+| 1     | Reset Username & Password              | Set new credentials; optionally disable 2FA               |
+| 2     | Reset Web Base Path                    | Reset the web base path                                   |
+| 3     | Reset Settings                         | Reset panel settings (your account is preserved)          |
+| 4     | Change Port                            | Change the panel port                                     |
+| 5     | View Current Settings                  | Show username, port, web base path, cert paths            |
+| 6–7   | Show RouterOS Start / Stop Command     | Print RouterOS `/container/start` & `/container/stop` commands |
+| 8     | Reload Panel & Restart Xray            | Reload panel web/sub (`SIGHUP`) & restart Xray (`SIGUSR1`) without restarting the container |
+| 9     | Restart Xray Only                      | Send `SIGUSR1` to restart only Xray-core inside the container |
+| 10    | Check Status                           | Panel, Xray, and MTProto runtime status plus RouterOS autostart command |
+| 11    | Logs Management                        | View panel debug log / RouterOS container log commands    |
+| 12–13 | Show RouterOS Enable / Disable Autostart Command | Print RouterOS `/container/set ... start-on-boot` & `restart-policy` commands |
+| 14    | TLS Certificate Paths                  | Select user-supplied certificate files for the panel; issuance and renewal happen outside the container |
+| 15    | RouterOS Network Policy Notice         | Notice on configuring network and firewall in RouterOS    |
+| 16    | Database Tools                         | Convert SQLite `.db` ↔ `.dump` & external PostgreSQL guide |
+| 0     | Exit                                   | Exit Script                                               |
 
-Some of these have their own pages: [SSL certificates](/docs/config/ssl-certificates)
-(items 20–21), [Security](/docs/operations/security) (IP limits, firewall),
-[Reverse proxy](/docs/operations/reverse-proxy) and [Panel settings](/docs/config/panel)
-(TLS), and [Database](/docs/reference/database) (PostgreSQL).
+Some of these options have their own guides: [TLS certificates](/docs/config/ssl-certificates)
+(item 14), [Panel settings](/docs/config/panel) (TLS), and [Database](/docs/reference/database) (PostgreSQL).
 
 ## CLI subcommands
 
-For scripts and quick actions, `x-ui` also takes a subcommand directly:
+For scripts and quick actions, `x-ui` accepts subcommands directly:
 
 | Command                    | Action                                              |
 | -------------------------- | --------------------------------------------------- |
-| `x-ui start` / `stop` / `restart` | Control the service                          |
-| `x-ui restart-xray`        | Reload only Xray-core                               |
-| `x-ui status`              | Show status                                         |
+| `x-ui version`             | Show Mikrozia version                               |
+| `x-ui start` / `stop`      | Print RouterOS `/container/start` and `/container/stop` commands (managed on RouterOS) |
+| `x-ui restart`             | Reload panel web/sub and restart Xray internally (does not restart the RouterOS container) |
+| `x-ui restart-xray`        | Restart only Xray-core inside the running container (`SIGUSR1`) |
+| `x-ui status`              | Show Panel/Xray/MTProto status and RouterOS autostart check command |
 | `x-ui settings`            | Show current settings                               |
-| `x-ui enable` / `disable`  | Toggle autostart on boot                            |
-| `x-ui log`                 | Tail the debug log                                  |
-| `x-ui banlog`              | Show Fail2ban ban log                               |
-| `x-ui update`              | Update to the latest stable release                 |
-| `x-ui update-dev`          | Update to the rolling `dev-latest` build            |
-| `x-ui legacy`              | Install a specific older version (prompts)          |
-| `x-ui update-all-geofiles` | Update all geo files, restart if changed            |
-| `x-ui migrate-db --dsn …`  | Migrate SQLite → PostgreSQL (see [Database](/docs/reference/database)) |
-| `x-ui install` / `uninstall` | Install / uninstall                               |
+| `x-ui enable` / `disable`  | Print RouterOS `/container/set` commands for `start-on-boot` and `restart-policy` |
+| `x-ui log`                 | View debug log                                      |
+| `x-ui migrateDB [file]`    | Convert SQLite `.db` ↔ `.dump`                      |
 
 ## Updating
 
-- **Stable:** menu option **2** or `x-ui update`. Re-running the install script
-  also updates in place.
-- **Dev channel:** menu option **3** or `x-ui update-dev` — the rolling
-  `dev-latest` per-commit build (not a stable release).
-- **A specific older version:** menu option **5** (Legacy Version).
+In Mikrozia, panel updates are performed exclusively by replacing the Container or Container Image. Legacy in-place self-update scripts (`update.sh`) that ran inside the container have been completely removed to protect the container RootFS and preserve stability on RouterOS.
 
-Updating preserves your database and settings. Take a
-[backup](/docs/operations/backup-restore) before a major-version jump.
+To update Mikrozia:
+1. Pull the new Mikrozia container image tag (e.g. from Docker Hub `majlot/mikrozia`).
+2. Stop the current container and recreate it with the new image, reusing the existing persistent mounts (`/etc/x-ui` and `/root/cert`).
+3. Start the new container.
+
+Your database, accounts, and certificates in the mounted persistent directories are fully preserved across container updates. Always take a [backup](/docs/operations/backup-restore) before upgrading across major releases.
+
+### Rolling back an image update
+
+If the new image fails validation, keep the container stopped, recreate it with the previous versioned image tag, and reuse the same `/etc/x-ui` and `/root/cert` mounts. The database and certificates are not part of the image. If the new image already migrated the database schema, restore the pre-update database backup before starting the older image; an older panel must never open a newer schema. Image rollback never requires copying data into the image RootFS.
 
 <Callout type="info">
-  Docker users update differently — pull the new image and recreate the
-  container (`docker compose pull && docker compose up -d`) rather than using the
-  `x-ui` update commands.
+  Mikrozia never modifies its own RootFS at runtime. Container image replacement guarantees a clean, immutable, and reproducible deployment.
 </Callout>
+
+For a full container restart from RouterOS Terminal or WinBox, run: `/container/restart [find where comment="[Mikrozia:container] Container"]`.
 
 ## Uninstalling
 
-Menu option **6** or `x-ui uninstall`. It stops and disables the service, removes
-the service unit, and deletes `/etc/x-ui/` and the install folder. If the panel
-used a locally-installed PostgreSQL, it offers to purge that too (a separate,
-irreversible confirmation).
+To uninstall Mikrozia in RouterOS:
+1. Stop the container: `/container/stop [find where comment="[Mikrozia:container] Container"]`
+2. Remove the container instance: `/container/remove [find where comment="[Mikrozia:container] Container"]`
 
 <Callout type="warn">
-  Uninstalling removes the database (`/etc/x-ui/x-ui.db`) and your configuration.
-  [Back up](/docs/operations/backup-restore) first if you might need it.
+  Removing the RouterOS container does not automatically delete your persistent mount folders (`/etc/x-ui` and `/root/cert`). Deleting database files and certificates must always be a separate, deliberate, and explicit operator action on the host storage, ensuring zero accidental data loss.
 </Callout>

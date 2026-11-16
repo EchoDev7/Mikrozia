@@ -1003,7 +1003,18 @@ export function formValuesToWirePayload(values: OutboundFormValues): WireOutboun
         finalmask?: unknown;
       };
       const stream: Raw = {};
-      if (sockopt) stream.sockopt = sockopt;
+      if (sockopt && typeof sockopt === 'object') {
+        const cleanedSockopt = { ...(sockopt as Raw) };
+        if (
+          typeof cleanedSockopt.tcpcongestion === 'string' &&
+          cleanedSockopt.tcpcongestion.trim() === ''
+        ) {
+          delete cleanedSockopt.tcpcongestion;
+        } else if (cleanedSockopt.tcpcongestion === undefined) {
+          delete cleanedSockopt.tcpcongestion;
+        }
+        if (Object.keys(cleanedSockopt).length > 0) stream.sockopt = cleanedSockopt;
+      }
       if (values.protocol === 'wireguard' && finalmask && typeof finalmask === 'object') {
         stream.finalmask = { ...(finalmask as Raw) };
         dropEmptyFinalMask(stream);

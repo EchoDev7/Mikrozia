@@ -1,98 +1,84 @@
 ---
 title: 更新与卸载
-description: 使用 x-ui 菜单和命令行管理 3x-ui——更新（稳定版、开发版或指定旧版本）、修改设置，以及干净地卸载。
+description: 使用 x-ui 菜单和命令行管理 Mikrozia，通过容器镜像替换进行更新，并在 RouterOS 中安全卸载。
 icon: RefreshCw
 ---
 
-脚本安装完成后，`x-ui` 命令就是你的控制中心。不带参数运行它会进入交互式菜单，
-或传入一个子命令来执行单次操作。
+在容器内部或通过终端，`x-ui` 命令是你的管理中心。不带参数运行它会打开交互式菜单，
+或传入一个子命令来直接执行单次操作。
 
 ```bash
 x-ui
 ```
 
-## The `x-ui` management menu
+## `x-ui` 管理菜单
 
-菜单（项 `0`–`28`）在顶部显示面板/Xray 状态，然后列出：
+菜单（选项 `0`–`16`）在顶部显示面板和 Xray 状态：
 
-| #     | Item                                   | What it does                                              |
+| #     | 选项                                   | 功能说明                                                  |
 | ----- | -------------------------------------- | --------------------------------------------------------- |
-| 1     | Install                                | 从远程脚本（重新）安装                                       |
-| 2     | Update                                 | 更新到最新的**稳定版**                                       |
-| 3     | Update to Dev Channel (latest commit)  | 更新到滚动的 `dev-latest` 构建                               |
-| 4     | Update Menu                            | 仅更新 `x-ui` 菜单脚本                                       |
-| 5     | Legacy Version                         | 安装指定的旧版本（提示输入标签）                             |
-| 6     | Uninstall                              | 移除 3x-ui（见下文）                                        |
-| 7     | Reset Username & Password              | 设置新凭据；可选择禁用 2FA                                   |
-| 8     | Reset Web Base Path                    | 随机生成 Web 根路径                                         |
-| 9     | Reset Settings                         | 重置面板设置（保留你的账户）                                 |
-| 10    | Change Port                            | 修改面板端口                                               |
-| 11    | View Current Settings                  | 显示用户名、端口、Web 根路径、证书路径                       |
-| 12–14 | Start / Stop / Restart                 | 控制面板服务                                               |
-| 15    | Restart Xray                           | 仅重新加载 Xray-core                                       |
-| 16    | Check Status                           | 服务状态                                                   |
-| 17    | Logs Management                        | 查看调试日志 / 清除日志                                      |
-| 18–19 | Enable / Disable Autostart             | 开关开机自启                                               |
-| 20    | SSL Certificate Management             | Let's Encrypt（域名或 IP）、自定义路径、续期/吊销           |
-| 21    | Cloudflare SSL Certificate             | 通过 Cloudflare 的 DNS-01 通配符证书                        |
-| 22    | IP Limit Management                    | 基于 Fail2ban 的按客户端 IP 限制                            |
-| 23    | Firewall Management                    | `ufw` 安装与端口规则                                        |
-| 24    | SSH Port Forwarding Management         | 将面板绑定到 localhost 并通过 SSH 隧道访问                  |
-| 25    | PostgreSQL Management                  | 安装/迁移/管理 PostgreSQL                                   |
-| 26    | Enable BBR                             | 开关 BBR 拥塞控制 sysctl                                    |
-| 27    | Update Geo Files                       | 更新 geoip/geosite 数据（Loyalsoldier、IR、RU）            |
-| 28    | Speedtest by Ookla                     | 运行 Ookla 测速                                            |
-| 0     | Exit                                   | —                                                         |
+| 1     | Reset Username & Password              | 设置新登录凭据；可选择禁用 2FA                               |
+| 2     | Reset Web Base Path                    | 重置 Web 根路径                                           |
+| 3     | Reset Settings                         | 重置面板设置（保留用户与数据）                               |
+| 4     | Change Port                            | 修改面板端口                                               |
+| 5     | View Current Settings                  | 显示用户名、端口、Web 根路径及证书路径                       |
+| 6–7   | Show RouterOS Start / Stop Command     | 显示 RouterOS `/container/start` 与 `/container/stop` 命令 |
+| 8     | Reload Panel & Restart Xray            | 在容器内重载面板 Web/订阅服务（`SIGHUP`）并重启 Xray（`SIGUSR1`），不重启容器本身 |
+| 9     | Restart Xray Only                      | 发送 `SIGUSR1` 仅在容器内重启 Xray-core 核心                 |
+| 10    | Check Status                           | 查看面板、Xray 和 MTProto 运行状态及 RouterOS 自启检查命令   |
+| 11    | Logs Management                        | 查看面板调试日志 / RouterOS 容器日志命令                     |
+| 12–13 | Show RouterOS Enable / Disable Autostart Command | 显示 RouterOS `/container/set` 自启与重启策略命令          |
+| 14    | TLS Certificate Paths                  | 选择用户提供的证书文件供面板使用；签发和续期在容器外进行      |
+| 15    | RouterOS Network Policy Notice         | RouterOS 网络策略与防火墙配置说明                           |
+| 16    | Database Tools                         | SQLite `.db` ↔ `.dump` 转换与外部 PostgreSQL 指南         |
+| 0     | Exit                                   | 退出脚本                                                   |
 
-其中部分功能有各自的页面：[SSL 证书](/docs/config/ssl-certificates)
-（项 20–21）、[安全](/docs/operations/security)（IP 限制、防火墙）、
-[反向代理](/docs/operations/reverse-proxy) 和 [面板设置](/docs/config/panel)
-（TLS），以及 [数据库](/docs/reference/database)（PostgreSQL）。
+其中部分功能有各自的详细指南：[TLS 证书](/docs/config/ssl-certificates)
+（选项 14）、[面板设置](/docs/config/panel)（TLS），以及 [数据库](/docs/reference/database)（PostgreSQL）。
 
 ## 命令行子命令
 
-对于脚本和快速操作，`x-ui` 也可直接接受一个子命令：
+对于自动化脚本和快速运维，`x-ui` 支持直接执行子命令：
 
-| Command                    | Action                                              |
+| 子命令                     | 操作说明                                            |
 | -------------------------- | --------------------------------------------------- |
-| `x-ui start` / `stop` / `restart` | 控制服务                                     |
-| `x-ui restart-xray`        | 仅重新加载 Xray-core                               |
-| `x-ui status`              | 显示状态                                           |
-| `x-ui settings`            | 显示当前设置                                       |
-| `x-ui enable` / `disable`  | 开关开机自启                                       |
-| `x-ui log`                 | 跟踪查看调试日志                                   |
-| `x-ui banlog`              | 显示 Fail2ban 封禁日志                             |
-| `x-ui update`              | 更新到最新的稳定版                                 |
-| `x-ui update-dev`          | 更新到滚动的 `dev-latest` 构建                     |
-| `x-ui legacy`              | 安装指定的旧版本（带提示）                         |
-| `x-ui update-all-geofiles` | 更新所有 geo 文件，如有变化则重启                  |
-| `x-ui migrate-db --dsn …`  | 将 SQLite → PostgreSQL 迁移（见 [数据库](/docs/reference/database)） |
-| `x-ui install` / `uninstall` | 安装 / 卸载                                       |
+| `x-ui version`             | 显示当前 Mikrozia 版本                              |
+| `x-ui start` / `stop`      | 显示 RouterOS `/container/start` 与 `/container/stop` 命令（由 RouterOS 控制） |
+| `x-ui restart`             | 在运行中的容器内重载面板并重启 Xray（不会重启 RouterOS 容器本身） |
+| `x-ui restart-xray`        | 仅在运行中的容器内重启 Xray 核心（`SIGUSR1`）       |
+| `x-ui status`              | 显示面板/Xray/MTProto 状态及 RouterOS 自启检查命令  |
+| `x-ui settings`            | 显示当前配置                                        |
+| `x-ui enable` / `disable`  | 显示 RouterOS `/container/set` 的 `start-on-boot` 与 `restart-policy` 命令 |
+| `x-ui log`                 | 查看实时调试日志                                    |
+| `x-ui migrateDB [file]`    | 转换 SQLite 数据库（.db 与 .dump 之间互转）         |
 
 ## 更新
 
-- **稳定版：** 菜单选项 **2** 或 `x-ui update`。重新运行安装脚本
-  同样会就地更新。
-- **开发版渠道：** 菜单选项 **3** 或 `x-ui update-dev`——即滚动的
-  `dev-latest` 逐提交构建（并非稳定版）。
-- **指定的旧版本：** 菜单选项 **5**（Legacy Version）。
+在 Mikrozia 架构中，面板更新完全通过替换容器或容器镜像实现。原版 3x-ui 在容器内部通过脚本执行自更新（`update.sh`）的危险路径已被彻底移除，以保护容器 RootFS 结构并确保 RouterOS 环境的长期稳定性。
 
-更新会保留你的数据库和设置。在跨大版本升级前请先做一次
-[备份](/docs/operations/backup-restore)。
+更新步骤：
+1. 拉取新的 Mikrozia 容器镜像标签（例如 Docker Hub 上的 `majlot/mikrozia`）。
+2. 停止当前容器并使用新镜像重新创建，同时挂载原有的持久化目录（`/etc/x-ui` 和 `/root/cert`）。
+3. 启动新容器。
+
+持久化目录中的数据库、用户凭据和证书将在容器重建过程中完全保留。在进行跨大版本更新前，请务必先创建[备份](/docs/operations/backup-restore)。
+
+### 回滚镜像更新
+
+如果新镜像未通过验证，请保持容器停止，使用之前的版本化镜像标签重新创建容器，并继续使用相同的 `/etc/x-ui` 和 `/root/cert` 挂载。数据库和证书不属于镜像内容。如果新镜像已经迁移了数据库架构，请先恢复更新前的数据库备份，再启动旧镜像；旧面板绝不能打开更新版本的架构。镜像回滚不需要将任何数据复制到镜像 RootFS。
 
 <Callout type="info">
-  Docker 用户的更新方式不同——拉取新镜像并重新创建容器
-  （`docker compose pull && docker compose up -d`），而不是使用
-  `x-ui` 更新命令。
+  Mikrozia 容器在运行时绝不会擅自修改自身的根文件系统。通过镜像替换部署，可确保环境干净、不可变且高度可复现。
 </Callout>
+
+如需从 RouterOS Terminal 或 WinBox 完整重启容器，请运行：`/container/restart [find where comment="[Mikrozia:container] Container"]`。
 
 ## 卸载
 
-菜单选项 **6** 或 `x-ui uninstall`。它会停止并禁用服务、移除服务单元，
-并删除 `/etc/x-ui/` 和安装目录。如果面板使用的是本地安装的 PostgreSQL，
-它还会询问是否一并清除（这是一次单独的、不可逆的确认）。
+在 RouterOS 中卸载 Mikrozia：
+1. 停止容器：`/container/stop [find where comment="[Mikrozia:container] Container"]`
+2. 移除容器实例：`/container/remove [find where comment="[Mikrozia:container] Container"]`
 
 <Callout type="warn">
-  卸载会删除数据库（`/etc/x-ui/x-ui.db`）和你的配置。
-  如果以后可能还需要，请先[备份](/docs/operations/backup-restore)。
+  在 RouterOS 中删除容器不会自动删除宿主机上的持久化挂载目录（`/etc/x-ui` 与 `/root/cert`）。清除持久化数据与证书必须由管理员在宿主机存储上手动且明确地执行，以避免任何意外数据丢失。
 </Callout>

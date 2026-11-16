@@ -4,10 +4,8 @@ import { Step, Steps } from 'fumadocs-ui/components/steps';
 import { Mermaid } from '@/components/mdx/mermaid';
 import { RealityConfigGenerator } from '@/components/tools/reality-config-generator';
 import { ShareLinkInspector } from '@/components/tools/share-link-inspector';
-import { InstallCommandBuilder } from '@/components/tools/install-command-builder';
 import { ReverseProxyGenerator } from '@/components/tools/reverse-proxy-generator';
 import { ProtocolWizard } from '@/components/tools/protocol-wizard';
-import { FirewallRulesGenerator } from '@/components/tools/firewall-rules-generator';
 import { OutboundGenerator } from '@/components/tools/outbound-generator';
 import { RoutingBuilder } from '@/components/tools/routing-builder';
 import { SubscriptionBuilder } from '@/components/tools/subscription-builder';
@@ -26,10 +24,8 @@ export function getMDXComponents(components?: MDXComponents) {
     Mermaid,
     RealityConfigGenerator,
     ShareLinkInspector,
-    InstallCommandBuilder,
     ReverseProxyGenerator,
     ProtocolWizard,
-    FirewallRulesGenerator,
     OutboundGenerator,
     RoutingBuilder,
     SubscriptionBuilder,

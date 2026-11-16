@@ -1,0 +1,820 @@
+# Mikrozia Project Ledger
+
+Status: living project-control record
+Owner: Mikrozia maintainer
+Task authority: delegated to the Mikrozia project manager unless the owner pauses or overrides a task
+Last reconciled: 2026-11-15
+
+This is the operational record for work performed after the Mikrozia charter.
+It lets a new agent identify what is accepted, what is only implemented or
+verified, and the one bounded task it may perform next. It does **not** replace
+`AGENTS.md` or `docs/MIKROZIA_PROJECT_CHARTER.md`; those documents win on any
+conflict.
+
+## Status and approval rules
+
+Every agent reads this file after the required files in `AGENTS.md` and before
+planning or editing.
+
+- `[ ]` — not started; this ledger entry alone does not authorize work.
+- `[~]` — active or awaiting correction; do not start another task.
+- `[?]` — reported and awaiting project-manager review.
+- `[x]` — accepted after project-manager evidence review.
+
+1. A model report, a green selected test, or a passing build never changes a
+   task to `[x]` by itself. The project manager must review the evidence against
+   the charter and actual diff first.
+2. The project manager may activate, sequence, and accept bounded internal tasks
+   without a separate owner confirmation. The owner may pause, override, or
+   reprioritize work at any time.
+3. An implementation agent updates this ledger only when its prompt explicitly
+   authorizes that update. Otherwise it reports evidence and leaves task status
+   unchanged.
+4. Before every task, record the actual dirty-worktree baseline and preserve all
+   pre-existing modifications, deletions, renames, and untracked files.
+5. A task is not complete if any required test is skipped, killed, still
+   running, blocked, or failed.
+6. Each task is one bounded vertical slice with explicit tests, exclusions, and
+   acceptance conditions.
+7. Do not create or begin a new task while an existing task is active, unless
+   the project manager closes, replaces, or explicitly pauses it.
+
+External and difficult-to-reverse actions remain owner-authorized even when task
+sequencing is delegated: commits, pushes, tags, releases, Docker Hub publishing,
+changes to real RouterOS devices, credential rotation, and destructive data
+operations.
+
+## Product invariants
+
+- RouterOS Container and CHR are primary production targets.
+- Mikrozia never changes RouterOS firewall, NAT, masquerade, port-forwarding,
+  routing policy, address lists, or access-control rules.
+- Images are immutable; updates replace the versioned image while preserving
+  persistent data mounts.
+- User data, settings, traffic, database state, and certificates survive image
+  replacement and rollback and are never silently reset or weakened.
+- SQLite is the default database. PostgreSQL is optional and external; Mikrozia
+  never installs a local PostgreSQL server inside RouterOS Container.
+- No commit, push, tag, release, Docker Hub publication, or external-system
+  change occurs without current-task owner authorization.
+
+## Dirty-worktree baseline
+
+The repository intentionally contains substantial user-owned work. It is never
+permission to discard, reformat, regenerate, or rewrite unrelated files.
+
+| Recorded on | `git status --short` entries | `git diff --stat`                             | Notes                                                                                  |
+| ----------- | ---------------------------: | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 2026-11-14  |                          271 | 213 files; 6,395 insertions; 12,747 deletions | Baseline before PostgreSQL 2C3E. Re-record before each task; numbers may become stale. |
+
+## Accepted product decisions
+
+These charter decisions are accepted and must not be reversed accidentally.
+
+- [x] RouterOS firewall and NAT policy remain user-managed.
+- [x] User IP-limit data is not silently cleared when host enforcement is unavailable.
+- [x] Legacy in-place panel self-update is unsupported; releases are versioned images.
+- [x] Xray and sidecars are image build-time components.
+- [x] AmneziaWG uses the embedded userspace engine only; kernel mode is removed.
+- [x] Host-kernel BBR controls are removed; userspace protocol BBR remains.
+- [x] Version display is read-only until an explicitly approved RouterOS-aware updater exists.
+- [x] RouterOS logging is user-managed; the panel does not depend on systemd or `journalctl`.
+
+## Task register
+
+| ID                | Status | Bounded task                                                                                                          | Evidence / current result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Owner approval condition                                                    |
+| ----------------- | ------ | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| GOV-01            | [x]    | Establish Mikrozia charter and repository governance                                                                  | `AGENTS.md` and the project charter define the RouterOS contract and decision hierarchy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Charter accepted by owner.                                                  |
+| P0-01             | [x]    | Retire inherited host-only RouterOS controls                                                                          | Charter records removal of kernel AmneziaWG, host-kernel BBR, in-place self-update, and systemd/syslog assumptions.                                                                                                                                                                                                                                                                                                                                                                                                                                              | Existing charter decisions are accepted; do not reverse without a new task. |
+| PG-2C1-2C3D       | [x]    | PostgreSQL connection, migration, backup/restore, snapshot, and rollback implementation                               | Accepted with PG-2C3E on 2026-11-15 after live PostgreSQL 18, package, race, shuffle, lint, docs, and cleanup evidence was reviewed.                                                                                                                                                                                                                                                                                                                                                                                                                             | Accepted by owner.                                                          |
+| PG-2C3E           | [x]    | PostgreSQL 18 verification and documentation closure gate                                                             | Accepted 2026-11-15. Live PostgreSQL 18 tests had no skips; relevant package, race, shuffle, lint, diff, documentation, static, and temporary-resource cleanup gates passed.                                                                                                                                                                                                                                                                                                                                                                                     | Accepted by owner.                                                          |
+| P0-CLOSURE-01     | [x]    | Read-only Phase 0 RouterOS compatibility and safety closure audit                                                     | Accepted 2026-11-15. Audit found Phase 0 not ready and identified bounded corrective tasks; this accepts the audit, not Phase 0 closure.                                                                                                                                                                                                                                                                                                                                                                                                                         | Accepted by owner.                                                          |
+| P0-F2B-01         | [x]    | Retire unsupported Fail2ban/IP-limit enforcement controls without losing stored user data                             | Accepted 2026-11-15 after legacy SQLite/PostgreSQL preservation, Go, frontend, i18n, OpenAPI, docs, shell, Python, lint, and static verification passed.                                                                                                                                                                                                                                                                                                                                                                                                         | Accepted after project-manager review.                                      |
+| P0-VER-01         | [x]    | Establish one canonical Mikrozia version source across runtime, image metadata, workflows, docs, and release tooling  | Accepted 2026-11-15 after strict byte-exact version validation, runtime/image/workflow consistency tests, and project-manager review.                                                                                                                                                                                                                                                                                                                                                                                                                            | Accepted after project-manager evidence review.                             |
+| P0-GEO-01         | [x]    | Make bundled Geo data release inputs deterministic, pinned, checksum-verified, and RouterOS-safe                      | Accepted 2026-11-15 after pinned manifest, checksum, immutable-runtime, UI/API, data-preservation, and focused verification review.                                                                                                                                                                                                                                                                                                                                                                                                                              | Accepted after project-manager evidence review.                             |
+| P0-RT-01          | [x]    | Retire or safely adapt remaining runtime executable-download and RootFS-mutation paths                                | Accepted 2026-11-15 after immutable entrypoint, ACME/speed-test retirement, certificate-path preservation, and project-manager verification.                                                                                                                                                                                                                                                                                                                                                                                                                     | Accepted after project-manager evidence review.                             |
+| P0-REL-01         | [x]    | Reconcile release workflows, artifacts, architecture claims, and supply-chain evidence with the RouterOS OCI contract | Accepted 2026-11-15 after legacy binary-release retirement, OCI-only publish contract, architecture smoke matrix, and project-manager review.                                                                                                                                                                                                                                                                                                                                                                                                                    | Accepted after project-manager evidence review.                             |
+| P0-DOC-01         | [x]    | Align all current installation, update, and operations documentation with the RouterOS-only product contract          | Accepted 2026-11-16 after direct-terminal installation guidance, localization restoration, historical labelling, docs gates, and project-manager review.                                                                                                                                                                                                                                                                                                                                                                                                         | Accepted after project-manager evidence review.                             |
+| P0-BACKUP-01      | [x]    | Close RouterOS backup, restore, image-replacement, and rollback contract gaps                                         | Accepted 2026-11-16 after WAL-safe SQLite backup correction, atomic restore/dump handling, PostgreSQL schema-scope review, localized lifecycle documentation, and regression evidence.                                                                                                                                                                                                                                                                                                                                                                           | Accepted after project-manager evidence review.                             |
+| P0-CLOSURE-02     | [x]    | Final read-only Phase 0 RouterOS compatibility and safety closure audit                                               | Accepted 2026-11-16. Audit found Phase 0 not ready: active host installer and executable `.rsc` deployment paths conflict with the one supported direct-terminal installation path.                                                                                                                                                                                                                                                                                                                                                                              | Accepted audit; it does not close Phase 0.                                  |
+| P0-INSTALL-01     | [x]    | Retire executable legacy host and `.rsc` installation paths, leaving one RouterOS direct-terminal installation path   | Accepted 2026-11-16 after host installer, cloud-init, `.rsc`, generator, related docs/site tools, tests, and workflow references were retired with regression coverage.                                                                                                                                                                                                                                                                                                                                                                                          | Accepted after project-manager evidence review.                             |
+| P0-CLOSURE-03     | [x]    | Final read-only Phase 0 closure re-audit after legacy installation retirement                                         | Accepted 2026-11-16. Audit found Phase 0 not ready: exposed docs firewall-policy generator remains in the published MDX registry.                                                                                                                                                                                                                                                                                                                                                                                                                                | Accepted audit; it does not close Phase 0.                                  |
+| P0-POLICY-TOOL-01 | [x]    | Retire exposed host-firewall policy generator from the published documentation bundle                                 | Accepted 2026-11-16 after component, helper, helper tests, MDX registration, and active identifiers were removed with regression coverage.                                                                                                                                                                                                                                                                                                                                                                                                                       | Accepted after project-manager evidence review.                             |
+| P0-CLOSURE-04     | [x]    | Final Phase 0 read-only closure decision after all bounded corrective tasks                                           | Accepted 2026-11-16. Audit found Phase 0 not ready: live Docker Hub overview contains RouterOS firewall/NAT commands and OpenRC host-service residue remains.                                                                                                                                                                                                                                                                                                                                                                                                    | Accepted audit; it does not close Phase 0.                                  |
+| P0-RESIDUE-01     | [x]    | Retire current RouterOS policy-command documentation and final OpenRC host-service residue                            | Accepted 2026-11-16 after overview policy commands were replaced with operator-owned inputs and `x-ui.rc` vertical slice was removed with regression coverage.                                                                                                                                                                                                                                                                                                                                                                                                   | Accepted after project-manager evidence review.                             |
+| P0-CLOSURE-05     | [x]    | Final read-only Phase 0 closure confirmation after policy and host-residue removal                                    | Accepted 2026-11-16. Source contract is aligned: no unsupported control remains exposed; real-device evidence is explicitly deferred to P1.                                                                                                                                                                                                                                                                                                                                                                                                                      | Phase 0 closed by project-manager evidence review.                          |
+| P1-CHR-01         | [~]    | Clean-CHR beginner installation, validation, update, rollback, backup, restore, and troubleshooting acceptance test   | Runtime mechanics passed on clean CHR x86_64 RouterOS 7.25.1: pull/extract, start, restart, internal ICMP/HTTP, persistent mounts, SQLite dump/restore to a new DB, `.4` → `.3` rollback, and `.3` → `.4` update. However, published `v3.11.0-mikrozia.4` is stale: `x-ui version` shows the legacy Update/Install menu, contradicting the current source contract. `auto-restart-interval` was also rejected and removed from current docs. The next immutable image is `v1-mikrozia`; after publication, rerun the affected CHR checks against that exact tag. | Owner authorized real-device actions; no RouterOS network policy changed.   |
+| P2-IDENTITY-01    | [ ]    | Mikrozia identity, branding, independent versioning, and release ownership                                            | Not authorized. No broad rename or Go module-path migration before a stable RouterOS baseline.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Owner authorizes a dedicated migration plan.                                |
+
+## Most recently accepted task: PG-2C3E
+
+### Goal
+
+Finish PostgreSQL 18 verification and documentation closure without expanding
+product scope. The owner accepted this task on 2026-11-15 after all listed
+acceptance work and verification gates passed.
+
+### Verified evidence
+
+- PostgreSQL 18 server and PostgreSQL 18 client tools ran in temporary Docker
+  containers without host package installation.
+- These tests ran and passed without skipping:
+  - `TestLivePostgres_URI_Keyword_AutoMigrate_Ping`
+  - `TestLivePostgres_ResolveCanonicalSchema`
+  - `TestExportPostgresToSQLiteContextLivePG18`
+  - `TestLivePostgres_PreSnapshotAndExactPostCommitRollback`
+  - `TestLivePostgres_SQLiteMigrationHostSettingsParity`
+- Related `XUI_TEST_PG_DSN` tests passed in that run.
+- PostgreSQL backup/restore documentation was updated in English, Persian,
+  Russian, and Chinese; documentation checks and `golangci-lint v2.15.0` passed.
+
+### Accepted completion evidence
+
+1. The process-group timeout, PostgreSQL lock/cancellation, Controller import,
+   and PostgreSQL backup-stream tests were made deterministic and passed.
+2. `CloseDB` now drops a successfully closed global handle; a regression test
+   proves stale PostgreSQL dialect state cannot bypass SQLite recovery.
+3. Relevant database, service, and Controller package tests passed with the
+   PostgreSQL 18 DSN.
+4. Relevant race tests passed with no data races; shuffled tests passed with
+   seed `20261115`.
+5. Mandatory PostgreSQL 18 live tests and related `XUI_TEST_PG_DSN` tests ran
+   without skips.
+6. `golangci-lint v2.15.0`, `git diff --check`, documentation checks, static
+   checks, and temporary Docker-resource cleanup all passed.
+
+### Explicit exclusions
+
+- No host-level package installation.
+- No CI workflow, Dockerfile, docker-compose, or release-workflow change.
+- No PostgreSQL 15/16 validation.
+- No Mikrozia image or multi-architecture build.
+- No RouterOS configuration change.
+- No commit, push, tag, release, or Docker Hub publication.
+
+### Owner approval record
+
+| Field                  | Value                                                                |
+| ---------------------- | -------------------------------------------------------------------- |
+| Candidate report       | PostgreSQL 2C3E completion report reviewed after its correction run. |
+| Current owner decision | Accepted on 2026-11-15.                                              |
+| Approval evidence      | Explicit owner message: `تأیید PG-2C3E`.                             |
+| Next action            | P0-F2B-01 is active.                                                 |
+
+## Most recently accepted audit: P0-CLOSURE-01
+
+### Goal
+
+Perform a read-only closure audit of the Phase 0 RouterOS compatibility and
+safety baseline. The owner accepted this audit on 2026-11-15. It found that
+Phase 0 remains open and requires bounded corrective tasks before real-CHR
+acceptance work begins.
+
+### Scope
+
+- Read-only inspection only: no source, documentation, generated-output,
+  configuration, workflow, or external-system change.
+- Trace all established Phase 0 decisions through their complete vertical slices.
+- Reconcile the current dirty worktree rather than relying on earlier reports.
+- Identify proven compliance, missing evidence, stale controls, conflicting
+  documentation, test gaps, and environment blockers.
+- Produce a prioritized, bounded correction plan if Phase 0 cannot close.
+
+### Required findings
+
+The audit must cover at least:
+
+1. RouterOS network-policy non-mutation.
+2. Immutable image and no in-place panel/Xray update path.
+3. Persistent mounts, backup, restore, update, and rollback safety.
+4. Retired host-only behavior: kernel AmneziaWG, host-kernel BBR, systemd,
+   `journalctl`, Fail2ban/IP-limit enforcement, and local PostgreSQL install.
+5. UI, API, service, jobs, translations, permissions, and docs consistency for
+   every retired or adapted feature.
+6. Current version display and supported image-release workflow.
+7. Build input pinning, checksum verification, architecture claims, and
+   multi-architecture evidence.
+8. Beginner documentation and the remaining prerequisites for P1-CHR-01.
+9. Test coverage and exact gates needed before claiming Phase 0 closure.
+
+### Owner approval record
+
+| Field                  | Value                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Current owner decision | Audit accepted on 2026-11-15; Phase 0 itself is not closed.                       |
+| Allowed mutation       | None. This is a read-only task.                                                   |
+| Completion condition   | Evidence-based report reviewed by owner. The audit itself does not close Phase 0. |
+| Next action            | P0-F2B-01 is active.                                                              |
+
+## Most recently accepted task: P0-F2B-01
+
+### Goal
+
+Remove public Fail2ban/IP-limit enforcement controls that cannot work in the
+RouterOS Container contract, while preserving all existing user data and legacy
+compatibility fields. This task was accepted on 2026-11-15 after its complete
+vertical-slice and preservation verification passed.
+
+### Non-negotiable data rule
+
+Never clear, zero, delete, migrate away, or reinterpret stored `limitIp` values
+or related client data. Existing data must remain intact through startup,
+backup, restore, migration, image replacement, and rollback.
+
+### Scope
+
+- Audit and remove or truthfully retire the complete unsupported public slice:
+  UI, API routes/status, frontend queries, shell menus/messages, translations,
+  docs, Compose assumptions, tests, and dead dependencies.
+- Preserve private legacy storage and import/export compatibility where required
+  for data safety.
+- Ensure new users cannot configure an enforcement control that cannot succeed
+  on RouterOS Container.
+- Keep RouterOS firewall/NAT/routing policy user-managed.
+
+### Accepted evidence
+
+- No Fail2ban install, status, enforcement, or remediation path remains exposed
+  as a supported Mikrozia feature.
+- No `XUI_ENABLE_FAIL2BAN`, Fail2ban capability, or Fail2ban-only
+  `NET_ADMIN`/`NET_RAW` requirement remains in the RouterOS contract.
+- Legacy `limitIp` data is proven unchanged by SQLite and live PostgreSQL tests.
+- UI/API/docs/translations/OpenAPI/tests agree with the retired behavior.
+
+### Explicit exclusions
+
+- No database data deletion or destructive migration.
+- No replacement IP-limit enforcement architecture in this task.
+- No RouterOS firewall, NAT, address-list, or policy-routing automation.
+- No unrelated rootfs, Geo, ACME, release-pipeline, or broad documentation work.
+- No commit, push, tag, release, or Docker Hub publication.
+
+## Most recently accepted task: P0-VER-01
+
+### Goal
+
+Establish one canonical Mikrozia version source for runtime display, image
+labels, build arguments, workflows, documentation, and release tooling. The
+task must remove version drift and stale fallback values without changing the
+currently intended Mikrozia release version.
+
+### Scope
+
+- Trace `MIKROZIA_VERSION`, `defaultMikroziaVersion`, ldflags, image labels,
+  build arguments, workflow tags, version documentation, and release scripts.
+- Make one value authoritative and derive all other consumers deterministically.
+- Add regression coverage proving a build cannot silently display a stale
+  fallback version when release metadata says otherwise.
+- Preserve upstream base/version metadata separately from Mikrozia public
+  identity.
+
+### Explicit exclusions
+
+- No version bump or release publication.
+- No Docker Hub, tag, commit, or external-system action.
+- No broad Phase 2 branding/module-path migration.
+- No unrelated supply-chain, Geo, ACME, documentation, or architecture work.
+
+### Accepted completion evidence
+
+- `MIKROZIA_VERSION` is the sole editable release input and carries the selected
+  independent release tag `v1-mikrozia`.
+- Runtime panel/API/CLI display returns only a valid ldflags-injected Mikrozia
+  version; absent, malformed, whitespace-padded, or multiline input truthfully
+  displays `dev` rather than a stale production version.
+- The version validator performs byte-exact comparison with the canonical file,
+  rejects all whitespace and multiline inputs, and is used by the Docker build
+  and supported Docker publish workflow.
+- Docker OCI label, runtime `x-ui -v`, image build argument, and release tag
+  are tested to agree before the multi-architecture publish job.
+- Generator and static RouterOS installer pin remain derived from or checked
+  against the canonical version. Upstream 3x-ui base metadata remains separate.
+- Project-manager independent checks reproduced the malformed-input rejection,
+  relevant Go/Python suites, shell syntax, and `git diff --check`. Workflow
+  lint could not be re-run locally because the network could not resolve the
+  Go module proxy; this is recorded as an environment blocker, not a pass.
+
+## Most recently accepted task: P0-GEO-01
+
+### Goal
+
+Make every Geo data artifact shipped in a Mikrozia RouterOS image a
+deterministic, pinned, checksum-verified build input. Retire or truthfully
+restrict any runtime Geo executable/download/update behavior that violates the
+immutable-image contract, while preserving user configuration and useful
+RouterOS-supported routing features.
+
+### Required audit and scope
+
+- Trace the entire vertical slice for `geoip.dat`, `geosite.dat`, Iranian Geo
+  variants, Xray geodata, panel Geo browsing, update jobs/buttons/API/CLI,
+  Docker and release downloads, workflows, checksums, tests, translations, and
+  documentation.
+- First classify each Geo feature as build-time input, immutable bundled
+  runtime data, user-persistent data, RouterOS-safe browsing/configuration, or
+  unsupported runtime executable mutation.
+- Preserve routing settings and user data. Do not delete a useful Geo-based
+  feature unless it is proven unsafe or impossible under the RouterOS contract.
+- For retained downloaded artifacts, pin an exact upstream release/reference
+  and verify a reviewed checksum before extraction or use. Never use a mutable
+  `latest` URL as a production image input.
+- If the inherited in-panel update mechanism rewrites RootFS or downloads
+  executable/data artifacts at runtime, remove its complete unsupported public
+  slice or adapt it only to a documented persistent-data contract that does not
+  violate immutability.
+
+### Explicit exclusions
+
+- No version bump, commit, push, tag, release, Docker Hub publication, or real
+  RouterOS action.
+- No broad release-pipeline redesign beyond the Geo input path.
+- No unrelated ACME, PostgreSQL, protocol, branding, or documentation cleanup.
+
+### Accepted completion evidence
+
+- The six Geo databases used by the RouterOS OCI image are sourced only from
+  exact date-tagged releases in `GEO_DATA_SOURCES`, each with a recorded
+  SHA-256 verified during image construction.
+- Docker build code rejects mutable `latest` Geo URLs, malformed manifest rows,
+  unexpected artifact names, and checksum failures. The manifest is included
+  in the resulting image and the supported image-smoke workflow verifies every
+  bundled artifact against it.
+- The mutable panel/API/CLI/frontend Geo updater vertical slice is removed;
+  read-only Geo browsing and `geoip:`/`geosite:` routing support remain.
+- Stored templates and routing data are preserved. The Xray-native `geodata`
+  downloader block is retained in storage but intentionally omitted from the
+  RouterOS runtime configuration because it would mutate Geo data at runtime.
+- Project-manager checks passed for shell syntax, Geo and container Python
+  tests, focused Go service/controller tests, and `git diff --check`.
+  `docker build --check` could not run locally because the Docker socket was
+  unavailable; that is an environment blocker, not a pass.
+- The inherited non-container binary-release workflow still has mutable Geo
+  `latest` downloads. It does not build the supported RouterOS OCI image and
+  is explicitly deferred to the dedicated P0-REL release-pipeline task.
+
+## Most recently accepted task: P0-RT-01
+
+### Goal
+
+Audit and retire or safely adapt every remaining runtime path that downloads,
+installs, upgrades, replaces, or executes mutable software from inside a
+Mikrozia container. The resulting RouterOS runtime must honor immutable image
+contents while retaining safe certificate and user-data operations.
+
+### Required audit and scope
+
+- Trace all executable, script, package-manager, curl/wget, acme, speed-test,
+  Xray, sidecar, panel, database-client, and shell-menu paths that can download
+  or replace software after image build.
+- Classify each path as immutable build input, safe persistent user-data
+  operation, unsupported RootFS/software mutation, or inherited out-of-scope
+  release tooling.
+- Preserve certificates, database state, configuration, and other user data.
+  Do not confuse ACME account/certificate renewal with executable self-update.
+- Remove an unsupported control only as a complete vertical slice, or adapt it
+  only when it can operate without downloading/replacing executable software
+  and without mutating the immutable RootFS.
+
+### Explicit exclusions
+
+- No image release, Docker Hub publication, commit, push, tag, external-system
+  action, or real RouterOS change.
+- No broad release-pipeline work, Geo changes, protocol redesign, or branding.
+- No silent user-data deletion, certificate deletion, or database migration.
+
+### Accepted completion evidence
+
+- `DockerEntrypoint.sh` is a pure command dispatcher with no runtime
+  filesystem setup or mutation; `HOME=/root` is supplied at image build time.
+- Container-side ACME installation, certificate issuance, renewal scheduling,
+  ACME state migration, and speed-test/package installation paths are removed.
+- TLS certificate path configuration, mounted certificate files, database
+  tools, backups, restores, and local panel settings remain intact.
+- Current certificate documentation says acquisition and renewal are
+  user-managed outside the container. Historical field records remain clearly
+  marked as superseded rather than being presented as installation guidance.
+- Project-manager checks reproduced entrypoint syntax, custom-command dispatch,
+  runtime-immutability/container tests, and `git diff --check`.
+
+## Most recently accepted task: P0-REL-01
+
+### Goal
+
+Make the supported Mikrozia release path unambiguous, deterministic, and
+limited to RouterOS-supported OCI artifacts. Reconcile inherited GitHub release
+workflows, release assets, architecture claims, tags, version metadata, build
+inputs, checksum/provenance evidence, and documentation with that contract.
+
+### Required audit and scope
+
+- Trace all GitHub workflows, release scripts, Docker build/publish paths,
+  release artifacts, image tags, architecture matrices, build inputs, checksum
+  steps, SBOM/provenance settings, and user-facing release documentation.
+- Classify each workflow/artifact as supported RouterOS OCI release path,
+  test-only path, intentionally retained developer tooling, or unsupported
+  inherited legacy distribution path.
+- Remove or truthfully retire any inherited production workflow that publishes
+  mutable/unverified artifacts, claims unsupported RouterOS architectures, or
+  can be mistaken for the Mikrozia release path.
+- Keep one canonical versioned-image update interface. Do not publish, tag, or
+  create a release in this task.
+
+### Explicit exclusions
+
+- No Docker Hub publication, GitHub release, push, tag, commit, credential
+  action, or real RouterOS action.
+- No broad branding/module-path migration, Geo data redesign, protocol work, or
+  unrelated documentation cleanup.
+- No deletion or mutation of user runtime data.
+
+### Accepted completion evidence
+
+- `.github/workflows/docker.yml` is the only supported production publisher:
+  it accepts only canonical Mikrozia tags or an exact manual dispatch, validates
+  version/build inputs, smoke-tests every published architecture, and publishes
+  one multi-architecture OCI image with SBOM, provenance, labels, and digest.
+- The inherited broad-tag binary-release workflow, Windows packaging assets,
+  systemd unit artifacts, mutable Geo downloads, dynamic toolchain discovery,
+  and seven-architecture tarball release path are retired.
+- The supported platform set is explicit and tested: `linux/amd64`,
+  `linux/arm64/v8`, and `linux/arm/v7`. Each has an architecture-specific
+  smoke build and runtime contract check before publication.
+- Project-manager checks reproduced the release-pipeline/static tests and
+  `git diff --check`. A fresh local actionlint run was blocked by DNS access to
+  the Go module proxy; the candidate report's completed lint run is retained as
+  evidence, while the local blocker is not counted as a new pass.
+
+## Most recently accepted task: P0-DOC-01
+
+### Goal
+
+Bring all current user-facing Mikrozia installation, update, operations, and
+troubleshooting documentation into agreement with the RouterOS-only contract,
+without rewriting clearly labelled historical records or beginning Phase 2
+branding work.
+
+### Required audit and scope
+
+- Inventory every README, localized README, docs-site page, install/update
+  guide, Docker Hub overview, script comment, and generated help path that a
+  user could follow to install, update, issue certificates, configure firewall,
+  use unsupported host services, or obtain legacy artifacts.
+- Classify each as current supported guidance, historical evidence that needs a
+  conspicuous superseded label, generated reference, or unrelated upstream
+  material to remove/retire.
+- Ensure one supported path is discoverable: versioned OCI image on RouterOS,
+  persistent mounts, user-managed network policy and certificates, and no
+  runtime software updater.
+- Preserve translations and generated-file ownership. Do not change product
+  behavior in this documentation-only task.
+
+### Explicit exclusions
+
+- No code/runtime/workflow/configuration change except documentation generators
+  and generated documentation outputs when required by their source changes.
+- No commit, push, tag, release, Docker Hub publication, credential action, or
+  real RouterOS action.
+- No Phase 2 visual rebrand, module-path migration, or broad prose rewrite
+  unrelated to supported RouterOS guidance.
+
+### Accepted completion evidence
+
+- All current beginner guides now use ordered, copy-pasteable RouterOS terminal
+  commands rather than importing an `.rsc` script. They explain the versioned
+  image, persistent mounts, user-owned network policy, and the uncompleted
+  P1 clean-CHR acceptance honestly.
+- The prior unauthorized deletion of localized API-reference pages was reversed:
+  Persian, Russian, and Chinese each retain the complete 13-page API inventory
+  plus metadata, with regression coverage for that inventory.
+- Current documentation no longer directs users to legacy installers, tarballs,
+  systemd, production Compose, in-container ACME, runtime updates, or retired
+  API endpoints. Historical records are conspicuously labelled superseded.
+- Project-manager checks reproduced the documentation contract test plus docs
+  format, lint, typecheck, and test gates. A second local docs build was blocked
+  by a concurrent/stale Next build lock after the candidate's successful full
+  build; the lock is an environment condition, not treated as a new pass.
+
+## Most recently accepted task: P0-BACKUP-01
+
+### Goal
+
+Verify and close the complete RouterOS persistent-data lifecycle: backup,
+restore, image replacement, rollback, SQLite/PostgreSQL behavior, certificates,
+settings, and user traffic/client data. The supported workflow must be safe for
+beginners before the Phase 0 closure audit.
+
+### Required audit and scope
+
+- Trace all backup/export/import/restore/migration/snapshot/rollback code,
+  controller routes, CLI functions, UI, documentation, persistent mounts,
+  temporary files, database backends, and image-replacement instructions.
+- Prove that image replacement and rollback preserve `/etc/x-ui` and
+  `/root/cert` without mutating the image RootFS or losing user data.
+- Identify any restore operation that can silently overwrite, truncate, or
+  reinterpret data; make it explicit, recoverable, and tested.
+- Reconcile the PostgreSQL implementation with RouterOS external-PostgreSQL
+  constraints and ensure secrets are never leaked by backups, CLI output, or
+  documentation.
+
+### Explicit exclusions
+
+- No destructive backup/restore action against user data or a real RouterOS
+  device.
+- No Docker Hub publication, tag, release, commit, push, credential action, or
+  external-system change.
+- No unrelated protocol, release-pipeline, branding, or broad documentation
+  work.
+- No deletion, silent reset, or reinterpretation of stored user routing data.
+
+### Accepted completion evidence
+
+- SQLite logical dumps use one pinned read transaction and are proven against
+  concurrent WAL writers, so a dump cannot combine values from different
+  committed states.
+- Shell-driven SQLite dump and restore stage output beside the requested target
+  and replace it only after success; failed operations leave prior output and
+  SQLite sidecars intact.
+- PostgreSQL dump, restore, and rollback use an exact quoted canonical-schema
+  pattern and reject invalid scope instead of widening a restore unexpectedly.
+- Current English, Persian, Russian, and Chinese documentation no longer tells
+  users to copy a live `x-ui.db` file. It uses a consistent logical dump for a
+  running panel and explicitly requires a stopped container for raw database
+  file replacement. Certificate backup is documented separately.
+- Project-manager review reproduced the four-locale documentation contract
+  suite (15 tests) and `git diff --check`. The candidate report additionally
+  records database, race, service, translation, shell, and documentation gates.
+  A local full service/controller Go run was blocked by the sandbox forbidding
+  IPv6 loopback listener binding; this environment limitation is not counted as
+  a test pass.
+
+## Most recently accepted audit: P0-CLOSURE-02
+
+### Goal
+
+Perform one final read-only reconciliation of the accepted Phase 0 work against
+the Mikrozia charter, current worktree, and RouterOS Container contract. Decide
+from evidence whether Phase 0 may close and P1 clean-CHR acceptance may begin,
+or identify the smallest necessary corrective task.
+
+### Scope and exclusions
+
+- Inspect only: no source, test, documentation, workflow, generated-artifact,
+  or ledger edit was authorized.
+- Cover RouterOS policy non-mutation; immutable runtime; data mounts; update,
+  rollback, backup, and restore; all retired host-only features; userspace
+  features retained; versions/releases/Geo inputs; current beginner docs; and
+  test/build/CHR evidence gaps.
+- Reconcile actual code and static searches, not earlier reports alone.
+- Do not claim real CHR, Docker Hub, publication, or multi-architecture
+  acceptance without direct evidence. Do not modify real RouterOS or external
+  systems.
+
+### Accepted audit result
+
+- Phase 0 is not ready to close. `install.sh` labels itself unsupported but
+  still calls host-install functions unconditionally and can install an upstream
+  systemd-host deployment.
+- Executable generator and clean-room `.rsc` deployment paths remain alongside
+  the supported direct-terminal route. The owner explicitly chose direct
+  step-by-step terminal commands rather than `.rsc` import, so those paths need
+  a complete retirement decision rather than documentation hiding.
+- The audit independently recorded 133 passing Python compatibility tests and
+  `git diff --check`; it did not claim Go, Docker, real CHR, publication, or
+  architecture-runtime acceptance that it did not run.
+
+## Most recently accepted task: P0-INSTALL-01
+
+### Goal
+
+Retire every executable legacy installation path that can install 3x-ui on a
+systemd host or instruct RouterOS to import a generated `.rsc` deployment,
+while preserving the one supported beginner path: ordered direct RouterOS
+terminal commands in current Mikrozia documentation.
+
+### Scope and exclusions
+
+- Audit the full vertical slices for `install.sh`, `deploy/` host-install
+  artifacts and smoke tests, generator-created deploy/teardown scripts, static
+  clean-room `.rsc` scripts, their tests, workflow references, current docs,
+  and historical records.
+- Remove an unsupported executable entrypoint or replace it with a clear,
+  non-bypassable refusal only where keeping the file is required for licensing
+  or historical-source preservation. Remove dead tests and dependencies with
+  the retired behavior.
+- Preserve clearly labelled historical attribution/evidence where useful, but
+  it must not be executable or presented as a supported workflow.
+- Do not replace the retired paths with RouterOS automation, firewall/NAT
+  mutation, a new installer, or an external service. Do not alter runtime
+  protocol behavior, data mounts, release publication, or user data.
+
+### Accepted completion evidence
+
+- The executable host installer, cloud-init deployment assets, and host smoke
+  path are removed rather than merely labelled unsupported.
+- The `.rsc` generator, static RouterOS deploy/preflight/teardown scripts, and
+  their direct tests/references are removed. Current beginner documentation
+  retains the direct-terminal RouterOS method in all supported locales.
+- The docs landing-page curl installer components and their dead support code
+  are removed; historical upstream material remains conspicuously labelled.
+- Project-manager review reproduced 93 focused Python compatibility tests with
+  no failures. The candidate report additionally records full Python, shell,
+  documentation format/lint/typecheck/test/build, YAML, and diff gates.
+
+## Most recently accepted audit: P0-CLOSURE-03
+
+### Goal
+
+Perform a final read-only Phase 0 closure audit after retirement of all active
+legacy installation paths. Determine strictly from current evidence whether
+Phase 0 can close and P1 clean-CHR acceptance can begin.
+
+### Scope and exclusions
+
+- Read-only: do not edit source, tests, docs, workflows, generated artifacts,
+  or this ledger.
+- Repeat the Phase 0 contract audit against actual current code and inspect
+  every remaining exposed or dead RouterOS policy tool, especially the
+  documentation-component registry and firewall-rule generator.
+- Reconcile persistent-data safety, immutable runtime, retired host controls,
+  version/release/Geo policy, installation path, and exact test/CHR evidence.
+- Do not claim Docker, real RouterOS/CHR, Docker Hub, or published-image proof
+  without direct evidence and do not modify external systems.
+
+### Accepted audit result
+
+- Phase 0 is not ready to close. `FirewallRulesGenerator` is registered in the
+  published MDX component registry even though no current MDX page uses it.
+  Its helper generates unsupported Linux-host `ufw` and destructive `nftables`
+  policy, contradicting the RouterOS operator-owned network-policy contract.
+- No active RouterOS firewall/NAT/route generator was found after P0-INSTALL-01;
+  this is a bounded dead-but-exposed documentation tool, not a runtime RouterOS
+  mutation path.
+- The audit independently reproduced full Python tests, targeted Go build/tests,
+  docs/frontend tests, linters, and diff integrity. It properly left real CHR,
+  image publication, and Docker Hub evidence to later acceptance work.
+
+## Most recently accepted task: P0-POLICY-TOOL-01
+
+### Goal
+
+Remove the exposed host-firewall policy generator and its complete dead vertical
+slice from the documentation bundle, leaving only operator-owned explanatory
+guidance about RouterOS network policy.
+
+### Scope and exclusions
+
+- Remove the component, its firewall helper and helper test, and its MDX
+  registry import/registration. Remove only related dead tests and references.
+- Add regression coverage that the retired paths and identifiers are absent
+  while current ports/security documentation keeps the operator-owned policy
+  statement.
+- Do not add a replacement firewall generator or alter RouterOS instructions,
+  runtime code, frontend panel, protocols, image/release behavior, mounts,
+  data behavior, translations, or historical records.
+
+### Accepted completion evidence
+
+- The published MDX registry no longer imports or registers the firewall tool;
+  its host-firewall UI component, pure helper, and helper test are removed.
+- The regression contract verifies exact removed paths and rejects the retired
+  identifiers throughout active docs/frontend source while retaining the
+  RouterOS administrator-owned firewall/NAT statements.
+- Project-manager inspection reproduced the absent paths and static search;
+  the candidate report records docs/frontend quality gates, full Python suite,
+  TypeScript build/typecheck, and diff integrity all passing.
+
+## Most recently accepted audit: P0-CLOSURE-04
+
+### Goal
+
+Make the final read-only Phase 0 closure decision after all bounded corrective
+tasks. Verify from the actual worktree that no unsupported control remains
+exposed before authorizing P1 clean-CHR acceptance.
+
+### Scope and exclusions
+
+- Inspect only: do not edit any file, update this ledger, or modify external
+  systems.
+- Audit RouterOS policy ownership, immutable runtime, persistent data,
+  retired host features, one installation path, version/release/Geo inputs,
+  documentation, and exact verification evidence.
+- Clearly distinguish Phase 0 source-contract readiness from the real-device
+  requirements that remain solely for P1.
+
+### Accepted audit result
+
+- Phase 0 is not ready to close. The current Docker Hub overview provides
+  executable RouterOS firewall, NAT, masquerade, port-forward, and filter-rule
+  commands branded as Mikrozia guidance, rather than documenting inputs owned
+  by the RouterOS administrator.
+- `x-ui.rc` is a tracked Alpine/OpenRC host-service script whose retired
+  `install.sh` path was its consumer. It is an incomplete host-install vertical
+  slice and must be removed with its architecture-map/reference-test updates.
+- Real CHR, published-image, and Docker Hub acceptance are still correctly
+  deferred to P1 and were not claimed by this source audit.
+
+## Most recently accepted task: P0-RESIDUE-01
+
+### Goal
+
+Remove the last current RouterOS policy-command documentation and final OpenRC
+host-service residue without changing the user-owned network-policy guidance,
+runtime behavior, or persistent-data contract.
+
+### Scope and exclusions
+
+- Replace only the executable policy-command section of the Docker Hub overview
+  with concise operator-owned required network inputs; it must contain no
+  RouterOS firewall/NAT command, rule action, interface, subnet, or prescribed
+  policy implementation.
+- Remove `x-ui.rc`, its architecture-map reference, and update exact regression
+  checks for the absence of all retired host service scripts.
+- Add focused contract tests. Do not alter panel/runtime/protocols/DB/mounts,
+  Dockerfile/image/release workflow, current direct-install commands, or any
+  real RouterOS/Docker Hub state.
+
+### Accepted completion evidence
+
+- The current Docker Hub overview replaces executable RouterOS firewall/NAT
+  policy with concise operator-owned connectivity inputs and explicitly states
+  that Mikrozia supplies no policy commands.
+- `x-ui.rc`, its architecture-map entry, and its final host-service vertical
+  slice are removed. Release and documentation contracts reject restoration of
+  the retired artifact or policy syntax.
+- Project-manager inspection reproduced the overview content, absent service
+  files, and policy-token search. Candidate evidence records red-to-green tests,
+  full Python/docs verification, and diff integrity passing.
+
+## Most recently accepted audit: P0-CLOSURE-05
+
+### Goal
+
+Make the final read-only Phase 0 closure decision after all known corrective
+tasks. Confirm the complete source contract before authorizing P1 clean-CHR
+acceptance.
+
+### Scope and exclusions
+
+- Read-only: do not edit source, tests, docs, workflows, generated output, or
+  this ledger; do not modify external systems.
+- Reconcile actual current code, active docs, tools, workflows, and source test
+  evidence against every Phase 0 charter rule.
+- Explicitly distinguish Phase 0 source-contract readiness from the live-CHR,
+  image-publish, and production evidence that belongs to P1.
+
+### Accepted closure evidence
+
+- All current executable/documented policy automation and host-install residue
+  is retired. Static hits for those concepts are restricted to exact tests,
+  governance records, or prominently labelled historical documents.
+- The current source contract preserves immutable image operation, persistent
+  mounts, data-safe backup/restore, external-only PostgreSQL, deterministic
+  version/Geo/release inputs, and one direct-terminal RouterOS install route.
+- The final audit reproduced 112 Python tests and `git diff --check`, with no
+  worktree mutation. Real CHR/device, published-image, registry, update,
+  rollback, and beginner acceptance evidence is not claimed and is assigned to
+  P1-CHR-01.
+
+### Phase 0 closure decision
+
+Phase 0 is closed at the source-contract level as of 2026-11-16. P1-CHR-01 is
+the next task, but it changes real RouterOS/container state and remains
+owner-authorized before execution.
+
+## Active task: P1-CHR-01
+
+### Goal
+
+Prove that a beginner can install, validate, update, roll back, back up,
+restore, and diagnose Mikrozia from the documented direct RouterOS terminal
+commands on a clean, disposable CHR.
+
+### Live-device guardrails
+
+- The owner authorized real-device actions on 2026-11-16. Work only on the
+  disposable CHR explicitly provided for this acceptance test.
+- Never create, alter, or delete firewall, NAT, masquerade, port-forward,
+  routing-policy, address-list, or access-control rules. Record existing policy
+  only as read-only context.
+- Take a read-only baseline before mutation. Use only Mikrozia-owned object
+  names/comments and persistent paths. Do not touch unrelated containers or
+  storage.
+- Test image replacement/rollback and SQLite backup/restore with deliberate
+  disposable test data; do not test destructive restore against unrelated user
+  data. External PostgreSQL live acceptance needs a separately supplied test
+  database and is not assumed.
+- Record exact RouterOS commands, observed state, image tags/digests, resource
+  figures, failures, and recovery actions. Do not claim a step passed without
+  visible device evidence.
+
+## New-task template
+
+Add an entry when the project manager authorizes a new bounded task:
+
+| ID        | Status | Bounded task                     | Evidence / current result                    | Owner approval condition                    |
+| --------- | ------ | -------------------------------- | -------------------------------------------- | ------------------------------------------- |
+| `AREA-NN` | [~]    | One-sentence vertical-slice goal | Baseline, report summary, and known blockers | Exact test gates and project-manager review |
+
+Every task prompt must state its ledger ID, goal, exclusions, required reading,
+dirty-worktree preservation rule, verification gates, ledger-update authority,
+and instruction to stop for project-manager review after its final report.

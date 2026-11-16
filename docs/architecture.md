@@ -118,7 +118,7 @@ End user → GET {subPath}/{subId}   (separate server, internal/sub)
 ### 3.3 Background work (cron jobs)
 
 Scheduled in `internal/web/web.go` → `startTask()`. Each job is a struct in
-`internal/web/job/`. Examples: poll Xray traffic every 5s, check client IP limits every 10s,
+`internal/web/job/`. Examples: poll Xray traffic every 5s, record client IPs every 10s,
 node heartbeat every 5s, periodic traffic resets (hourly/daily/weekly/monthly). See §5.4.
 
 ---
@@ -288,10 +288,8 @@ node heartbeat every 5s, periodic traffic resets (hourly/daily/weekly/monthly). 
 ├── media/                    # README images
 │
 ├── Dockerfile / docker-compose.yml / DockerEntrypoint.sh / DockerInit.sh   # Container build/run
-├── install.sh / update.sh / x-ui.sh                        # VPS install + management CLI
-├── x-ui.service.*  / x-ui.rc                               # systemd units (debian/rhel/arch) + rc script
-├── windows_files/                                          # Windows service support
-└── .github/workflows/        # CI: ci.yml, codeql.yml, docker.yml, release.yml,
+├── x-ui.sh                                                 # image management CLI; no host installer is supported
+└── .github/workflows/        # CI: ci.yml, codeql.yml, docker.yml (the only release),
                               #     mutation.yml, cleanup_caches.yml, claude-pr-review.yml,
                               #     claude-issue-analyst.yml
 ```
@@ -348,19 +346,13 @@ code_ works whether the target is the local Xray or a remote node.
 
 Bearer tokens use the narrowest scope that matches the caller's duties:
 
-| Scope        | Access                                                                 |
-| ------------ | ---------------------------------------------------------------------- |
-| `monitor`    | Read-only status, version, and metric endpoints.                       |
-| `node-sync`  | Node configuration, inbound/client synchronization, traffic, and Xray. |
-| `node-admin` | All `node-sync` access plus `POST /panel/api/server/updatePanel`.      |
-| `admin`      | Every panel API endpoint; intended for fully trusted automation.       |
+| Scope       | Access                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `monitor`   | Read-only status, version, and metric endpoints.                       |
+| `node-sync` | Node configuration, inbound/client synchronization, traffic, and Xray. |
+| `admin`     | Every panel API endpoint; intended for fully trusted automation.       |
 
-`node-admin` remains a node synchronization identity when inbound rules are applied. This
-preserves the node-specific validation path while keeping software-update authority separate
-from ordinary `node-sync` credentials. On an mTLS connection, only a valid `node-admin` bearer
-elevates the request; other bearer scopes retain the historical mTLS `node-sync` behavior.
-Existing tokens retain their stored scope, and legacy tokens without one continue to migrate to
-`admin`.
+On an mTLS connection, requests retain the node-sync behavior. Existing legacy tokens with outdated node scopes are safely migrated to `node-sync`, preserving token hash, name, expiry, and enabled status. Existing tokens retain their stored credentials, and legacy tokens without a scope continue to migrate to `admin`.
 
 **Node identity & attribution (the hard part).** Inbounds carry a `NodeID` _and_ an
 `OriginNodeGuid`. Because inbounds can be pushed across hops, the panel attributes traffic and
@@ -414,13 +406,13 @@ All registered in `web.go` → `startTask()`. Each is a struct with a `Run()` me
 | `@every 5s`         | `xray_traffic_job`                                                                               | Pull traffic stats from Xray (5s start delay)                                         |
 | `@every 5s`         | `node_heartbeat_job`                                                                             | Probe child nodes (online/offline)                                                    |
 | `@every 5s`         | `node_traffic_sync_job`                                                                          | Pull + merge node traffic; push reconciliation                                        |
-| `@every 10s`        | `check_client_ip_job`                                                                            | Record client IPs (30-min window) and enforce per-client IP limits                    |
+| `@every 10s`        | `check_client_ip_job`                                                                            | Record observed client IPs (30-min window); tracking only, no enforcement             |
 | `@every 10s`        | `mtproto_job`                                                                                    | Reconcile `mtg` sidecars against enabled MTProto inbounds                             |
 | `@every 10s`        | `amneziawg_job`                                                                                  | Reconcile embedded AmneziaWG interfaces against enabled local inbounds                |
 | `@every 5m`         | `outbound_subscription_job`                                                                      | Refresh outbound provider configs                                                     |
 | `@every 10m`        | `clear_logs_job` (`PruneXrayLogsJob`)                                                            | Truncate Xray access/error logs once either exceeds 64 MiB                            |
 | `@hourly`           | `warp_ip_job`, `periodic_traffic_reset_job("hourly")`                                            | WARP IP rotation; traffic resets                                                      |
-| `@daily`            | `clear_logs_job`, `periodic_traffic_reset_job("daily")`, `periodic_traffic_reset_job("monthly")` | IP-limit and Xray access/error log cleanup; daily resets and due monthly resets       |
+| `@daily`            | `clear_logs_job`, `periodic_traffic_reset_job("daily")`, `periodic_traffic_reset_job("monthly")` | Xray access/error log cleanup; daily resets and due monthly resets                    |
 | `@weekly`           | `periodic_traffic_reset_job("weekly")`                                                           | Weekly traffic resets                                                                 |
 | default `@every 1m` | `ldap_sync_job`                                                                                  | Only if LDAP enabled; schedule configurable                                           |
 | default `@daily`    | `stats_notify_job`                                                                               | Only if TG bot enabled; schedule configurable                                         |
@@ -476,8 +468,8 @@ notifications instead of importing notification services into producers.
 
 `internal/tunnelmonitor/` is an optional watchdog configured **only via env vars**
 (`XUI_TUNNEL_HEALTH_*`, read in `internal/config/`), deliberately independent of panel
-settings so it can be enabled from a systemd `EnvironmentFile` even when the panel is
-unreachable. It periodically probes an HTTP URL (default: Cloudflare trace endpoint) through
+settings so it can be enabled from the container environment (`/container/envs`)
+even when the panel is unreachable. It periodically probes an HTTP URL (default: Cloudflare trace endpoint) through
 the tunnel; after N successive failures (default 3) it fires a recovery callback wired to an
 Xray restart.
 
@@ -503,7 +495,7 @@ for AutoMigrate in `internal/database/db.go`.
 | `NodeClientIp`                  | Per-node client IP attribution            | `NodeGuid`, `Email`, `Ips`                                                                                                                                         |
 | `ClientGlobalTraffic`           | Cross-master usage totals                 | `MasterGuid`, `Email`, `Up`, `Down`                                                                                                                                |
 | `xray.ClientTraffic`            | Per-client counters (`client_traffics`)   | `Email`, `Up`, `Down`, `Total`, `ExpiryTime`, `LastOnline`                                                                                                         |
-| `InboundClientIps`              | IP set per client email                   | drives IP-limit enforcement                                                                                                                                        |
+| `InboundClientIps`              | IP set per client email                   | client IP log and node attribution                                                                                                                                 |
 | `OutboundTraffics`              | Outbound counters                         | per outbound tag                                                                                                                                                   |
 | `OutboundSubscription`          | External provider subs                    | Warp/Nord style                                                                                                                                                    |
 | `Setting`                       | Key/value panel settings                  | everything configurable                                                                                                                                            |
@@ -615,13 +607,14 @@ npm run build        # gen:api + vite build → outputs to internal/web/dist (th
 **Full local loop:** `cd frontend && npm run build` (refresh embedded `dist/`) → back to repo
 root → `go build ./...` / `go run main.go`.
 
-**Docker:** `docker compose up -d` (uses `Dockerfile` + `DockerEntrypoint.sh`).
+**Docker (local development only):** `docker compose up -d` (uses `Dockerfile` + `DockerEntrypoint.sh`). This is not a supported RouterOS production install path.
 
 **CI** (`.github/workflows/`): `ci.yml` (build/test/lint), `codeql.yml` (security scan),
-`mutation.yml` (mutation testing), `docker.yml` + `release.yml`
-(multi-arch image + release builds), `cleanup_caches.yml`, `claude-pr-review.yml` (PR review
-only - it changes no code), `claude-issue-analyst.yml` (issue triage). A maintainer re-runs
-them with a comment starting `@claude review` on a PR or `@claude analyze` on an issue.
+`mutation.yml` (mutation testing), `docker.yml` (the only release: versioned
+multi-arch OCI image, smoke-tested per architecture), `cleanup_caches.yml`,
+`claude-pr-review.yml` (PR review only - it changes no code), `claude-issue-analyst.yml`
+(issue triage). A maintainer re-runs them with a comment starting `@claude review` on a
+PR or `@claude analyze` on an issue.
 
 ---
 

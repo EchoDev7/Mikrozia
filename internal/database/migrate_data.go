@@ -66,9 +66,9 @@ func migrationModels() []any {
 
 // MigrateData copies every row from the configured SQLite file at srcPath into
 // a fresh PostgreSQL database described by dstDSN. The destination tables are
-// (re)created with AutoMigrate; truncate and copy then run in one transaction,
-// so a failed migration leaves the destination data unchanged. Source data is
-// left untouched.
+// (re)created with AutoMigrate, truncated, and populated in one transaction, so
+// a failed migration leaves both the destination schema and data unchanged.
+// Source data is left untouched.
 func MigrateData(srcPath, dstDSN string) error {
 	if _, err := os.Stat(srcPath); err != nil {
 		return fmt.Errorf("source sqlite not found at %s: %w", srcPath, err)
@@ -94,7 +94,7 @@ func MigrateData(srcPath, dstDSN string) error {
 
 	dst, err := gorm.Open(postgres.Open(dstDSN), &gorm.Config{Logger: logger.Discard})
 	if err != nil {
-		return fmt.Errorf("open postgres destination: %w", err)
+		return fmt.Errorf("open postgres destination: %w", RedactPostgresError(err, dstDSN))
 	}
 	dstSQL, err := dst.DB()
 	if err != nil {
@@ -103,15 +103,15 @@ func MigrateData(srcPath, dstDSN string) error {
 	defer dstSQL.Close()
 	dstSQL.SetConnMaxLifetime(time.Hour)
 
-	log.Println("Creating destination schema...")
-	for _, m := range migrationModels() {
-		if err := dst.AutoMigrate(m); err != nil {
-			return fmt.Errorf("AutoMigrate %T: %w", m, err)
-		}
-	}
-
 	totalRows := 0
 	txErr := dst.Transaction(func(tx *gorm.DB) error {
+		log.Println("Creating destination schema...")
+		for _, m := range migrationModels() {
+			if err := tx.AutoMigrate(m); err != nil {
+				return fmt.Errorf("AutoMigrate %T: %w", m, err)
+			}
+		}
+
 		// AutoMigrate re-creates the legacy client_traffics -> inbounds foreign key,
 		// but the running panel drops it (see dropLegacyForeignKeys) and tolerates
 		// client_traffics rows whose inbound was deleted. Drop it here too so copying
@@ -150,38 +150,70 @@ func MigrateData(srcPath, dstDSN string) error {
 	}
 
 	log.Printf("Migration complete: %d rows across %d tables.", totalRows, len(migrationModels()))
-	log.Println("Set XUI_DB_TYPE=postgres and XUI_DB_DSN=... in /etc/default/x-ui, then restart x-ui.")
+	log.Println(postgresMigrationNextStepsMessage())
 	return nil
 }
 
+func postgresMigrationNextStepsMessage() string {
+	return "Configure XUI_DB_TYPE=postgres and XUI_DB_DSN in RouterOS /container/envs, then recreate or replace the container with the same persistent /etc/x-ui and /root/cert mounts."
+}
+
 // ExportPostgresToSQLite copies every row from the PostgreSQL database described
-// by srcDSN into a fresh SQLite file at dstPath. It is the reverse of
-// MigrateData and is used to hand a PostgreSQL-backed panel a portable .db file.
-// dstPath is created/overwritten; the PostgreSQL source is left untouched.
+// by srcDSN into a fresh SQLite file at dstPath.
 func ExportPostgresToSQLite(srcDSN, dstPath string) error {
+	return ExportPostgresToSQLiteContext(context.Background(), srcDSN, dstPath)
+}
+
+// ExportPostgresToSQLiteContext copies every row from the PostgreSQL database
+// described by srcDSN into a newly created 0600 SQLite file at dstPath while
+// respecting ctx cancellation. Existing destinations are never overwritten.
+func ExportPostgresToSQLiteContext(ctx context.Context, srcDSN, dstPath string) (err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if srcDSN == "" {
 		return errors.New("source DSN is required")
 	}
-	if err := os.MkdirAll(path.Dir(dstPath), 0o755); err != nil {
-		return err
-	}
-	// Start from an empty file so AutoMigrate creates the canonical schema.
-	if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
+	if err := os.MkdirAll(path.Dir(dstPath), 0o700); err != nil {
 		return err
 	}
 
+	dstFile, openErr := os.OpenFile(dstPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
+	if openErr != nil {
+		if errors.Is(openErr, os.ErrExist) {
+			return fmt.Errorf("sqlite migration destination already exists: %s", dstPath)
+		}
+		return openErr
+	}
+	if closeErr := dstFile.Close(); closeErr != nil {
+		_ = os.Remove(dstPath)
+		return closeErr
+	}
+	defer func() {
+		if err != nil {
+			_ = os.Remove(dstPath)
+		}
+	}()
+
 	src, err := gorm.Open(postgres.Open(srcDSN), &gorm.Config{Logger: logger.Discard})
 	if err != nil {
-		return fmt.Errorf("open postgres source: %w", err)
+		return fmt.Errorf("open postgres source: %w", sanitizePostgresContextOrRedactError(ctx, err, srcDSN))
 	}
 	srcSQL, err := src.DB()
 	if err != nil {
 		return err
 	}
-	defer srcSQL.Close()
+	defer func() { _ = srcSQL.Close() }()
 
-	// No WAL: keep all data in the main file so it is complete once closed.
-	dst, err := gorm.Open(sqlite.Open(dstPath+"?_busy_timeout=10000"), &gorm.Config{Logger: logger.Discard})
+	if pingErr := srcSQL.PingContext(ctx); pingErr != nil {
+		return fmt.Errorf("ping postgres source: %w", sanitizePostgresContextOrRedactError(ctx, pingErr, srcDSN))
+	}
+
+	// Use DELETE journal mode so the exported file is self-contained without WAL/SHM sidecars.
+	dst, err := gorm.Open(sqlite.Open(dstPath+"?_busy_timeout=10000&_journal_mode=DELETE"), &gorm.Config{Logger: logger.Discard})
 	if err != nil {
 		return fmt.Errorf("open sqlite destination: %w", err)
 	}
@@ -189,21 +221,93 @@ func ExportPostgresToSQLite(srcDSN, dstPath string) error {
 	if err != nil {
 		return err
 	}
-	defer dstSQL.Close()
+	dstClosed := false
+	defer func() {
+		if !dstClosed {
+			_ = dstSQL.Close()
+		}
+	}()
 
-	return copyAllModels(src, dst)
+	if copyErr := copyAllModelsContext(ctx, src, dst); copyErr != nil {
+		return sanitizePostgresContextOrRedactError(ctx, copyErr, srcDSN)
+	}
+
+	if closeErr := dstSQL.Close(); closeErr != nil {
+		dstClosed = true
+		return closeErr
+	}
+	dstClosed = true
+
+	if chmodErr := os.Chmod(dstPath, 0o600); chmodErr != nil {
+		return chmodErr
+	}
+	if syncErr := syncFile(dstPath); syncErr != nil {
+		return syncErr
+	}
+	info, statErr := os.Stat(dstPath)
+	if statErr != nil {
+		return statErr
+	}
+	if info.Size() == 0 {
+		return errors.New("exported SQLite migration file is empty")
+	}
+	if valErr := ValidateSQLiteDB(dstPath); valErr != nil {
+		return fmt.Errorf("validate exported SQLite migration: %w", valErr)
+	}
+	return nil
+}
+
+func syncFile(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0o600)
+	if err != nil {
+		return err
+	}
+	if syncErr := f.Sync(); syncErr != nil {
+		_ = f.Close()
+		return syncErr
+	}
+	return f.Close()
+}
+
+func sanitizePostgresContextOrRedactError(ctx context.Context, err error, dsn string) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return RedactPostgresError(err, dsn)
 }
 
 // copyAllModels (re)creates the schema on dst and copies every migrated table
 // from src to dst in FK-safe order. src/dst may be any gorm backend.
 func copyAllModels(src, dst *gorm.DB) error {
+	return copyAllModelsContext(context.Background(), src, dst)
+}
+
+func copyAllModelsContext(ctx context.Context, src, dst *gorm.DB) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	for _, m := range migrationModels() {
-		if err := dst.AutoMigrate(m); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := dst.WithContext(ctx).AutoMigrate(m); err != nil {
 			return fmt.Errorf("AutoMigrate %T: %w", m, err)
 		}
 	}
 	for _, m := range migrationModels() {
-		if _, err := copyTable(src, dst, m); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if _, err := copyTableContext(ctx, src, dst, m); err != nil {
 			return fmt.Errorf("copy %T: %w", m, err)
 		}
 	}
@@ -211,7 +315,14 @@ func copyAllModels(src, dst *gorm.DB) error {
 }
 
 func copyTable(src, dst *gorm.DB, mdl any) (int, error) {
+	return copyTableContext(context.Background(), src, dst, mdl)
+}
+
+func copyTableContext(ctx context.Context, src, dst *gorm.DB, mdl any) (int, error) {
 	const batchSize = 500
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	sliceType := reflect.SliceOf(reflect.PointerTo(reflect.TypeOf(mdl).Elem()))
 
@@ -223,11 +334,13 @@ func copyTable(src, dst *gorm.DB, mdl any) (int, error) {
 	table := stmt.Schema.Table
 	columns := stmt.Schema.DBNames
 
-	ctx := context.Background()
 	total := 0
 	for offset := 0; ; offset += batchSize {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
 		batchPtr := reflect.New(sliceType)
-		q := src.Model(mdl).Limit(batchSize).Offset(offset)
+		q := src.WithContext(ctx).Model(mdl).Limit(batchSize).Offset(offset)
 		if order != "" {
 			q = q.Order(order)
 		}
@@ -251,7 +364,7 @@ func copyTable(src, dst *gorm.DB, mdl any) (int, error) {
 			rows[i] = row
 		}
 
-		if err := dst.Table(table).CreateInBatches(rows, 200).Error; err != nil {
+		if err := dst.WithContext(ctx).Table(table).CreateInBatches(rows, 200).Error; err != nil {
 			return total, err
 		}
 		total += n

@@ -98,7 +98,6 @@ export default function InboundsPage() {
     pageSize,
     subSettings,
     tgBotEnable,
-    ipLimitEnable,
     refresh,
     hydrateInbound,
     applyTrafficEvent,
@@ -830,7 +829,6 @@ export default function InboundsPage() {
             clientIndex={infoClientIndex}
             expireDiff={expireDiff}
             trafficDiff={trafficDiff}
-            ipLimitEnable={ipLimitEnable}
             tgBotEnable={tgBotEnable}
             subSettings={subSettings}
             hosts={hosts}

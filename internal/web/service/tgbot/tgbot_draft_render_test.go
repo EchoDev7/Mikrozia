@@ -26,7 +26,7 @@ func TestClientDraftMessageRendersHTML(t *testing.T) {
 	draft.email = "a@b.c"
 	draft.comment = "<b>promo</b> & <10 GB>"
 	draft.tgID = "42"
-	draft.totalGB, draft.limitIP, draft.expiryTime = 0, 0, 0
+	draft.totalGB, draft.expiryTime = 0, 0
 	draft.receiverInboundIDs = nil
 
 	out := (&Tgbot{}).BuildClientDraftMessage(draft)

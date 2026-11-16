@@ -532,19 +532,29 @@ func (g *GatewayClient) sendBackup(ctx context.Context) {
 		return
 	}
 
-	dbData, err := g.serverService.GetDb()
-	if err != nil || len(dbData) == 0 {
+	artifact, err := g.serverService.PrepareBackup(ctx, "")
+	if artifact != nil {
+		defer artifact.Cleanup()
+	}
+	if err != nil || artifact == nil {
 		_ = g.discordService.SendMessage(ctx, MessagePayload{Content: tr("discord.commands.backupFailed", "Error=="+fmt.Sprint(err))})
 		return
 	}
 
-	filename := g.serverService.BackupFilename("")
+	dbFile, err := artifact.Open()
+	if err != nil {
+		_ = g.discordService.SendMessage(ctx, MessagePayload{Content: tr("discord.commands.backupFailed", "Error=="+fmt.Sprint(err))})
+		return
+	}
+	defer func() { _ = dbFile.Close() }()
+
+	filename := artifact.Filename
 	if filename == "" {
 		filename = "x-ui.db"
 	}
 
 	files := []FileAttachment{
-		{Filename: filename, Data: dbData},
+		{Filename: filename, Reader: dbFile},
 	}
 
 	configPath := xray.GetConfigPath()
@@ -567,7 +577,9 @@ func (g *GatewayClient) sendBackup(ctx context.Context) {
 		},
 	}
 
-	_ = g.discordService.SendMessageWithFiles(ctx, payload, files...)
+	if err := g.discordService.SendMessageWithFiles(ctx, payload, files...); err != nil {
+		_ = g.discordService.SendMessage(ctx, MessagePayload{Content: tr("discord.commands.backupFailed", "Error=="+fmt.Sprint(err))})
+	}
 }
 
 func (g *GatewayClient) sendUsage(ctx context.Context, email string) {

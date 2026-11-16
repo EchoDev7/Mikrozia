@@ -63,7 +63,7 @@ func processObservedKeepsNodeSyncWrite(t *testing.T) {
 
 	NewCheckClientIpJob().processObserved(map[string]map[string]int64{
 		email: {"198.51.100.1": now},
-	}, true, true)
+	}, true)
 	if !injected {
 		t.Fatal("inject callback never fired; the scan's write path is untested")
 	}

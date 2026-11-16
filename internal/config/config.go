@@ -4,10 +4,13 @@ package config
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -20,14 +23,19 @@ var version string
 //go:embed name
 var name string
 
-// buildCommit and buildDate are injected at build time via `-ldflags -X` for
-// CI per-commit (dev channel) builds; see .github/workflows/release.yml. They
-// stay empty for a plain `go build` and for stable tagged releases, which is how
-// IsDevBuild tells a rolling dev build apart from a stable/local one.
+// mikroziaVersion is injected at build time via `-ldflags -X 'github.com/mhsanaei/3x-ui/v3/internal/config.mikroziaVersion=...'`.
+// buildCommit and buildDate are retained for diagnostics.
 var (
-	buildCommit string
-	buildDate   string
+	mikroziaVersion string
+	buildCommit     string
+	buildDate       string
 )
+
+// devVersion is the truthful identity for binaries without a valid release
+// version; it must never be a stale production tag.
+const devVersion = "dev"
+
+var releaseVersionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$`)
 
 // LogLevel represents the logging level for the application.
 type LogLevel string
@@ -41,15 +49,26 @@ const (
 	Error   LogLevel = "error"
 )
 
-// GetBaseVersion returns the raw embedded release version of the 3x-ui panel
-// (e.g. "3.4.0"). This is the panel's own version, not the Xray version. For the
-// version a panel advertises/displays (which adds a "dev+<sha>" label on dev
-// builds), use GetPanelVersion.
+// GetBaseVersion returns the raw embedded upstream release version of 3x-ui (e.g. "3.11.0").
 func GetBaseVersion() string {
 	return strings.TrimSpace(version)
 }
 
-// GetName returns the name of the 3x-ui application.
+// GetUpstreamVersion returns the raw embedded upstream release version of 3x-ui (e.g. "3.11.0").
+func GetUpstreamVersion() string {
+	return GetBaseVersion()
+}
+
+// GetMikroziaVersion returns the release version injected at build time, or
+// "dev" when the build carries no valid, byte-exact Mikrozia release identity.
+func GetMikroziaVersion() string {
+	if !releaseVersionPattern.MatchString(mikroziaVersion) {
+		return devVersion
+	}
+	return mikroziaVersion
+}
+
+// GetName returns the name of the application.
 func GetName() string {
 	return strings.TrimSpace(name)
 }
@@ -65,26 +84,9 @@ func GetBuildDate() string {
 	return strings.TrimSpace(buildDate)
 }
 
-// IsDevBuild reports whether this binary is a CI per-commit (dev channel) build,
-// detected by the injected commit. Stable releases and local builds return false.
-func IsDevBuild() bool {
-	return GetBuildCommit() != ""
-}
-
-// GetPanelVersion returns the version a panel advertises to a managing master
-// node and displays in the UI: the plain version for stable builds, or
-// "dev+<short commit>" for dev builds. The dev form mirrors the master's
-// getPanelUpdateInfo latestVersion so a node on the current dev commit compares
-// as up to date instead of always showing "update available".
+// GetPanelVersion returns the release version displayed across the panel UI, API, and CLI.
 func GetPanelVersion() string {
-	if !IsDevBuild() {
-		return GetBaseVersion()
-	}
-	commit := GetBuildCommit()
-	if len(commit) > 8 {
-		commit = commit[:8]
-	}
-	return "dev+" + commit
+	return GetMikroziaVersion()
 }
 
 // GetLogLevel returns the current logging level based on environment variables or defaults to Info.
@@ -169,14 +171,6 @@ func GetDBPath() string {
 	return fmt.Sprintf("%s/%s.db", GetDBFolderPath(), GetName())
 }
 
-// GetUpdateStatusFilePath returns the path to the panel self-update status
-// file update.sh writes on completion. It lives beside the database, outside
-// XUI_MAIN_FOLDER, so it survives an update regardless of what happens to
-// that folder.
-func GetUpdateStatusFilePath() string {
-	return filepath.Join(GetDBFolderPath(), "update-status.json")
-}
-
 // GetDBKind returns the configured database backend: "sqlite" (default) or "postgres".
 func GetDBKind() string {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv("XUI_DB_TYPE")))
@@ -191,6 +185,73 @@ func GetDBKind() string {
 // GetDBDSN returns the PostgreSQL DSN from XUI_DB_DSN. Empty for sqlite.
 func GetDBDSN() string {
 	return strings.TrimSpace(os.Getenv("XUI_DB_DSN"))
+}
+
+const (
+	DefaultDBImportMaxMiB          int64 = 256
+	MinDBImportMaxMiB              int64 = 32
+	MaxDBImportMaxMiB              int64 = 2048
+	DBImportMultipartOverheadBytes int64 = 1 << 20
+
+	DefaultSQLiteRestoreMaxStatementMiB int64 = 16
+	MinSQLiteRestoreMaxStatementMiB     int64 = 1
+	MaxSQLiteRestoreMaxStatementMiB     int64 = 256
+)
+
+var (
+	// ErrInvalidDBImportMaxMiB indicates XUI_DB_IMPORT_MAX_MIB is malformed or out of range.
+	ErrInvalidDBImportMaxMiB = errors.New("invalid XUI_DB_IMPORT_MAX_MIB")
+	// ErrInvalidSQLiteRestoreMaxStatementMiB indicates XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB is malformed or out of range.
+	ErrInvalidSQLiteRestoreMaxStatementMiB = errors.New("invalid XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB")
+)
+
+// GetDBImportMaxBytes parses XUI_DB_IMPORT_MAX_MIB (32..2048 MiB, default 256 MiB)
+// into an exact byte limit without silent fallback on invalid values.
+func GetDBImportMaxBytes() (int64, error) {
+	return parseEnvMiBLimit(
+		"XUI_DB_IMPORT_MAX_MIB",
+		DefaultDBImportMaxMiB,
+		MinDBImportMaxMiB,
+		MaxDBImportMaxMiB,
+		ErrInvalidDBImportMaxMiB,
+	)
+}
+
+// GetSQLiteRestoreMaxStatementBytes parses XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB
+// (1..256 MiB, default 16 MiB) into an exact byte limit without silent fallback.
+func GetSQLiteRestoreMaxStatementBytes() (int64, error) {
+	return parseEnvMiBLimit(
+		"XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB",
+		DefaultSQLiteRestoreMaxStatementMiB,
+		MinSQLiteRestoreMaxStatementMiB,
+		MaxSQLiteRestoreMaxStatementMiB,
+		ErrInvalidSQLiteRestoreMaxStatementMiB,
+	)
+}
+
+func parseEnvMiBLimit(envName string, defaultMiB, minMiB, maxMiB int64, sentinel error) (int64, error) {
+	const bytesPerMiB int64 = 1024 * 1024
+	raw, ok := os.LookupEnv(envName)
+	if !ok {
+		return defaultMiB * bytesPerMiB, nil
+	}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, fmt.Errorf("%w: must be a decimal integer between %d and %d MiB", sentinel, minMiB, maxMiB)
+	}
+	for i := 0; i < len(trimmed); i++ {
+		if trimmed[i] < '0' || trimmed[i] > '9' {
+			return 0, fmt.Errorf("%w: %q is not a positive decimal integer (allowed: %d-%d MiB)", sentinel, trimmed, minMiB, maxMiB)
+		}
+	}
+	mib, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || mib < minMiB || mib > maxMiB {
+		return 0, fmt.Errorf("%w: %q is out of range (allowed: %d-%d MiB)", sentinel, trimmed, minMiB, maxMiB)
+	}
+	if mib > math.MaxInt64/bytesPerMiB {
+		return 0, fmt.Errorf("%w: %q overflows byte limit", sentinel, trimmed)
+	}
+	return mib * bytesPerMiB, nil
 }
 
 // GetNodeTokenEncryptionMode returns off, migration, or required. Explicit

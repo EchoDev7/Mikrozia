@@ -10,7 +10,6 @@ import (
 	"github.com/op/go-logging"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
@@ -399,26 +398,6 @@ func TestCheckForwardedPortsConflict_CollidesWithAmneziawgnetSocksPort(t *testin
 	}
 }
 
-func TestCheckForwardedPortsConflict_KernelAmneziaWGHasNoEmbeddedRelay(t *testing.T) {
-	setupConflictDB(t)
-	seedInboundConflict(t, "awg-kernel", "0.0.0.0", 51820, model.AmneziaWG, ``,
-		`{"server":{"privateKey":"priv","publicKey":"pub","subnetIp":"10.8.1.0","subnetCidr":24,"kernelMode":true},"clients":[]}`)
-
-	var awgInbound model.Inbound
-	if err := database.GetDB().Where("tag = ?", "awg-kernel").First(&awgInbound).Error; err != nil {
-		t.Fatalf("read seeded row: %v", err)
-	}
-	svc := &InboundService{}
-	ctx, err := svc.loadPortConflictContext(database.GetDB(), nil)
-	if err != nil {
-		t.Fatalf("loadPortConflictContext: %v", err)
-	}
-	relayPort := amneziawgnet.SOCKSPortForInbound(awgInbound.Id)
-	if hit := svc.checkForwardedPortsConflict(ctx, fmt.Sprintf("%d", relayPort)); hit != "" {
-		t.Fatalf("kernel-mode AmneziaWG must not reserve embedded relay port %d, got collision %q", relayPort, hit)
-	}
-}
-
 // A cleared DNS field is meaningful (no DNS line in client configs) and must
 // survive the save round-trip instead of resurrecting the frontend defaults.
 func TestNormalizeAmneziaWGSettingsKeepsClearedDNS(t *testing.T) {
@@ -504,79 +483,35 @@ func TestNormalizeAmneziaWGSettings_DerivesServerPublicKeyFromPrivate(t *testing
 	}
 }
 
-func TestNormalizeAmneziaWGSettingsDefersNodeKernelPreflightToRemoteHost(t *testing.T) {
+func TestNormalizeAmneziaWGSettings_RejectsLegacyKernelModeTrue(t *testing.T) {
 	setupConflictDB(t)
-	server, err := defaultAmneziaWGServer()
-	if err != nil {
-		t.Fatalf("defaultAmneziaWGServer: %v", err)
-	}
-	server.KernelMode = true
-	settings, err := json.Marshal(amneziawg.InboundSettings{Server: server, Clients: []model.Client{}})
-	if err != nil {
-		t.Fatalf("marshal settings: %v", err)
-	}
-	inbound := &model.Inbound{
-		Protocol: model.AmneziaWG,
-		NodeID:   new(7),
-		Port:     51820,
-		Settings: string(settings),
-	}
-	if err := (&InboundService{}).normalizeAmneziaWGSettings(inbound, nil); err != nil {
-		t.Fatalf("master must defer kernel readiness to the target node: %v", err)
-	}
-	var normalized amneziawg.InboundSettings
-	if err := json.Unmarshal([]byte(inbound.Settings), &normalized); err != nil {
-		t.Fatalf("decode normalized settings: %v", err)
-	}
-	if normalized.Server == nil || !normalized.Server.KernelMode {
-		t.Fatalf("normalized node settings lost kernel mode: %+v", normalized.Server)
+	for _, nodeID := range []*int{nil, new(7)} {
+		inbound := &model.Inbound{
+			Protocol: model.AmneziaWG,
+			NodeID:   nodeID,
+			Port:     51826,
+			Enable:   true,
+			Settings: `{"server":{"privateKey":"` + awgTestPrivateKey + `","publicKey":"` + awgTestPublicKey + `","subnetIp":"10.8.1.0","subnetCidr":24,"kernelMode":true},"clients":[]}`,
+		}
+		err := (&InboundService{}).normalizeAmneziaWGSettings(inbound, nil)
+		if err == nil || !strings.Contains(err.Error(), "kernel mode is not supported") {
+			t.Fatalf("nodeID=%v: err = %v, want kernel mode rejection", nodeID, err)
+		}
 	}
 }
 
-// TestNormalizeAmneziaWGSettingsGatesHostReadinessOnlyWhenEnablingKernelMode:
-// a host that loses its module after enabling must not lock the inbound's edits.
-func TestNormalizeAmneziaWGSettingsGatesHostReadinessOnlyWhenEnablingKernelMode(t *testing.T) {
+func TestNormalizeAmneziaWGSettings_AcceptsAndStripsKernelModeFalse(t *testing.T) {
 	setupConflictDB(t)
-	if amneziawgkern.HostReadiness().Ready {
-		t.Skip("this host can run kernel mode, so host readiness cannot refuse anything here")
+	inbound := &model.Inbound{
+		Protocol: model.AmneziaWG,
+		Port:     51827,
+		Enable:   true,
+		Settings: `{"server":{"privateKey":"` + awgTestPrivateKey + `","publicKey":"` + awgTestPublicKey + `","subnetIp":"10.8.1.0","subnetCidr":24,"kernelMode":false},"clients":[]}`,
 	}
-	server, err := defaultAmneziaWGServer()
-	if err != nil {
-		t.Fatalf("defaultAmneziaWGServer: %v", err)
+	if err := (&InboundService{}).normalizeAmneziaWGSettings(inbound, nil); err != nil {
+		t.Fatalf("normalize kernelMode=false failed: %v", err)
 	}
-	embeddedServer := *server
-	server.KernelMode = true
-	kernelSettings, err := json.Marshal(amneziawg.InboundSettings{Server: server, Clients: []model.Client{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	embeddedSettings, err := json.Marshal(amneziawg.InboundSettings{Server: &embeddedServer, Clients: []model.Client{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	kernelRow := func(enable bool) *model.Inbound {
-		return &model.Inbound{Protocol: model.AmneziaWG, Enable: enable, Settings: string(kernelSettings)}
-	}
-	cases := []struct {
-		name        string
-		enable      bool
-		old         *model.Inbound
-		wantRefused bool
-	}{
-		{"new inbound turns kernel mode on", true, nil, true},
-		{"embedded inbound switches to kernel mode", true, &model.Inbound{Protocol: model.AmneziaWG, Enable: true, Settings: string(embeddedSettings)}, true},
-		{"disabled kernel inbound is enabled", true, kernelRow(false), true},
-		{"running kernel inbound is edited", true, kernelRow(true), false},
-		{"running kernel inbound is disabled", false, kernelRow(true), false},
-		{"disabled inbound saved with kernel mode", false, nil, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			inbound := &model.Inbound{Protocol: model.AmneziaWG, Port: 51820, Enable: tc.enable, Settings: string(kernelSettings)}
-			err := (&InboundService{}).normalizeAmneziaWGSettings(inbound, tc.old)
-			if refused := err != nil && strings.Contains(err.Error(), "kernel mode unavailable"); refused != tc.wantRefused {
-				t.Fatalf("refused = %v (err %v), want %v", refused, err, tc.wantRefused)
-			}
-		})
+	if strings.Contains(inbound.Settings, "kernelMode") {
+		t.Fatalf("normalized settings must drop legacy kernelMode field:\n%s", inbound.Settings)
 	}
 }

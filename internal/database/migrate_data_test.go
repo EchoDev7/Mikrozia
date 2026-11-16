@@ -176,6 +176,9 @@ func TestMigrateData_FailedCopyLeavesDestinationUntouched(t *testing.T) {
 	if err := MigrateData(seedSource("keep-me"), dsn); err != nil {
 		t.Fatalf("seed destination via MigrateData: %v", err)
 	}
+	if err := dst.Migrator().DropTable(&model.OutboundSubscription{}); err != nil {
+		t.Fatalf("drop destination outbound_subscriptions before rollback check: %v", err)
+	}
 
 	brokenSrc := seedSource("evil")
 	breaker, err := gorm.Open(sqlite.Open(brokenSrc), &gorm.Config{Logger: logger.Discard})
@@ -205,5 +208,8 @@ func TestMigrateData_FailedCopyLeavesDestinationUntouched(t *testing.T) {
 	}
 	if evil != 0 {
 		t.Fatalf("failed migration leaked partial rows: evil count = %d, want 0", evil)
+	}
+	if dst.Migrator().HasTable(&model.OutboundSubscription{}) {
+		t.Fatal("failed migration leaked AutoMigrate DDL: outbound_subscriptions was recreated")
 	}
 }

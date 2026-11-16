@@ -1,49 +1,51 @@
 ---
 title: Migration
-description: Migrate to 3x-ui from x-ui, between servers, or between 3x-ui versions.
+description: Move Mikrozia to another RouterOS device or another Mikrozia image tag without losing persistent data.
 icon: ArrowRightLeft
 ---
 
-## Between servers
+## Between RouterOS devices
 
-Moving to a new server is a database move:
+Moving to another RouterOS device is a mounted-data move:
 
 <Steps>
 
 <Step>
-### Back up the old server
+### Back up the old device
 
-Copy the database (default `/etc/x-ui/x-ui.db`) and your certificates. See
-[Backup & restore](/docs/operations/backup-restore).
+Stop the container, then copy the `/etc/x-ui` and `/root/cert` mount contents.
+See [Backup & restore](/docs/operations/backup-restore).
 </Step>
 
 <Step>
-### Install 3x-ui on the new server
+### Install the same Mikrozia tag on the new device
 
-Use the same install method and a compatible version. See
-[Installation](/docs/guide/installation).
+Follow the [RouterOS installation path](/docs/guide/installation) and use the
+same image tag unless you are deliberately upgrading. Create the same persistent
+mounts.
 </Step>
 
 <Step>
-### Restore the database
+### Restore the mounted data
 
-Stop the panel, put the database in place, restore certificates, and start the
-panel. Update any IP/domain-specific settings.
+Place the database and certificates on the new persistent mounts before starting
+the container. Update any IP- or domain-specific panel settings after it starts.
 </Step>
 
 </Steps>
 
-## Between 3x-ui versions
+## Between Mikrozia versions
 
-Within the same backend, upgrading is usually just re-running the installer or
-pulling a new image — the panel migrates its own database. Across **major**
-versions, read the [release notes](https://github.com/MHSanaei/3x-ui/releases)
-first and take a backup.
+Replacing the container image is the only supported upgrade mechanism. The panel
+migrates its own database at startup. Take a [backup](/docs/operations/backup-restore)
+first, recreate the container with the new versioned tag and the same
+`/etc/x-ui` and `/root/cert` mounts, and keep the previous image until the new
+one is verified. Never rewrite the image RootFS from inside the container.
 
 ## From x-ui
 
-Importing an older x-ui panel's database directly into 3x-ui is **not
-supported** — the schemas differ. Install 3x-ui fresh and recreate
+Importing an older x-ui panel's database directly into Mikrozia is **not
+supported** — the schemas differ. Install Mikrozia fresh and recreate
 inbounds/clients, exporting share links from the old panel as you go.
 
 <Callout type="warn">

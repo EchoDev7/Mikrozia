@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: Fix common 3x-ui problems — the panel won't start, 502 errors, certificate issues, and clients that can't connect.
+description: Fix common Mikrozia problems on RouterOS Container — the panel won't start, 502 errors, certificate paths, and clients that can't connect.
 icon: Wrench
 ---
 
@@ -9,21 +9,40 @@ A checklist for the most common issues. When in doubt, raise the log level
 
 ## The panel won't start
 
-- Check the service status and logs (`x-ui` menu → status/logs).
-- Make sure the **panel port isn't already in use** by another service.
-- Verify the database path is writable (default `/etc/x-ui/x-ui.db`).
+- Check the container state and logs in RouterOS:
+
+  ```text
+  /container/print detail where comment="[Mikrozia:container] Container"
+  /log/print follow-only where topics~"container"
+  ```
+
+- Inside the container, run `x-ui status` (via `/container/shell`) and confirm
+  the panel port is not already in use.
+- Verify the database path on the persistent mount is writable
+  (`/etc/x-ui/x-ui.db`).
+- If extraction never finished, check free RAM and disk before retrying; the
+  image must finish extracting before the container can start.
 
 ## 502 / panel unreachable behind a proxy
 
-- Confirm the panel is actually listening on the upstream port (e.g. `2053`).
+- Confirm the panel is listening inside the container on the upstream port
+  (default `2053`) at `172.16.10.2`.
 - Ensure your [reverse proxy](/docs/operations/reverse-proxy) passes WebSocket
-  upgrade headers and points at the correct port and **web base path**.
-- Check the firewall isn't blocking the proxy → panel connection.
+  upgrade headers and points at the correct container address, port, and **web
+  base path**.
+- Check that your RouterOS policy actually delivers traffic from the proxy to
+  the container; Mikrozia does not create that path.
 
 ## Certificate problems
 
-- The domain's DNS must point at the server before issuing a certificate.
-- Ports 80/443 must be reachable for HTTP/TLS validation (or use DNS validation).
+- Mikrozia does not issue or renew certificates inside the container. Acquire and
+  renew the certificate with your certificate authority outside the container,
+  place the files on the persistent `/root/cert` mount, and point the panel at
+  them (menu `14` or `x-ui cert`).
+- The configured paths must exist and be readable by the panel; the panel only
+  serves HTTPS when both the certificate and key are set.
+- If your validation method needs a public port, configure that access yourself
+  in RouterOS.
 - For REALITY, remember it needs **no certificate** — the issue is usually a bad
   `dest`/SNI instead (see [REALITY pitfalls](/docs/config/reality)).
 
@@ -33,10 +52,28 @@ A checklist for the most common issues. When in doubt, raise the log level
   [share-link inspector](/docs/config/share-links) and confirm every parameter.
 - Check the **transport and security match** on both ends.
 - Make sure the client hasn't hit its **traffic, expiry, or IP limit**.
-- Confirm the inbound port is open in the firewall.
+- Confirm your RouterOS policy reaches the inbound port inside the container.
+
+## RouterOS Container Logs
+
+- **Panel Application Logs**: Available directly in the Web UI (**Logs**) from the panel's in-memory log buffer (no systemd/`journalctl` is used in RouterOS Container).
+- **Container `stdout`/`stderr` Logs**: View startup and container output from RouterOS Terminal or WinBox (see [MikroTik Container Docs](https://help.mikrotik.com/docs/spaces/ROS/pages/84901929/Container) and [MikroTik Log Docs](https://help.mikrotik.com/docs/spaces/ROS/pages/328094/Log)):
+
+```text
+/container/set [find where comment="[Mikrozia:container] Container"] logging=yes
+/log/print follow-only where topics~"container"
+```
+
+- **Xray Access Logs Privacy**: Xray access logs can contain client source IPs, destination addresses, and account emails. Restrict panel access and review retention settings before enabling or sharing them.
+
+## External PostgreSQL & Backup Client Version
+
+- Mikrozia does not run a local PostgreSQL server or install `pg_dump`/`pg_restore` at runtime.
+- Supported external PostgreSQL servers are **15–18** (`pg_dump` is not supported against PostgreSQL 19+ until a newer Mikrozia image ships a matching client).
+- If `pg_restore` reports an unsupported archive version, upgrade the Mikrozia container image while keeping your persistent `/etc/x-ui` and `/root/cert` mounts intact.
 
 <Callout type="info">
-  Still stuck? Search the
-  [GitHub issues](https://github.com/MHSanaei/3x-ui/issues) — your symptom has
-  probably been seen before.
+  Still stuck? When reporting a problem, include the RouterOS version, the
+  Mikrozia image tag, `/container/print detail`, and the relevant
+  `topics~"container"` log lines. Never include private keys or panel passwords.
 </Callout>

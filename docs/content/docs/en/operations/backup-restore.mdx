@@ -1,6 +1,6 @@
 ---
 title: Backup & Restore
-description: Back up and restore your 3x-ui database and certificates, manually or via the Telegram bot.
+description: Back up and restore your Mikrozia database and certificates from the RouterOS container mounts, manually or via the Telegram bot.
 icon: DatabaseBackup
 ---
 
@@ -16,14 +16,34 @@ database. Back it up regularly so you can recover or migrate.
 
 ## Manual backup
 
-You can download a backup from the panel's overview, or copy the database file
-directly from the server:
+For a consistent SQLite backup while the panel is running, write a portable SQL
+dump from the container:
 
-```bash title="copy the SQLite database"
-cp /etc/x-ui/x-ui.db /root/x-ui-backup-$(date +%F).db
+```bash title="create a consistent SQLite backup"
+x-ui migrate-db --dump /etc/x-ui/x-ui-backup-$(date +%F).sql
 ```
 
-To restore, stop the panel, put the database back in place, and start it again.
+The dump reads one consistent database snapshot, including when SQLite WAL mode
+is active. Do not copy `/etc/x-ui/x-ui.db` directly while the container is
+running. If you need a raw `.db` file, stop the container first, then copy the
+database from the persistent RouterOS mount. Web panel downloads, cross-engine
+migration exports (`.dump` / `.db`), Telegram, and Discord backups are staged in
+a private temporary file under `/etc/x-ui` (or `XUI_DB_FOLDER`) and streamed
+instead of buffering the full output in RAM; ensure the mount has enough free
+space for the temporary file.
+
+To restore a SQL dump, rebuild it to a new database file, then stop the container
+and replace `/etc/x-ui/x-ui.db` with that file before starting the container.
+The restore command writes a separate file and does not modify the live database:
+
+```bash
+x-ui migrate-db --restore /etc/x-ui/x-ui-backup-YYYY-MM-DD.sql --out /etc/x-ui/x-ui-restored.db
+```
+
+The CLI does not overwrite an existing destination. For a raw `.db` backup,
+stop the container before replacing the database file.
+
+> Panel web imports (`POST /panel/api/server/importDB`) stream directly to a private staging file on the persistent `/etc/x-ui` (`XUI_DB_FOLDER`) mount with a default limit of **256 MiB** (`XUI_DB_IMPORT_MAX_MIB`, allowed range **32–2048 MiB**). Uploads exceeding this limit fail with **HTTP 413** (`Request Entity Too Large`). Increase `XUI_DB_IMPORT_MAX_MIB` only when `/etc/x-ui` has enough free space; Mikrozia never creates or changes RouterOS firewall or NAT rules automatically.
 
 <Callout type="warn">
   Restore a backup onto the **same major version** it came from when possible.
@@ -41,11 +61,37 @@ The `x-ui migrate-db` command converts the SQLite database to and from a plain
 SQL text dump (handy for inspection or transferring between machines):
 
 ```bash
-x-ui migrate-db --dump /root/x-ui.sql       # SQLite -> SQL text
-x-ui migrate-db --restore /root/x-ui.sql     # SQL text -> SQLite
+x-ui migrate-db --dump /etc/x-ui/x-ui.sql       # SQLite -> SQL text
+x-ui migrate-db --restore /etc/x-ui/x-ui.sql --out /etc/x-ui/x-ui-restored.db
 ```
 
+`--restore` requires `--out`, and the CLI never overwrites an existing database. The interactive **Database Tools** menu restores into a temporary file and replaces the chosen output only after the restore succeeds; a failed restore leaves the previous file unchanged.
+
+> SQLite SQL text dump restores (`x-ui migrate-db --restore` and SQLite `.sql` dump uploads via `importDB`) stream and replay statements one by one without buffering the whole file in RAM. Each individual SQL statement is limited to **16 MiB** by default (`XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB`, allowed range **1–256 MiB**). Raising this limit increases per-statement memory usage—increase it on RouterOS containers only if sufficient RAM is available. Raw binary `.db` imports and PostgreSQL dumps do not use `XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB` (total upload size remains controlled separately by `XUI_DB_IMPORT_MAX_MIB`).
+
 To move to PostgreSQL instead, see [Database](/docs/reference/database).
+
+> When using PostgreSQL, `.dump` backups (`pg_dump`) and restores (`pg_restore`) resolve the live schema selected by `search_path` for core tables (`users`, `settings`, `inbounds`) on a pinned connection and pass `--strict-names` with `--schema=...` for that single schema. Splitting core tables across schemas or resolving to system schemas is rejected.
+
+> Before replacing the live SQLite database, Mikrozia creates a WAL-consistent fallback snapshot and records a durable state marker under `XUI_DB_FOLDER`. If power is lost or the process crashes during an import, the next startup automatically recovers the transaction. **Do not** manually delete `.mikrozia-sqlite-restore-*` directories or the `.mikrozia-sqlite-restore-state.json` marker; if a marker is corrupted, startup halts safely without deleting user data so you can preserve logs and artifacts for inspection.
+
+## PostgreSQL backup and import safety
+
+PostgreSQL remains an external, optional backend — see [Database](/docs/reference/database). The image already contains the PostgreSQL client tools; do not install `pg_dump` or `pg_restore` on the RouterOS host.
+
+Before a destructive PostgreSQL import (restoring a `.dump` or importing a SQLite file into PostgreSQL), Mikrozia creates a verified pre-import snapshot:
+
+- The snapshot lives in a private `.mikrozia-pg-restore-*` directory under `XUI_DB_FOLDER`; the directory is `0700` and the `pre-import.dump` file is `0600`.
+- The import only starts when free space covers the canonical schema size plus 25% plus 16 MiB.
+- The snapshot is validated with `pg_restore --list` before any mutation and removed after a successful import.
+
+If the import fails after commit (reopening the database, restoring this router's settings, applying panel data migrations, or restarting Xray), Mikrozia rolls back exactly: it clears only the objects of the resolved canonical schema while preserving the schema itself, its owner, and its ACL, leaves other schemas untouched, restores the snapshot without `--clean`, reopens the connection pool, and restarts Xray. If that automatic rollback fails, the snapshot is retained and the error reports its path for manual recovery; do not delete it until the database state is confirmed.
+
+If the panel or container crashes during an import, the verified `.mikrozia-pg-restore-*` snapshot is left in place. Do not delete it or start a different image against the changed schema; inspect the database and restore that snapshot manually with `pg_restore` before continuing.
+
+The `keepHostSettings` option of `POST /panel/api/server/importDB` controls host-bound settings such as `webPort`, `webBasePath`, certificate paths, `panelGuid`, and node mTLS material. With **true**, this router's current values are re-applied after the import; with **false**, the values from the imported data are kept.
+
+PostgreSQL credentials never appear in logs or CLI output. `PGPASSWORD` is not supported; tools receive a temporary `0600` `PGPASSFILE`, and error/stderr output is redacted.
 
 <Callout type="info">
   Whatever method you use, store backups **off the server** and test a restore

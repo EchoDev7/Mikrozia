@@ -1,47 +1,42 @@
 <p align="center">
-  <a href="https://docs.sanaei.dev">
+  <a href="https://hub.docker.com/r/majlot/mikrozia">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="public/logo-dark.png" />
-      <img src="public/logo-light.png" alt="3x-ui" width="180" />
+      <img src="public/logo-light.png" alt="Mikrozia" width="180" />
     </picture>
   </a>
 </p>
 
-<h1 align="center">3x-ui Documentation</h1>
+<h1 align="center">Mikrozia Documentation</h1>
 
 <p align="center">
-  The official documentation and product site for
-  <a href="https://github.com/MHSanaei/3x-ui"><b>3x-ui</b></a> —
-  an advanced web panel for managing Xray-core servers.
+  Documentation and product site for <b>Mikrozia</b> — the
+  <a href="https://github.com/MHSanaei/3x-ui"><b>3x-ui</b></a> panel and Xray-core
+  packaged as an immutable MikroTik RouterOS Container image.
 </p>
 
 <p align="center">
-  <a href="https://docs.sanaei.dev"><img src="https://img.shields.io/badge/docs-docs.sanaei.dev-22d3ee?style=flat-square" alt="Live site" /></a>
-  <a href="https://github.com/MHSanaei/3x-ui/actions/workflows/docs-ci.yml"><img src="https://github.com/MHSanaei/3x-ui/actions/workflows/docs-ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://hub.docker.com/r/majlot/mikrozia"><img src="https://img.shields.io/badge/image-majlot%2Fmikrozia-2496ED?style=flat-square&logo=docker" alt="Container image" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License: GPL-3.0" /></a>
   <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js 16" />
   <img src="https://img.shields.io/badge/Fumadocs-16-0ea5e9?style=flat-square" alt="Fumadocs 16" />
-</p>
-
-<p align="center">
-  <a href="https://docs.sanaei.dev"><b>Read the docs →</b></a>
 </p>
 
 ---
 
 ## Overview
 
-This directory (`docs/` in the [3x-ui](https://github.com/MHSanaei/3x-ui) monorepo) contains
-the source for [docs.sanaei.dev](https://docs.sanaei.dev) — a static-first documentation and
-marketing site built with [Fumadocs](https://fumadocs.dev) on Next.js. It has **no backend,
-no database, and no auth**: every page is prerendered and every tool runs entirely in the
-browser.
+This directory contains the Mikrozia documentation site built with
+[Fumadocs](https://fumadocs.dev) on Next.js. It has **no backend, no database, and
+no auth**: every page is prerendered and every tool runs entirely in the browser.
+Current guides describe RouterOS Container installation and operation only.
 
 ## What's inside
 
-The documentation walks you through 3x-ui from first install to day-to-day operation:
+The documentation walks you through Mikrozia on RouterOS from first install to
+day-to-day operation:
 
-- **Getting Started** — installation, first login, and updating or uninstalling the panel.
+- **Getting Started** — RouterOS Container installation, first login, and replacing the image.
 - **Configuration** — the panel, inbounds, REALITY, transports, clients, subscriptions, and share links.
 - **Operations** — reverse proxy, multi-node setups, outbounds & routing, backup/restore, Telegram and Discord bots, and security.
 - **Reference** — environment variables, the database, ports & firewall, and the HTTP API.
@@ -56,10 +51,8 @@ ever leaves your browser**:
 | ---------------------------- | ------------------------------------------------------- |
 | **REALITY Config Generator** | Build a valid REALITY inbound configuration.            |
 | **Share Link Inspector**     | Decode and inspect `vless://` / `vmess://` share links. |
-| **Install Command Builder**  | Assemble the right install command for your setup.      |
 | **Reverse Proxy Generator**  | Generate reverse-proxy configs (Nginx / Caddy).         |
 | **Protocol Wizard**          | Pick and configure the right protocol for your needs.   |
-| **Firewall Rules Generator** | Produce firewall rules for your ports.                  |
 
 ## Tech stack
 

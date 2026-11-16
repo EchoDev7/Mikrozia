@@ -40,7 +40,6 @@ export default function InboundInfoModal({
   clientIndex = 0,
   expireDiff = 0,
   trafficDiff = 0,
-  ipLimitEnable = false,
   tgBotEnable = false,
   nodeAddress = '',
   subSettings,
@@ -116,7 +115,6 @@ export default function InboundInfoModal({
     nodeAddress: typeof nodeAddress;
     subSettings: typeof subSettings;
     hosts: typeof hosts;
-    ipLimitEnable: typeof ipLimitEnable;
   } | null>(null);
   if (
     open &&
@@ -126,10 +124,9 @@ export default function InboundInfoModal({
       syncedProps.clientIndex !== clientIndex ||
       syncedProps.nodeAddress !== nodeAddress ||
       syncedProps.subSettings !== subSettings ||
-      syncedProps.hosts !== hosts ||
-      syncedProps.ipLimitEnable !== ipLimitEnable)
+      syncedProps.hosts !== hosts)
   ) {
-    setSyncedProps({ dbInbound, clientIndex, nodeAddress, subSettings, hosts, ipLimitEnable });
+    setSyncedProps({ dbInbound, clientIndex, nodeAddress, subSettings, hosts });
     const info = buildInboundInfo(dbInbound);
     setInbound(info);
     setActiveTab(info.clients.length > 0 ? 'client' : 'inbound');
@@ -222,7 +219,7 @@ export default function InboundInfoModal({
     setClientIpsArray([]);
     setClientIpsText('');
 
-    if (ipLimitEnable && (clientSet?.limitIp ?? 0) > 0 && stats?.email) {
+    if (stats?.email) {
       void HttpUtil.post(`/panel/api/clients/ips/${stats.email}`).then((msg) => {
         if (!msg?.success) {
           setClientIpsText((msg?.obj as string) || 'No IP record');
@@ -426,15 +423,7 @@ export default function InboundInfoModal({
               </td>
             </tr>
           )}
-          {ipLimitEnable && (
-            <tr>
-              <td>{t('pages.inbounds.IPLimit')}</td>
-              <td>
-                <Tag>{clientSettings?.limitIp ?? 0}</Tag>
-              </td>
-            </tr>
-          )}
-          {ipLimitEnable && (clientSettings?.limitIp ?? 0) > 0 && (
+          {clientSettings?.email && (
             <tr>
               <td>{t('pages.inbounds.IPLimitlog')}</td>
               <td>

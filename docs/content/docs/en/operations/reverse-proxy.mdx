@@ -1,13 +1,19 @@
 ---
 title: Reverse Proxy
-description: Put the 3x-ui panel and subscription behind Nginx or Caddy with Let's Encrypt TLS.
+description: Serve the Mikrozia panel and subscription behind Nginx or Caddy on a separate proxy host, with RouterOS delivering traffic to the container.
 icon: Waypoints
 ---
 
 A reverse proxy lets you serve the panel and subscription on a clean domain with
-automatic HTTPS, and hide the real ports behind ports 80/443. Prefer to let the
-panel terminate TLS directly? Get a certificate with the
-[`x-ui` SSL menu](/docs/config/ssl-certificates) instead.
+automatic HTTPS, and hide the real ports behind ports 80/443. The proxy runs
+outside the container, typically on another host. The panel itself can also
+terminate TLS directly with certificates you mounted on `/root/cert` — see
+[TLS certificates](/docs/config/ssl-certificates).
+
+The proxy must reach the panel at its container address (`172.16.10.2:2053` in
+the beginner layout). Making that path work — including any port-forwarding or
+routing — is RouterOS policy that you configure; Mikrozia does not create it.
+See [Ports & firewall](/docs/reference/ports-firewall).
 
 ## Generate a config
 
@@ -21,8 +27,8 @@ panel terminate TLS directly? Get a certificate with the
 
 ## Nginx + certificate
 
-With Nginx, obtain a certificate with `certbot` (or `acme.sh`) and reference it
-in the server block:
+With Nginx, obtain a certificate on the proxy host (outside the Mikrozia
+container) with `certbot` (or `acme.sh`) and reference it in the server block:
 
 ```bash title="certbot"
 certbot certonly --nginx -d panel.example.com
@@ -38,7 +44,7 @@ and it just works:
 
 ```text title="Caddyfile"
 panel.example.com {
-    reverse_proxy 127.0.0.1:2053 {
+    reverse_proxy 172.16.10.2:2053 {
         header_up X-Real-IP {remote_host}
     }
 }

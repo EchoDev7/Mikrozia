@@ -43,12 +43,17 @@ func installFakeMtg(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("locate test binary: %v", err)
 	}
-	payload, err := os.ReadFile(self)
-	if err != nil {
-		t.Fatalf("read test binary: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(binDir, GetBinaryName()), payload, 0o755); err != nil {
-		t.Fatalf("install fake mtg: %v", err)
+	dst := filepath.Join(binDir, GetBinaryName())
+	// Symlink avoids copying and re-validating the entire test binary on every
+	// test run under parallel `go test ./...` load while preserving argv[0].
+	if err := os.Symlink(self, dst); err != nil {
+		payload, readErr := os.ReadFile(self)
+		if readErr != nil {
+			t.Fatalf("read test binary: %v", readErr)
+		}
+		if writeErr := os.WriteFile(dst, payload, 0o755); writeErr != nil {
+			t.Fatalf("install fake mtg: %v", writeErr)
+		}
 	}
 	pidFile := filepath.Join(binDir, "mtg-pids.txt")
 	t.Setenv("XUI_BIN_FOLDER", binDir)
@@ -169,6 +174,7 @@ func TestApplySecrets(t *testing.T) {
 func TestEnsureHotReloadKeepsProcess(t *testing.T) {
 	pidFile := installFakeMtg(t)
 	mgr := &Manager{procs: map[int]*managed{}, swept: true}
+	t.Cleanup(mgr.StopAll)
 
 	inst := mtgInst(1, SecretEntry{Name: "alice", Secret: "ee01"})
 	if err := mgr.Ensure(inst); err != nil {
@@ -231,6 +237,7 @@ func TestEnsureHotReloadKeepsProcess(t *testing.T) {
 func TestEnsureReloadFallbackRestarts(t *testing.T) {
 	pidFile := installFakeMtg(t)
 	mgr := &Manager{procs: map[int]*managed{}, swept: true}
+	t.Cleanup(mgr.StopAll)
 
 	if err := mgr.Ensure(mtgInst(2, SecretEntry{Name: "alice", Secret: "ee01"})); err != nil {
 		t.Fatalf("initial ensure: %v", err)
@@ -253,6 +260,7 @@ func TestEnsureReloadFallbackRestarts(t *testing.T) {
 func TestEnsureNoopKeepsProcess(t *testing.T) {
 	pidFile := installFakeMtg(t)
 	mgr := &Manager{procs: map[int]*managed{}, swept: true}
+	t.Cleanup(mgr.StopAll)
 
 	inst := mtgInst(3, SecretEntry{Name: "alice", Secret: "ee01"}, SecretEntry{Name: "bob", Secret: "ee02"})
 	if err := mgr.Ensure(inst); err != nil {

@@ -449,10 +449,6 @@ export default function ClientInfoModal({
                   </td>
                 </tr>
                 <tr>
-                  <td>{t('pages.clients.ipLimit')}</td>
-                  <td>{!client.limitIp ? <Tag>∞</Tag> : <Tag>{client.limitIp}</Tag>}</td>
-                </tr>
-                <tr>
                   <td>{t('pages.inbounds.IPLimitlog')}</td>
                   <td>
                     <Button

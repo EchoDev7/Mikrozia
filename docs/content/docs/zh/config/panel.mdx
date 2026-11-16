@@ -1,6 +1,6 @@
 ---
 title: 面板设置
-description: 全部 3x-ui 面板设置——Web 服务器、TLS、显示、安全与通知——并附上源码中的默认值。
+description: 全部 Mikrozia 面板设置——Web 服务器、TLS、显示、安全与通知——并附上源码中的默认值。
 icon: SlidersHorizontal
 ---
 
@@ -16,7 +16,7 @@ icon: SlidersHorizontal
 | `webCertFile` / `webKeyFile` | _（无）_       | TLS 证书 + 密钥。两者都设置后，面板将以 **HTTPS** 提供服务。           |
 | `sessionMaxAge`     | `360`                   | 会话有效期，单位为**分钟**（默认 6 小时）。                              |
 | `trustedProxyCIDRs` | `127.0.0.1/32,::1/128`  | 其转发头（真实客户端 IP）受信任的 IP/CIDR。自定义值还会控制订阅链接中转发的主机和协议；请将订阅代理加入列表，或设置 `subURI` 覆盖这些链接。 |
-| `panelOutbound`     | _（无）_                | 通过一个命名的 Xray 出站来路由面板自身的出口流量（更新检查、Telegram、地理/订阅拉取）。 |
+| `panelOutbound`     | _（无）_                | 通过一个命名的 Xray 出站来路由面板自身的出口流量（Telegram、订阅拉取）。 |
 
 更改端口或基础路径后，面板 URL 将变为
 `http(s)://<server>:<port><web-base-path>`。你可以在首次启动时通过
@@ -24,9 +24,9 @@ icon: SlidersHorizontal
 
 ### TLS
 
-通过 HTTPS 提供面板服务可保护你的凭据在传输过程中的安全。要么设置
-`webCertFile` + `webKeyFile`——[`x-ui` SSL 菜单](/docs/config/ssl-certificates)
-可以为你申请 Let's Encrypt 证书——要么在
+通过 HTTPS 提供面板服务可保护你的凭据在传输过程中的安全。请设置
+`webCertFile` + `webKeyFile`，指向你自行获取并放在 `/root/cert` 上的文件（参见
+[TLS 证书](/docs/config/ssl-certificates)——Mikrozia 不签发或续期证书），或在
 [反向代理](/docs/operations/reverse-proxy)处终止 TLS。
 
 <Callout type="warn">

@@ -1,6 +1,6 @@
 ---
 title: 故障排查
-description: 解决 3x-ui 常见问题——面板无法启动、502 错误、证书问题，以及客户端无法连接。
+description: 解决 Mikrozia 在 RouterOS 容器上的常见问题——面板无法启动、502 错误、证书问题，以及客户端无法连接。
 icon: Wrench
 ---
 
@@ -9,23 +9,34 @@ icon: Wrench
 
 ## 面板无法启动
 
-- 检查服务状态和日志（`x-ui` 菜单 → 状态/日志）。
-- 确认**面板端口未被**其他服务占用。
-- 验证数据库路径可写（默认为 `/etc/x-ui/x-ui.db`）。
+- 在 RouterOS 中检查容器状态和日志：
+
+  ```text
+  /container/print detail where comment="[Mikrozia:container] Container"
+  /log/print follow-only where topics~"container"
+  ```
+
+- 在容器内（通过 `/container/shell`）运行 `x-ui status`，并确认面板端口未被其他服务占用。
+- 验证持久化挂载上的数据库路径可写（`/etc/x-ui/x-ui.db`）。
+- 如果镜像提取（Extract）始终未完成，请在重试前检查可用 RAM 与磁盘空间；镜像必须
+  在 Start 之前完整提取。
 
 ## 502 / 通过代理时面板无法访问
 
-- 确认面板确实在监听上游端口（例如 `2053`）。
+- 确认面板在容器内的 `172.16.10.2` 上监听上游端口（默认 `2053`）。
 - 确保你的[反向代理](/docs/operations/reverse-proxy)传递了 WebSocket
-  升级头，并指向正确的端口和**网站根路径（web base path）**。
-- 检查防火墙没有阻断代理 → 面板的连接。
+  升级头，并指向正确的容器地址、端口和**网站根路径（web base path）**。
+- 检查你的 RouterOS 策略确实将流量从代理送达容器；Mikrozia 不创建这条路径。
 
 ## 证书问题
 
-- 在签发证书之前，域名的 DNS 必须已指向服务器。
-- 80/443 端口必须可访问，以便进行 HTTP/TLS 验证（或改用 DNS 验证）。
-- 对于 REALITY，请记住它**无需证书**——问题通常出在错误的
-  `dest`/SNI 上（参见 [REALITY 常见陷阱](/docs/config/reality)）。
+- Mikrozia 不在容器内签发或续期证书。请在容器外通过自己的证书机构获取并续期证书，
+  将文件放在持久化挂载 `/root/cert` 上，并在面板中配置其路径（菜单 `14` 或
+  `x-ui cert`）。
+- 配置的路径必须存在且面板可读；只有同时设置证书和密钥时，面板才提供 HTTPS。
+- 如果你的验证方式需要公共端口，请自行在 RouterOS 中设置该访问。
+- 对于 REALITY，请记住它**无需证书**——问题通常出在错误的 `dest`/SNI 上（参见
+  [REALITY 常见陷阱](/docs/config/reality)）。
 
 ## 客户端无法连接
 
@@ -33,10 +44,28 @@ icon: Wrench
   并确认每一个参数。
 - 检查两端的**传输方式和安全设置是否匹配**。
 - 确认客户端未触及其**流量、到期时间或 IP 限制**。
-- 确认入站端口已在防火墙中开放。
+- 确保你的 RouterOS 策略能到达容器内的入站端口。
+
+## RouterOS 容器日志
+
+- **面板应用日志**：可直接在 Web UI（**Logs**）中从面板内存日志缓冲区查看（RouterOS 容器不使用 systemd/`journalctl`）。
+- **容器 `stdout`/`stderr` 日志**：可在 RouterOS Terminal 或 WinBox 中查看启动与容器输出（参见 [MikroTik Container 文档](https://help.mikrotik.com/docs/spaces/ROS/pages/84901929/Container) 与 [MikroTik Log 文档](https://help.mikrotik.com/docs/spaces/ROS/pages/328094/Log)）：
+
+```text
+/container/set [find where comment="[Mikrozia:container] Container"] logging=yes
+/log/print follow-only where topics~"container"
+```
+
+- **Xray 访问日志隐私提示**：Xray 访问日志可能包含客户端源 IP、目标地址与账户邮箱。启用或分享前请限制面板访问权限并检查保留策略。
+
+## 外部 PostgreSQL 与备份客户端版本
+
+- Mikrozia 不运行本地 PostgreSQL 服务器，也不会在运行时安装 `pg_dump`/`pg_restore`。
+- 当前支持的外部 PostgreSQL 服务器版本为 **15–18**（在发布包含新版客户端的 Mikrozia 镜像前，不支持对 PostgreSQL 19+ 执行 `pg_dump` 备份）。
+- 若 `pg_restore` 提示归档版本不兼容，请保留持久挂载 `/etc/x-ui` 与 `/root/cert` 并升级 Mikrozia 容器镜像。
 
 <Callout type="info">
-  仍然无法解决？搜索
-  [GitHub issues](https://github.com/MHSanaei/3x-ui/issues)——你遇到的现象
-  很可能此前已有人遇到过。
+  仍然无法解决？报告问题时，请附上 RouterOS 版本、Mikrozia 镜像标签、
+  `/container/print detail` 输出以及带 `topics~"container"` 的相关日志行。切勿发送
+  私钥或面板密码。
 </Callout>

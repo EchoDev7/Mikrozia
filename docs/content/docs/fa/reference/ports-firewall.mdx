@@ -1,36 +1,58 @@
 ---
 title: پورت‌ها و فایروال
-description: پورت‌هایی که 3x-ui به‌صورت پیش‌فرض استفاده می‌کند و قواعد آماده ufw / nftables برای باز کردن آن‌ها.
+description: پورت‌هایی که Mikrozia داخل کانتینر RouterOS استفاده می‌کند. همهٔ سیاست‌های Firewall، NAT، Port Forward و دسترسی در اختیار مدیر RouterOS است.
 icon: Network
 ---
 
-فقط پورت‌هایی را باز کنید که واقعاً استفاده می‌کنید. در ادامه پورت‌های رایج و یک
-سازنده برای قواعد `ufw` و `nftables` آمده است.
+Mikrozia فقط روی تعداد محدودی پورت **داخل** کانتینر گوش می‌دهد. این پروژه هرگز
+Rule مربوط به Firewall، NAT، Masquerade، Port Forward، Routing یا Access Control
+را در RouterOS ایجاد یا تغییر نمی‌دهد و Image آن شامل `ufw`، `iptables` یا
+`nftables` نیست.
 
-## پورت‌های رایج
+## پورت‌های داخل کانتینر
 
-| Port (default) | Purpose                                   |
-| -------------- | ----------------------------------------- |
-| `22`           | SSH (این را باز نگه دارید!).               |
-| `2053`         | پنل (قابل پیکربندی).                       |
-| `2096`         | سرور اشتراک (اگر جداگانه باشد).            |
-| `443`          | یک پورت ورودی رایج (TLS / REALITY).        |
-| `80` / `443`   | پراکسی معکوس (اگر از آن استفاده کنید).     |
+| پورت (پیش‌فرض) | کاربرد |
+| -------------- | ------ |
+| `2053` | پنل (قابل تغییر در Panel Settings) |
+| `2096` | سرور Subscription (در صورت فعال بودن) |
+| پورت‌های Inbound | هر پورتی که برای Inboundهای Xray تعیین می‌کنید |
 
-پورت‌های ورودی واقعی شما به inboundهایی بستگی دارد که می‌سازید.
+آدرس کانتینر در چیدمان مبتدی `172.16.10.2` است.
 
-## ساخت قواعد فایروال
+## سیاست شبکه با شماست
 
-<FirewallRulesGenerator />
+در RouterOS تصمیم بگیرید که این پورت‌ها چگونه قابل دسترسی باشند:
+
+- کدام Interface یا Address List اجازهٔ دسترسی به پنل را دارد؛
+- آیا و چگونه پورت یک Inbound به `172.16.10.2` Forward می‌شود؛
+- کانتینر چگونه به اینترنت دسترسی دارد؛
+- سیاست Drop، Rate Limit و Logging چیست.
+
+Mikrozia پورت‌های لازم را مستند می‌کند اما هیچ‌یک از این مراحل را خودکار نمی‌کند.
+برای Firewall، NAT و Routing از مستندات خود MikroTik استفاده کنید.
 
 <Callout type="warn">
-  همیشه پیش از فعال‌سازی سیاست رد پیش‌فرض (default-deny)، اجازه SSH را باز نگه
-  دارید و از یک نشست دوم آزمایش کنید تا خودتان را پشت در نگذارید.
+  پیش از اعمال هر سیاست محدودکننده، مطمئن شوید دسترسی مدیریتی به خود RouterOS
+  برقرار می‌ماند. از یک نشست دوم آزمایش کنید تا خودتان را بیرون نیندازید.
 </Callout>
+
+## بررسی از داخل
+
+اگر کلاینتی نمی‌تواند متصل شود، ابتدا مطمئن شوید پنل و Xray داخل کانتینر در حال
+اجرا هستند:
+
+```text
+/container/print detail where comment="[Mikrozia:container] Container"
+/log/print follow-only where topics~"container"
+```
+
+سپس بررسی کنید که سیاست RouterOS شما واقعاً ترافیک را به آدرس و پورت کانتینر
+می‌رساند. به [عیب‌یابی](/docs/help/troubleshooting) مراجعه کنید.
 
 ## مرتبط
 
 <Cards>
-  <Card title="امنیت" href="/docs/operations/security" description="Fail2ban، محدودیت‌های IP و سخت‌سازی." />
+  <Card title="امنیت" href="/docs/operations/security" description="سخت‌سازی پنل و مرز کرنل RouterOS." />
   <Card title="متغیرهای محیطی" href="/docs/reference/env-vars" description="XUI_PORT و موارد مشابه." />
+  <Card title="نصب روی CHR" href="/docs/guide/installation" description="مسیر پشتیبانی‌شدهٔ نصب روی RouterOS." />
 </Cards>

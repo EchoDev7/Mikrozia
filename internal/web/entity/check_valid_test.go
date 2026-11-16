@@ -43,32 +43,11 @@ func TestCheckValidWildcardListenPortConflict(t *testing.T) {
 	}
 }
 
-// The allowlist and the trusted-proxy list share one validator, so this also
-// pins that each list still reports its own message (#5378).
-func TestCheckValidIPOrCIDRLists(t *testing.T) {
+// The trusted-proxy list rejects a malformed entry and names both the list and
+// the offending value.
+func TestCheckValidTrustedProxyCIDRs(t *testing.T) {
 	base := func() *AllSetting {
 		return &AllSetting{WebPort: 2053, SubPort: 2096}
-	}
-
-	for _, v := range []string{"", "203.0.113.10", "198.51.100.0/24", " 203.0.113.10 , 2001:db8::/32 ", "203.0.113.10,,"} {
-		s := base()
-		s.IpLimitAllowlist = v
-		if err := s.CheckValid(); err != nil {
-			t.Errorf("ipLimitAllowlist=%q: unexpected error %v", v, err)
-		}
-	}
-
-	for _, v := range []string{"nonsense", "203.0.113.10/33", "203.0.113.10, oops"} {
-		s := base()
-		s.IpLimitAllowlist = v
-		err := s.CheckValid()
-		if err == nil {
-			t.Errorf("ipLimitAllowlist=%q: want error, got nil", v)
-			continue
-		}
-		if !strings.Contains(err.Error(), "IP limit allowlist entry is not valid:") {
-			t.Errorf("ipLimitAllowlist=%q: error %q does not name the setting", v, err)
-		}
 	}
 
 	s := base()
@@ -76,6 +55,14 @@ func TestCheckValidIPOrCIDRLists(t *testing.T) {
 	err := s.CheckValid()
 	if err == nil || !strings.Contains(err.Error(), "trusted proxy CIDR is not valid: bogus") {
 		t.Errorf("trustedProxyCIDRs error = %v, want it to name the trusted-proxy list and the bad entry", err)
+	}
+
+	for _, v := range []string{"", "203.0.113.10", "198.51.100.0/24", " 203.0.113.10 , 2001:db8::/32 ", "203.0.113.10,,"} {
+		s := base()
+		s.TrustedProxyCIDRs = v
+		if err := s.CheckValid(); err != nil {
+			t.Errorf("trustedProxyCIDRs=%q: unexpected error %v", v, err)
+		}
 	}
 }
 

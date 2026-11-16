@@ -16,8 +16,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *InboundService) MigrationRemoveOrphanedTraffics() {
+func (s *InboundService) migrationRemoveOrphanedTraffics() error {
 	db := database.GetDB()
+	if db == nil {
+		return errors.New("database is not initialized")
+	}
 	query := fmt.Sprintf(
 		"DELETE FROM client_traffics WHERE email NOT IN (SELECT email FROM clients) AND email NOT IN (SELECT %s %s)",
 		database.JSONFieldText("client.value", "email"),
@@ -25,30 +28,44 @@ func (s *InboundService) MigrationRemoveOrphanedTraffics() {
 	)
 	result := db.Exec(query)
 	if result.Error != nil {
-		logger.Warning("MigrationRemoveOrphanedTraffics failed:", result.Error)
-		return
+		return result.Error
 	}
 	if result.RowsAffected > 0 {
 		logger.Infof("MigrationRemoveOrphanedTraffics: removed %d orphaned client_traffics row(s)", result.RowsAffected)
+	}
+	return nil
+}
+
+func (s *InboundService) MigrationRemoveOrphanedTraffics() {
+	if err := s.migrationRemoveOrphanedTraffics(); err != nil {
+		logger.Warning("MigrationRemoveOrphanedTraffics failed:", err)
 	}
 }
 
 func (s *InboundService) MigrationRequirements() (err error) {
 	db := database.GetDB()
+	if db == nil {
+		return errors.New("database is not initialized")
+	}
 	tx := db.Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("begin migration transaction: %w", tx.Error)
+	}
 	defer func() {
+		if r := recover(); r != nil {
+			if rbErr := tx.Rollback().Error; rbErr != nil {
+				logger.Errorf("MigrationRequirements rollback after panic failed (%T): %v", r, rbErr)
+			}
+			panic(r)
+		}
 		if err == nil {
 			if commitErr := tx.Commit().Error; commitErr != nil {
 				err = commitErr
-				return
 			}
-			if !database.IsPostgres() {
-				if dbErr := db.Exec(`VACUUM "main"`).Error; dbErr != nil {
-					logger.Warningf("VACUUM failed: %v", dbErr)
-				}
-			}
-		} else {
-			tx.Rollback()
+			return
+		}
+		if rbErr := tx.Rollback().Error; rbErr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback migration transaction: %w", rbErr))
 		}
 	}()
 
@@ -106,18 +123,33 @@ func (s *InboundService) MigrationRequirements() (err error) {
 		return
 	}
 	for inbound_index := range inbounds {
-		settings := map[string]any{}
-		_ = json.Unmarshal([]byte(inbounds[inbound_index].Settings), &settings)
-		if raw, exists := settings["clients"]; exists && raw == nil {
-			settings["clients"] = []any{}
+		var settings map[string]any
+		if uErr := json.Unmarshal([]byte(inbounds[inbound_index].Settings), &settings); uErr != nil {
+			err = fmt.Errorf("inbound %d field settings: invalid JSON: %w", inbounds[inbound_index].Id, uErr)
+			return
 		}
-		clients, ok := settings["clients"].([]any)
-		if ok {
+		if settings == nil {
+			err = fmt.Errorf("inbound %d field settings: expected JSON object, got null", inbounds[inbound_index].Id)
+			return
+		}
+		if raw, exists := settings["clients"]; exists {
+			if raw == nil {
+				settings["clients"] = []any{}
+			}
+			clients, ok := settings["clients"].([]any)
+			if !ok {
+				err = fmt.Errorf("inbound %d field settings.clients: expected JSON array, got %T", inbounds[inbound_index].Id, settings["clients"])
+				return
+			}
 			// Fix Client configuration problems
 			newClients := make([]any, 0, len(clients))
 			hasVisionFlow := false
 			for client_index := range clients {
-				c := clients[client_index].(map[string]any)
+				c, ok := clients[client_index].(map[string]any)
+				if !ok || c == nil {
+					err = fmt.Errorf("inbound %d field settings.clients[%d]: expected JSON object, got %T", inbounds[inbound_index].Id, client_index, clients[client_index])
+					return
+				}
 
 				// Add email='' if it is not exists
 				if _, ok := c["email"]; !ok {
@@ -196,8 +228,13 @@ func (s *InboundService) MigrationRequirements() (err error) {
 			return
 		}
 	}
-	if err = tx.Save(inbounds).Error; err != nil {
-		return
+	if len(inbounds) > 0 {
+		if err = tx.Save(inbounds).Error; err != nil {
+			return
+		}
+	}
+	if sqliteMigrationInTxHook != nil {
+		sqliteMigrationInTxHook()
 	}
 
 	// Remove orphaned traffics
@@ -205,49 +242,79 @@ func (s *InboundService) MigrationRequirements() (err error) {
 		return
 	}
 
-	// Migrate old MultiDomain to External Proxy
+	// Migrate old MultiDomain to External Proxy in Go so malformed stream_settings
+	// JSON is never evaluated by SQLite/Postgres JSON functions without inbound context.
 	var externalProxy []struct {
 		Id             int
 		Port           int
 		StreamSettings string // text column on both DBs; safer than []byte for cross-DB scan
 	}
-	externalProxyQuery := `select id, port, stream_settings
-	from inbounds
-	WHERE protocol in ('vmess','vless','trojan')
-	  AND json_extract(stream_settings, '$.security') = 'tls'
-	  AND json_extract(stream_settings, '$.tlsSettings.settings.domains') IS NOT NULL`
-	if database.IsPostgres() {
-		externalProxyQuery = `select id, port, stream_settings
-	from inbounds
-	WHERE protocol in ('vmess','vless','trojan')
-	  AND NULLIF(stream_settings, '')::jsonb #>> '{security}' = 'tls'
-	  AND NULLIF(stream_settings, '')::jsonb #> '{tlsSettings,settings,domains}' IS NOT NULL`
-	}
-	err = tx.Raw(externalProxyQuery).Scan(&externalProxy).Error
-	if err != nil || len(externalProxy) == 0 {
+	if err = tx.Model(&model.Inbound{}).
+		Select("id", "port", "stream_settings").
+		Where("protocol IN ?", []string{"vmess", "vless", "trojan"}).
+		Find(&externalProxy).Error; err != nil {
 		return
 	}
 
 	for _, ep := range externalProxy {
-		var reverses any
 		var stream map[string]any
-		_ = json.Unmarshal([]byte(ep.StreamSettings), &stream)
-		if tlsSettings, ok := stream["tlsSettings"].(map[string]any); ok {
-			if settings, ok := tlsSettings["settings"].(map[string]any); ok {
-				if domains, ok := settings["domains"].([]any); ok {
-					for _, domain := range domains {
-						if domainMap, ok := domain.(map[string]any); ok {
-							domainMap["forceTls"] = "same"
-							domainMap["port"] = ep.Port
-							domainMap["dest"] = domainMap["domain"].(string)
-							delete(domainMap, "domain")
-						}
-					}
-				}
-				reverses = settings["domains"]
-				delete(settings, "domains")
-			}
+		if uErr := json.Unmarshal([]byte(ep.StreamSettings), &stream); uErr != nil {
+			err = fmt.Errorf("inbound %d field streamSettings: invalid JSON: %w", ep.Id, uErr)
+			return
 		}
+		if stream == nil {
+			err = fmt.Errorf("inbound %d field streamSettings: expected JSON object, got null", ep.Id)
+			return
+		}
+		security, _ := stream["security"].(string)
+		if security != "tls" {
+			continue
+		}
+		rawTLS, hasTLS := stream["tlsSettings"]
+		if !hasTLS || rawTLS == nil {
+			continue
+		}
+		tlsSettings, ok := rawTLS.(map[string]any)
+		if !ok {
+			err = fmt.Errorf("inbound %d field streamSettings.tlsSettings: expected JSON object, got %T", ep.Id, rawTLS)
+			return
+		}
+		rawInner, hasInner := tlsSettings["settings"]
+		if !hasInner || rawInner == nil {
+			continue
+		}
+		tlsInnerSettings, ok := rawInner.(map[string]any)
+		if !ok {
+			err = fmt.Errorf("inbound %d field streamSettings.tlsSettings.settings: expected JSON object, got %T", ep.Id, rawInner)
+			return
+		}
+		rawDomains, hasDomains := tlsInnerSettings["domains"]
+		if !hasDomains || rawDomains == nil {
+			continue
+		}
+		domains, ok := rawDomains.([]any)
+		if !ok {
+			err = fmt.Errorf("inbound %d field streamSettings.tlsSettings.settings.domains: expected JSON array, got %T", ep.Id, rawDomains)
+			return
+		}
+		for domainIdx, domain := range domains {
+			domainMap, ok := domain.(map[string]any)
+			if !ok || domainMap == nil {
+				err = fmt.Errorf("inbound %d field streamSettings.tlsSettings.settings.domains[%d]: expected JSON object, got %T", ep.Id, domainIdx, domain)
+				return
+			}
+			domainStr, ok := domainMap["domain"].(string)
+			if !ok || strings.TrimSpace(domainStr) == "" {
+				err = fmt.Errorf("inbound %d field streamSettings.tlsSettings.settings.domains[%d].domain: expected non-empty string, got %T", ep.Id, domainIdx, domainMap["domain"])
+				return
+			}
+			domainMap["forceTls"] = "same"
+			domainMap["port"] = ep.Port
+			domainMap["dest"] = domainStr
+			delete(domainMap, "domain")
+		}
+		reverses := tlsInnerSettings["domains"]
+		delete(tlsInnerSettings, "domains")
 		stream["externalProxy"] = reverses
 		newStream, marshalErr := json.MarshalIndent(stream, " ", "  ")
 		if marshalErr != nil {
@@ -286,9 +353,55 @@ func (s *InboundService) MigrationRequirements() (err error) {
 	return err
 }
 
+var (
+	sqliteMigrateDBHook     func() error
+	sqliteVacuumExecHook    func(db *gorm.DB) error
+	sqliteMigrationInTxHook func()
+)
+
+// vacuumSQLiteBestEffort runs best-effort SQLite compaction after semantic migrations.
+// It is non-essential for data correctness and must never fail or roll back a valid import.
+func vacuumSQLiteBestEffort(db *gorm.DB) {
+	if db == nil || database.IsPostgres() {
+		return
+	}
+	var err error
+	if sqliteVacuumExecHook != nil {
+		err = sqliteVacuumExecHook(db)
+	} else {
+		err = db.Exec(`VACUUM "main"`).Error
+	}
+	if err != nil {
+		logger.Warningf("Best-effort SQLite VACUUM skipped/failed (non-fatal): %v", err)
+	}
+}
+
+// MigrateDBStrict runs all semantic database migrations and returns the first error encountered.
+func (s *InboundService) MigrateDBStrict() error {
+	if sqliteMigrateDBHook != nil {
+		return sqliteMigrateDBHook()
+	}
+	if database.GetDB() == nil {
+		return errors.New("database is not initialized")
+	}
+	if err := s.MigrationRequirements(); err != nil {
+		return fmt.Errorf("MigrationRequirements: %w", err)
+	}
+	if err := s.migrationRemoveOrphanedTraffics(); err != nil {
+		return fmt.Errorf("MigrationRemoveOrphanedTraffics: %w", err)
+	}
+	if err := s.migrationRestoreVisionFlow(true); err != nil {
+		return fmt.Errorf("MigrationRestoreVisionFlow: %w", err)
+	}
+	vacuumSQLiteBestEffort(database.GetDB())
+	return nil
+}
+
 func (s *InboundService) MigrateDB() {
 	if err := s.MigrationRequirements(); err != nil {
 		logger.Errorf("MigrationRequirements failed: %v", err)
+	} else {
+		vacuumSQLiteBestEffort(database.GetDB())
 	}
 	s.MigrationRemoveOrphanedTraffics()
 	s.MigrationRestoreVisionFlow()
@@ -302,13 +415,27 @@ func (s *InboundService) MigrateDB() {
 // Vision. Idempotent: once a client carries the flow it is skipped, so this is a
 // no-op on healthy installs and on subsequent boots.
 func (s *InboundService) MigrationRestoreVisionFlow() {
+	_ = s.migrationRestoreVisionFlow(false)
+}
+
+func (s *InboundService) migrationRestoreVisionFlow(strict bool) error {
 	db := database.GetDB()
+	if db == nil {
+		if strict {
+			return errors.New("database is not initialized")
+		}
+		logger.Warning("MigrationRestoreVisionFlow: database is not initialized")
+		return nil
+	}
 	var inbounds []*model.Inbound
 	if err := db.Model(&model.Inbound{}).
 		Where("protocol = ?", model.VLESS).
 		Find(&inbounds).Error; err != nil {
+		if strict {
+			return err
+		}
 		logger.Warning("MigrationRestoreVisionFlow: load inbounds failed:", err)
-		return
+		return nil
 	}
 	for _, ib := range inbounds {
 		if ib.DisableFlow {
@@ -320,6 +447,9 @@ func (s *InboundService) MigrationRestoreVisionFlow() {
 		}
 		clients, err := s.GetClients(&model.Inbound{Settings: restored})
 		if err != nil {
+			if strict {
+				return fmt.Errorf("inbound %d: %w", ib.Id, err)
+			}
 			logger.Warning("MigrationRestoreVisionFlow: parse clients for inbound", ib.Id, "failed:", err)
 			continue
 		}
@@ -330,9 +460,13 @@ func (s *InboundService) MigrationRestoreVisionFlow() {
 			return s.clientService.SyncInbound(tx, ib.Id, clients)
 		})
 		if err != nil {
+			if strict {
+				return fmt.Errorf("inbound %d: %w", ib.Id, err)
+			}
 			logger.Warning("MigrationRestoreVisionFlow: update inbound", ib.Id, "failed:", err)
 			continue
 		}
 		logger.Info("MigrationRestoreVisionFlow: restored XTLS Vision flow on inbound", ib.Id)
 	}
+	return nil
 }

@@ -182,8 +182,8 @@ func TestApplyClientFieldAcrossNodesPushesConcurrently(t *testing.T) {
 	seedClientAcrossNodes(t, bar, nodes, 46701, email, "99999999-1111-2222-3333-444444444444")
 
 	bar.arm()
-	if _, err := (&ClientService{}).ResetClientIpLimitByEmail(&InboundService{}, email, 3); err != nil {
-		t.Fatalf("ResetClientIpLimitByEmail across %d node inbounds: %v", nodes, err)
+	if _, err := (&ClientService{}).ResetClientExpiryTimeByEmail(&InboundService{}, email, time.Now().Add(time.Hour).UnixMilli()); err != nil {
+		t.Fatalf("ResetClientExpiryTimeByEmail across %d node inbounds: %v", nodes, err)
 	}
 	if got := bar.updateUser.Load(); got == 0 {
 		t.Fatalf("no node push reached the barrier at all")

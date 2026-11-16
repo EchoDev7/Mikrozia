@@ -55,7 +55,7 @@ question it already answers.
 | master/sub-node over mTLS | `internal/web/runtime/` |
 | i18n | `internal/web/locale/`, `internal/web/translation/` |
 | UI source | `frontend/src/` |
-| install / upgrade | `install.sh`, `x-ui.sh`, `DockerInit.sh` |
+| RouterOS install / image update | current localized installation guides, `x-ui.sh` |
 
 ## Hard rules a change must respect
 
@@ -169,23 +169,13 @@ test that cannot fail is invisible to CI. `make verify` is the local gate.
 
 ## Support facts reporters get wrong
 
-- Linux install: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
-- Install generates a RANDOM username, password and web base path — never
-  admin/admin. The `x-ui` menu on the server shows or resets them.
-- The installer service environment file is DISTRO-DEPENDENT:
-  `/etc/default/x-ui` (Debian/Ubuntu), `/etc/conf.d/x-ui` (Arch),
-  `/etc/sysconfig/x-ui` (RHEL/Fedora). Naming the wrong one means the reporter's
-  edit is silently never read by systemd — a common cause of "I set the variable
-  and nothing happened".
-- Windows is supported. There the database sits next to the executable, not in
-  `/etc` — never quote the Linux path to a Windows user.
-- SQLite to PostgreSQL: `x-ui migrate-db --dsn "postgres://..."`, then set
-  `XUI_DB_TYPE`/`XUI_DB_DSN` in that file and `systemctl restart x-ui`. The
-  source SQLite file is left in place.
-- Docker image `ghcr.io/mhsanaei/3x-ui`; PostgreSQL profile
-  `docker compose --profile postgres up -d`. Fail2ban IP-limit enforcement needs
-  `NET_ADMIN` + `NET_RAW` (compose grants them; a bare `docker run` must add
-  `--cap-add=NET_ADMIN --cap-add=NET_RAW`).
+- Mikrozia runs on MikroTik RouterOS Container. For install, update, backup,
+  restore, and rollback use the localized guides and the root README only.
+- The container image requires persistent mounts at `/etc/x-ui` and `/root/cert`.
+  RouterOS firewall and NAT policy remain operator-managed; Mikrozia never edits
+  those rules.
+- The image contains no Fail2ban, `iptables`, or `nftables`; per-client IPs are
+  logged, not enforced.
 - Never state that a `XUI_*` variable does not exist without grepping
   `internal/config/` and `internal/tunnelmonitor/` first. The
   `XUI_TUNNEL_HEALTH_*` family is the usual answer to "the panel restarts Xray

@@ -104,6 +104,18 @@ func documentedContractRoutes(t *testing.T) map[string]bool {
 	return docs
 }
 
+// Fail2ban enforcement cannot exist inside a RouterOS container, so the status
+// endpoint was retired. Re-registering it would promise an enforcement action
+// the product cannot perform.
+func TestRetiredFail2banStatusRouteIsNotRegistered(t *testing.T) {
+	routes := registeredContractRoutes(t)
+	for _, route := range []string{"GET /panel/api/server/fail2banStatus"} {
+		if routes[route] {
+			t.Errorf("%s is retired and must not be registered", route)
+		}
+	}
+}
+
 func TestRouteRegistryContract(t *testing.T) {
 	registered := registeredContractRoutes(t)
 	documented := documentedContractRoutes(t)

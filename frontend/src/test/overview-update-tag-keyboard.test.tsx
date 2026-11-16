@@ -1,5 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
 import { Status } from '@/models/status';
 import OverviewActionBar from '@/pages/index/OverviewActionBar';
@@ -8,19 +8,17 @@ import { renderWithProviders } from './test-utils';
 
 const noop = () => {};
 
-// The "update available" Tag only had onClick: keyboard and screen-reader users
-// could neither reach nor press it (s-ui#1293).
-describe('OverviewActionBar update tag', () => {
-  it.each(['Enter', ' '])('opens the panel update from the keyboard (%j)', (key) => {
-    const onOpenPanelUpdate = vi.fn();
+describe('OverviewActionBar version display', () => {
+  it('renders panel and xray version as read-only text and has no update button', () => {
+    const status = new Status();
+    status.xray.version = '26.10.21';
+
     renderWithProviders(
       <OverviewActionBar
-        status={new Status()}
+        status={status}
         isMobile={false}
         accessLogEnable={false}
-        panelVersion="v3.10.1"
-        latestVersion="v3.10.2"
-        updateAvailable
+        panelVersion="v1-mikrozia"
         onStopXray={noop}
         onRestartXray={noop}
         onOpenLogs={noop}
@@ -30,15 +28,13 @@ describe('OverviewActionBar update tag', () => {
         onOpenBackup={noop}
         onOpenSystemHistory={noop}
         onOpenXrayMetrics={noop}
-        onOpenPanelUpdate={onOpenPanelUpdate}
-        onOpenVersionSwitch={noop}
       />,
     );
 
-    const tag = screen.getByRole('button', { name: /3\.10\.2/ });
-    expect(tag.tabIndex).toBe(0);
-    fireEvent.keyDown(tag, { key });
-
-    expect(onOpenPanelUpdate).toHaveBeenCalledOnce();
+    expect(screen.getByText('v1-mikrozia')).toBeDefined();
+    expect(screen.getByText('v26.10.21')).toBeDefined();
+    // Xray version must not be inside an interactive button
+    expect(screen.queryByRole('button', { name: /v26\.10\.21/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /update/i })).toBeNull();
   });
 });

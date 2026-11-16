@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -130,7 +131,7 @@ func TestBackupSQLiteRefusesExistingDestination(t *testing.T) {
 	t.Cleanup(func() { _ = CloseDB() })
 
 	backupPath := filepath.Join(t.TempDir(), "backup.db")
-	if err := os.WriteFile(backupPath, []byte("existing backup"), 0o600); err != nil {
+	if err := os.WriteFile(backupPath, []byte("existing backup"), 0o644); err != nil {
 		t.Fatalf("create existing destination: %v", err)
 	}
 	err := BackupSQLite(backupPath)
@@ -145,16 +146,14 @@ func TestBackupSQLiteRefusesExistingDestination(t *testing.T) {
 	if string(data) != "existing backup" {
 		t.Fatalf("existing destination = %q, want %q", data, "existing backup")
 	}
-}
-
-func TestBackupSQLiteStepPages(t *testing.T) {
-	t.Setenv("XUI_DB_JOURNAL_MODE", "")
-	if got := backupSQLiteStepPages(); got != -1 {
-		t.Fatalf("WAL backup step pages = %d, want -1", got)
-	}
-	t.Setenv("XUI_DB_JOURNAL_MODE", "DELETE")
-	if got := backupSQLiteStepPages(); got != 128 {
-		t.Fatalf("DELETE backup step pages = %d, want 128", got)
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(backupPath)
+		if err != nil {
+			t.Fatalf("stat existing destination: %v", err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o644 {
+			t.Fatalf("existing destination perm = %04o, want 0644 unchanged", perm)
+		}
 	}
 }
 

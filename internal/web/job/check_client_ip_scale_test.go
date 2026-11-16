@@ -98,9 +98,9 @@ func resetScaleJobTables(t *testing.T, db *gorm.DB) {
 }
 
 // seedScaleIPDataset seeds n clients across numInbounds inbounds. Every client
-// in the LAST inbound carries limitIp=3 (and 0 elsewhere), so hasLimitIp pays
-// its full scan cost before finding a hit, and the returned emails all resolve
-// to that last inbound for the processObserved measurement.
+// in the LAST inbound carries limitIp=3 (and 0 elsewhere), so the returned
+// emails resolve to that last inbound for the processObserved measurement while
+// a stored non-zero limit is present in the fixture.
 func seedScaleIPDataset(t *testing.T, n, numInbounds int) []string {
 	t.Helper()
 	db := database.GetDB()
@@ -189,14 +189,6 @@ func TestCheckClientIpScale(t *testing.T) {
 				m := min(shape.observed, len(limited))
 
 				j := NewCheckClientIpJob()
-				const reps = 3
-				start := time.Now()
-				for range reps {
-					if !j.hasLimitIp() {
-						t.Fatal("hasLimitIp = false, want true")
-					}
-				}
-				t.Logf("N=%-7d shape=%-8s hasLimitIp=%v/call", n, shape.name, (time.Since(start) / reps).Round(time.Millisecond))
 
 				now := time.Now().Unix()
 				observed := make(map[string]map[string]int64, m)
@@ -213,12 +205,12 @@ func TestCheckClientIpScale(t *testing.T) {
 				before := captureScannerScaleStats(t)
 				var memoryBefore, memoryAfter runtime.MemStats
 				runtime.ReadMemStats(&memoryBefore)
-				start = time.Now()
-				j.processObserved(observed, true, true)
+				start := time.Now()
+				j.processObserved(observed, true)
 				firstScan := time.Since(start)
 				firstCounts := counts.snapshot()
 				start = time.Now()
-				j.processObserved(observed, true, true)
+				j.processObserved(observed, true)
 				secondScan := time.Since(start)
 				runtime.ReadMemStats(&memoryAfter)
 				finalCounts := counts.snapshot()

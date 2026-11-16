@@ -40,9 +40,12 @@ entries.
 ## Live rollout checks
 
 Before replacing a server binary, record the current x-ui binary checksum and
-create a timestamped copy of the binary and `/etc/x-ui/x-ui.db`. Restart only
-the `x-ui` service after the candidate is staged. Because x-ui manages Xray as
-a child process, the restart can briefly interrupt VPN connections.
+create a timestamped copy of the binary. While the panel is running, use
+`x-ui migrate-db --dump <backup.sql>` for a consistent database backup; do not
+copy `/etc/x-ui/x-ui.db` directly while it is live. If a raw `.db` copy is
+required, stop the container before copying it from the persistent mount. Restart
+only the `x-ui` service after the candidate is staged. Because x-ui manages Xray
+as a child process, the restart can briefly interrupt VPN connections.
 
 After the restart, verify:
 

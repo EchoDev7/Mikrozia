@@ -1,7 +1,6 @@
 package service
 
 import (
-	"archive/zip"
 	"bufio"
 	"bytes"
 	"cmp"
@@ -14,18 +13,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"math"
-	"mime/multipart"
 	stdnet "net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,7 +29,6 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
@@ -136,14 +131,6 @@ type Status struct {
 	} `json:"appStats"`
 }
 
-// Release represents information about a software release from GitHub.
-type Release struct {
-	TagName         string `json:"tag_name"`         // The tag name of the release
-	Body            string `json:"body"`             // The release notes; the dev channel reads its commit from here
-	TargetCommitish string `json:"target_commitish"` // The branch/commit the tag points at
-	Prerelease      bool   `json:"prerelease"`       // Whether this is a pre-release
-}
-
 // ServerService provides business logic for server monitoring and management.
 // It handles system status collection, IP detection, and application statistics.
 type ServerService struct {
@@ -169,24 +156,7 @@ type ServerService struct {
 	lastStatusMu sync.RWMutex
 	lastStatus   *Status
 	coldStatusMu sync.Mutex
-
-	versionsCacheMu sync.Mutex
-	versionsCache   *cachedXrayVersions
-
-	fail2banMu        sync.Mutex
-	fail2banInstalled bool
-	fail2banCheckedAt time.Time
 }
-
-type cachedXrayVersions struct {
-	versions  []string
-	fetchedAt time.Time
-}
-
-// xrayVersionsCacheTTL bounds how often /getXrayVersion hits GitHub. The list
-// is purely informational (rendered in the "switch Xray version" picker) so a
-// quarter-hour staleness window is fine and saves the API budget.
-const xrayVersionsCacheTTL = 15 * time.Minute
 
 // allowedHistoryBuckets is the bucket-second whitelist for time-series
 // aggregation endpoints (server + node metrics). Restricting it prevents
@@ -234,53 +204,6 @@ func (s *ServerService) CurrentStatus() *Status {
 	return s.RefreshStatus()
 }
 
-// Fail2banStatus tells the frontend whether the per-client IP limit can
-// actually be enforced. Enforcement depends on fail2ban, so a limit set
-// without it would silently do nothing.
-type Fail2banStatus struct {
-	Enabled   bool `json:"enabled"`
-	Installed bool `json:"installed"`
-	Usable    bool `json:"usable"`
-	Windows   bool `json:"windows"`
-}
-
-const fail2banInstalledCacheTTL = 30 * time.Second
-
-func (s *ServerService) GetFail2banStatus() Fail2banStatus {
-	enabled := isFail2banEnabled()
-
-	installed := false
-	if enabled {
-		installed = s.isFail2banInstalled()
-	}
-
-	return Fail2banStatus{
-		Enabled:   enabled,
-		Installed: installed,
-		Usable:    enabled && installed,
-		Windows:   runtime.GOOS == "windows",
-	}
-}
-
-func isFail2banEnabled() bool {
-	value, ok := os.LookupEnv("XUI_ENABLE_FAIL2BAN")
-	return !ok || value == "true"
-}
-
-func (s *ServerService) isFail2banInstalled() bool {
-	s.fail2banMu.Lock()
-	defer s.fail2banMu.Unlock()
-
-	if !s.fail2banCheckedAt.IsZero() && time.Since(s.fail2banCheckedAt) < fail2banInstalledCacheTTL {
-		return s.fail2banInstalled
-	}
-
-	err := exec.CommandContext(context.Background(), "fail2ban-client", "-h").Run()
-	s.fail2banInstalled = err == nil
-	s.fail2banCheckedAt = time.Now()
-	return s.fail2banInstalled
-}
-
 // RefreshStatus collects a new system snapshot, stores it as LastStatus, and
 // appends it to the system-metrics time series. Returns the new snapshot (may
 // be nil if collection failed). Called by the background ticker; the caller is
@@ -295,31 +218,6 @@ func (s *ServerService) RefreshStatus() *Status {
 	s.lastStatusMu.Unlock()
 	s.AppendStatusSample(time.Now(), next)
 	return next
-}
-
-// GetXrayVersionsCached wraps GetXrayVersions with a TTL cache. On fetch
-// failure we serve the last successful list (if any) so the UI doesn't go
-// blank during a GitHub API hiccup; if there's no cache at all the underlying
-// error is surfaced.
-func (s *ServerService) GetXrayVersionsCached() ([]string, error) {
-	s.versionsCacheMu.Lock()
-	cache := s.versionsCache
-	s.versionsCacheMu.Unlock()
-	if cache != nil && time.Since(cache.fetchedAt) <= xrayVersionsCacheTTL {
-		return cache.versions, nil
-	}
-	versions, err := s.GetXrayVersions()
-	if err != nil {
-		if cache != nil {
-			logger.Warning("GetXrayVersionsCached: serving stale list:", err)
-			return cache.versions, nil
-		}
-		return nil, err
-	}
-	s.versionsCacheMu.Lock()
-	s.versionsCache = &cachedXrayVersions{versions: versions, fetchedAt: time.Now()}
-	s.versionsCacheMu.Unlock()
-	return versions, nil
 }
 
 // GetDefaultLogOutboundTags scans the default Xray config for freedom and
@@ -759,7 +657,7 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 		logger.Warning("count amneziawg inbounds failed:", err)
 	}
 	status.AmneziaWG.Configured = amneziawgCount > 0
-	status.AmneziaWG.Running = amneziawgnet.GetManager().HasRunning() || amneziawgkern.GetManager().HasRunning()
+	status.AmneziaWG.Running = amneziawgnet.GetManager().HasRunning()
 
 	status.PanelVersion = config.GetPanelVersion()
 	if guid, err := s.settingService.GetPanelGuid(); err == nil {
@@ -915,75 +813,6 @@ func (s *ServerService) sampleCPUUtilization() (float64, error) {
 	return s.emaCPU, nil
 }
 
-const (
-	maxXrayArchiveBytes = 200 << 20
-	maxXrayBinaryBytes  = 200 << 20
-	// maxXrayDigestBytes caps the .dgst checksum sidecar read; it is a few
-	// hundred bytes in practice.
-	maxXrayDigestBytes = 64 << 10
-)
-
-func (s *ServerService) GetXrayVersions() ([]string, error) {
-	const (
-		XrayURL    = "https://api.github.com/repos/XTLS/Xray-core/releases"
-		bufferSize = 8192
-	)
-
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, XrayURL, nil)
-	if reqErr != nil {
-		return nil, reqErr
-	}
-	resp, err := s.settingService.NewProxiedHTTPClient(10 * time.Second).Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// Check HTTP status code - GitHub API returns object instead of array on error
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		var errorResponse struct {
-			Message string `json:"message"`
-		}
-		if json.Unmarshal(bodyBytes, &errorResponse) == nil && errorResponse.Message != "" {
-			return nil, fmt.Errorf("GitHub API error: %s", errorResponse.Message)
-		}
-		return nil, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, resp.Status)
-	}
-
-	buffer := bytes.NewBuffer(make([]byte, bufferSize))
-	buffer.Reset()
-	if _, err := buffer.ReadFrom(resp.Body); err != nil {
-		return nil, err
-	}
-
-	var releases []Release
-	if err := json.Unmarshal(buffer.Bytes(), &releases); err != nil {
-		return nil, err
-	}
-
-	var versions []string
-	for _, release := range releases {
-		tagVersion := strings.TrimPrefix(release.TagName, "v")
-		tagParts := strings.Split(tagVersion, ".")
-		if len(tagParts) != 3 {
-			continue
-		}
-
-		major, err1 := strconv.Atoi(tagParts[0])
-		minor, err2 := strconv.Atoi(tagParts[1])
-		patch, err3 := strconv.Atoi(tagParts[2])
-		if err1 != nil || err2 != nil || err3 != nil {
-			continue
-		}
-
-		if major > 26 || (major == 26 && minor > 6) || (major == 26 && minor == 6 && patch >= 27) {
-			versions = append(versions, release.TagName)
-		}
-	}
-	return versions, nil
-}
-
 func (s *ServerService) StopXrayService() error {
 	err := s.xrayService.StopXray()
 	if err != nil {
@@ -1002,293 +831,29 @@ func (s *ServerService) RestartXrayService() error {
 	return nil
 }
 
-func (s *ServerService) downloadXRay(version string) (string, error) {
-	osName := runtime.GOOS
-	arch := runtime.GOARCH
-
-	switch osName {
-	case "darwin":
-		osName = "macos"
-	case "windows":
-		osName = "windows"
+// GetLogs returns up to count in-memory application log lines at or below level.
+func (s *ServerService) GetLogs(count string, level string) []string {
+	c, err := strconv.Atoi(strings.TrimSpace(count))
+	if err != nil || c < 1 || c > 10000 {
+		return []string{}
 	}
 
-	switch arch {
-	case "amd64":
-		arch = "64"
-	case "arm64":
-		arch = "arm64-v8a"
-	case "armv7":
-		arch = "arm32-v7a"
-	case "armv6":
-		arch = "arm32-v6"
-	case "armv5":
-		arch = "arm32-v5"
-	case "386":
-		arch = "32"
-	case "s390x":
-		arch = "s390x"
+	lvl := strings.ToLower(strings.TrimSpace(level))
+	switch lvl {
+	case "":
+		lvl = "info"
+	case "err":
+		// Normalize legacy severity alias so older clients keep working.
+		lvl = "error"
 	}
 
-	fileName := fmt.Sprintf("Xray-%s-%s.zip", osName, arch)
-	url := fmt.Sprintf("https://github.com/XTLS/Xray-core/releases/download/%s/%s", version, fileName)
-	client := s.settingService.NewProxiedHTTPClient(60 * time.Second)
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
-	if reqErr != nil {
-		return "", reqErr
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download xray: unexpected HTTP %d", resp.StatusCode)
-	}
-	if resp.ContentLength > maxXrayArchiveBytes {
-		return "", fmt.Errorf("download xray: archive exceeds %d bytes", maxXrayArchiveBytes)
+	switch lvl {
+	case "debug", "info", "notice", "warning", "error", "critical":
+	default:
+		return []string{}
 	}
 
-	file, err := os.CreateTemp("", "xray-*.zip")
-	if err != nil {
-		return "", err
-	}
-	path := file.Name()
-	ok := false
-	defer func() {
-		_ = file.Close()
-		if !ok {
-			_ = os.Remove(path)
-		}
-	}()
-
-	n, err := io.Copy(file, io.LimitReader(resp.Body, maxXrayArchiveBytes+1))
-	if err != nil {
-		return "", err
-	}
-	if n > maxXrayArchiveBytes {
-		return "", fmt.Errorf("download xray: archive exceeds %d bytes", maxXrayArchiveBytes)
-	}
-
-	// Verify the archive against the SHA2-256 published in the release's .dgst
-	// sidecar before installing it. TLS protects the transport, not the artifact;
-	// a corrupted or tampered asset must not be installed and run as xray.
-	want, err := s.fetchXrayDigestSHA256(client, url+".dgst")
-	if err != nil {
-		return "", err
-	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return "", err
-	}
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		return "", err
-	}
-	if got := hex.EncodeToString(hasher.Sum(nil)); !strings.EqualFold(got, want) {
-		// User-facing warning: the archive's SHA-256 does not match the official
-		// release checksum, so the download is corrupted or has been tampered
-		// with. Abort the install so a bad binary is never run, and tell the user
-		// to retry/re-download rather than proceed with a mismatched image.
-		return "", fmt.Errorf("Xray update aborted: the downloaded archive does not match the official SHA-256 checksum, so the image is corrupted or differs from the official release. Please exit and re-download the official image, then try again (expected %s, got %s)", want, got)
-	}
-
-	ok = true
-	return path, nil
-}
-
-// fetchXrayDigestSHA256 downloads the .dgst sidecar XTLS publishes next to each
-// release asset and returns the SHA2-256 hex digest it lists.
-func (s *ServerService) fetchXrayDigestSHA256(client *http.Client, dgstURL string) (string, error) {
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, dgstURL, nil)
-	if reqErr != nil {
-		return "", fmt.Errorf("download xray checksum: %w", reqErr)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("download xray checksum: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download xray checksum: unexpected HTTP %d", resp.StatusCode)
-	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxXrayDigestBytes))
-	if err != nil {
-		return "", fmt.Errorf("download xray checksum: %w", err)
-	}
-	return parseXrayDigestSHA256(raw)
-}
-
-// parseXrayDigestSHA256 extracts the lowercase SHA2-256 hex from an XTLS .dgst
-// file, whose lines are "ALGO= <hex>" (the relevant one being "SHA2-256= ...").
-func parseXrayDigestSHA256(dgst []byte) (string, error) {
-	for line := range strings.SplitSeq(string(dgst), "\n") {
-		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "SHA2-256=")
-		if !ok {
-			continue
-		}
-		h := strings.ToLower(strings.TrimSpace(rest))
-		if len(h) != 64 {
-			return "", fmt.Errorf("xray checksum: malformed SHA2-256 entry in digest")
-		}
-		return h, nil
-	}
-	return "", fmt.Errorf("xray checksum: no SHA2-256 entry in digest")
-}
-
-func (s *ServerService) UpdateXray(version string) error {
-	versions, err := s.GetXrayVersions()
-	if err != nil {
-		return err
-	}
-	if !slices.Contains(versions, version) {
-		return fmt.Errorf("xray version %q is not in the fetched release list", version)
-	}
-
-	// 1. Stop xray before doing anything
-	if err := s.StopXrayService(); err != nil {
-		logger.Warning("failed to stop xray before update:", err)
-	}
-
-	// 2. Download the zip
-	zipFileName, err := s.downloadXRay(version)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(zipFileName)
-
-	zipFile, err := os.Open(zipFileName)
-	if err != nil {
-		return err
-	}
-	defer zipFile.Close()
-
-	stat, err := zipFile.Stat()
-	if err != nil {
-		return err
-	}
-	reader, err := zip.NewReader(zipFile, stat.Size())
-	if err != nil {
-		return err
-	}
-
-	// 3. Helper to extract files
-	copyZipFile := func(zipName string, fileName string) error {
-		zipFile, err := reader.Open(zipName)
-		if err != nil {
-			return err
-		}
-		defer zipFile.Close()
-		if err := os.MkdirAll(filepath.Dir(fileName), 0o755); err != nil {
-			return err
-		}
-		tmpFile, err := os.CreateTemp(filepath.Dir(fileName), ".xray-*")
-		if err != nil {
-			return err
-		}
-		tmpPath := tmpFile.Name()
-		ok := false
-		defer func() {
-			_ = tmpFile.Close()
-			if !ok {
-				_ = os.Remove(tmpPath)
-			}
-		}()
-		n, err := io.Copy(tmpFile, io.LimitReader(zipFile, maxXrayBinaryBytes+1))
-		if err != nil {
-			return err
-		}
-		if n > maxXrayBinaryBytes {
-			return fmt.Errorf("xray binary exceeds %d bytes", maxXrayBinaryBytes)
-		}
-		if err := tmpFile.Chmod(0o755); err != nil {
-			return err
-		}
-		if err := tmpFile.Close(); err != nil {
-			return err
-		}
-		if runtime.GOOS == "windows" {
-			_ = os.Remove(fileName)
-		}
-		if err := os.Rename(tmpPath, fileName); err != nil {
-			return err
-		}
-		ok = true
-		return nil
-	}
-
-	// 4. Extract correct binary
-	if runtime.GOOS == "windows" {
-		targetBinary := filepath.Join(config.GetBinFolderPath(), "xray-windows-amd64.exe")
-		err = copyZipFile("xray.exe", targetBinary)
-	} else {
-		err = copyZipFile("xray", xray.GetBinaryPath())
-	}
-	if err != nil {
-		return err
-	}
-
-	// 5. Restart xray
-	if err := s.xrayService.RestartXray(true); err != nil {
-		logger.Error("start xray failed:", err)
-		return err
-	}
-
-	return nil
-}
-
-// syslogTimeout keeps a stalled journalctl from hanging the Syslog request (#6629).
-var syslogTimeout = 15 * time.Second
-
-func (s *ServerService) GetLogs(count string, level string, syslog string) []string {
-	c, _ := strconv.Atoi(count)
-	var lines []string
-
-	if syslog == "true" {
-		// Check if running on Windows - journalctl is not available
-		if runtime.GOOS == "windows" {
-			return []string{"Syslog is not supported on Windows. Please use application logs instead by unchecking the 'Syslog' option."}
-		}
-
-		// Validate and sanitize count parameter
-		countInt, err := strconv.Atoi(count)
-		if err != nil || countInt < 1 || countInt > 10000 {
-			return []string{"Invalid count parameter - must be a number between 1 and 10000"}
-		}
-
-		// Validate level parameter - only allow valid syslog levels
-		validLevels := map[string]bool{
-			"0": true, "emerg": true,
-			"1": true, "alert": true,
-			"2": true, "crit": true,
-			"3": true, "err": true,
-			"4": true, "warning": true,
-			"5": true, "notice": true,
-			"6": true, "info": true,
-			"7": true, "debug": true,
-		}
-		if !validLevels[level] {
-			return []string{"Invalid level parameter - must be a valid syslog level"}
-		}
-
-		// Use hardcoded command with validated parameters
-		ctx, cancel := context.WithTimeout(context.Background(), syslogTimeout)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, "journalctl", "-u", "x-ui", "--no-pager", "-n", strconv.Itoa(countInt), "-p", level)
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		err = cmd.Run()
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return []string{"journalctl did not answer in time. Try a smaller line count or a less strict level."}
-		}
-		if err != nil {
-			return []string{"Failed to run journalctl command! Make sure systemd is available and x-ui service is registered."}
-		}
-		lines = strings.Split(out.String(), "\n")
-	} else {
-		lines = logger.GetLogs(c, level)
-	}
-
-	return lines
+	return logger.GetLogs(c, lvl)
 }
 
 // parseAccessLogFields extracts the structured fields from one Xray access-log
@@ -1600,30 +1165,128 @@ func (s *ServerService) GetConfigJson() (any, error) {
 	return jsonData, nil
 }
 
-func (s *ServerService) GetDb() ([]byte, error) {
-	if database.IsPostgres() {
-		return s.exportPostgresDB()
+// DatabaseArtifact represents a prepared, file-backed database backup or
+// migration export ready for streaming. Callers must call Cleanup when finished.
+type DatabaseArtifact struct {
+	Path     string
+	Filename string
+	Size     int64
+	Backend  string
+	cleanup  func()
+	once     sync.Once
+}
+
+// NewDatabaseArtifact constructs a DatabaseArtifact with an idempotent cleanup hook.
+func NewDatabaseArtifact(path, filename, backend string, size int64, cleanup func()) *DatabaseArtifact {
+	return &DatabaseArtifact{
+		Path:     path,
+		Filename: filename,
+		Size:     size,
+		Backend:  backend,
+		cleanup:  cleanup,
 	}
-	backupPath, cleanup, err := s.backupSQLite()
+}
+
+// Open opens the prepared database artifact file for reading.
+func (a *DatabaseArtifact) Open() (*os.File, error) {
+	if a == nil || a.Path == "" {
+		return nil, errors.New("database artifact is empty")
+	}
+	return os.Open(a.Path)
+}
+
+// Cleanup removes the temporary artifact directory and file. It is safe
+// to call multiple times or on a nil artifact.
+func (a *DatabaseArtifact) Cleanup() {
+	if a == nil {
+		return
+	}
+	a.once.Do(func() {
+		if a.cleanup != nil {
+			a.cleanup()
+		}
+	})
+}
+
+var artifactGenerationSem = make(chan struct{}, 1)
+
+func acquireArtifactGenerationLock(ctx context.Context) (func(), error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("database export request canceled while another backup or migration is running: %w", err)
+	}
+	select {
+	case artifactGenerationSem <- struct{}{}:
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				<-artifactGenerationSem
+			})
+		}, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("database export request canceled while another backup or migration is running: %w", ctx.Err())
+	}
+}
+
+// PrepareBackup creates a consistent, file-backed database backup in a private
+// temporary directory under the panel database folder so callers can stream it
+// without holding the full backup in RAM.
+func (s *ServerService) PrepareBackup(ctx context.Context, requestHost string) (*DatabaseArtifact, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	release, err := acquireArtifactGenerationLock(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer cleanup()
-	return os.ReadFile(backupPath)
-}
+	defer release()
 
-func (s *ServerService) backupSQLite() (string, func(), error) {
-	backupDir, err := os.MkdirTemp(filepath.Dir(config.GetDBPath()), ".x-ui-backup-")
+	filename := s.BackupFilename(requestHost)
+	backupDir, err := os.MkdirTemp(config.GetDBFolderPath(), ".mikrozia-backup-")
 	if err != nil {
-		return "", nil, err
+		return nil, err
+	}
+	if chmodErr := os.Chmod(backupDir, 0o700); chmodErr != nil {
+		_ = os.RemoveAll(backupDir)
+		return nil, chmodErr
 	}
 	cleanup := func() { _ = os.RemoveAll(backupDir) }
-	backupPath := filepath.Join(backupDir, "backup.db")
-	if err := database.BackupSQLite(backupPath); err != nil {
-		cleanup()
-		return "", nil, err
+
+	if database.IsPostgres() {
+		backupPath := filepath.Join(backupDir, "backup.dump")
+		size, err := s.exportPostgresDBFile(ctx, backupPath)
+		if err != nil {
+			cleanup()
+			return nil, err
+		}
+		return &DatabaseArtifact{
+			Path:     backupPath,
+			Filename: filename,
+			Size:     size,
+			Backend:  "postgres",
+			cleanup:  cleanup,
+		}, nil
 	}
-	return backupPath, cleanup, nil
+
+	backupPath := filepath.Join(backupDir, "backup.db")
+	if err := database.BackupSQLiteContext(ctx, backupPath); err != nil {
+		cleanup()
+		return nil, err
+	}
+	info, err := os.Stat(backupPath)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	return &DatabaseArtifact{
+		Path:     backupPath,
+		Filename: filename,
+		Size:     info.Size(),
+		Backend:  "sqlite",
+		cleanup:  cleanup,
+	}, nil
 }
 
 // BackupFilename returns the filename for a database backup, named after the
@@ -1700,40 +1363,71 @@ func sanitizeBackupHost(host string) string {
 	return out
 }
 
-// GetMigration produces a cross-engine migration file plus its filename: on a
-// SQLite panel it returns a portable .dump (SQL text), and on a PostgreSQL panel
-// it returns a .db SQLite database built from the live data. Either output can
-// then seed a panel running on the other backend.
-func (s *ServerService) GetMigration() ([]byte, string, error) {
+// PrepareMigration produces a file-backed cross-engine migration artifact in a
+// private temporary directory under config.GetDBFolderPath(): on a SQLite panel
+// it streams a portable .dump (SQL text), and on a PostgreSQL panel it exports
+// a self-contained .db SQLite database. Callers must call Cleanup on the
+// returned artifact.
+func (s *ServerService) PrepareMigration(ctx context.Context) (*DatabaseArtifact, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	release, err := acquireArtifactGenerationLock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	migDir, err := os.MkdirTemp(config.GetDBFolderPath(), ".mikrozia-migration-")
+	if err != nil {
+		return nil, err
+	}
+	if chmodErr := os.Chmod(migDir, 0o700); chmodErr != nil {
+		_ = os.RemoveAll(migDir)
+		return nil, chmodErr
+	}
+	cleanup := func() { _ = os.RemoveAll(migDir) }
+
 	if database.IsPostgres() {
-		tmp, err := os.CreateTemp("", "x-ui-migration-*.db")
+		outPath := filepath.Join(migDir, "migration.db")
+		if err := database.ExportPostgresToSQLiteContext(ctx, config.GetDBDSN(), outPath); err != nil {
+			cleanup()
+			return nil, err
+		}
+		info, err := os.Stat(outPath)
 		if err != nil {
-			return nil, "", err
+			cleanup()
+			return nil, err
 		}
-		tmpPath := tmp.Name()
-		tmp.Close()
-		defer os.Remove(tmpPath)
-
-		if err := database.ExportPostgresToSQLite(config.GetDBDSN(), tmpPath); err != nil {
-			return nil, "", err
+		if info.Size() == 0 {
+			cleanup()
+			return nil, common.NewError("exported migration file is empty")
 		}
-		data, err := os.ReadFile(tmpPath)
-		if err != nil {
-			return nil, "", err
-		}
-		return data, "x-ui.db", nil
+		return NewDatabaseArtifact(outPath, "x-ui.db", "postgres", info.Size(), cleanup), nil
 	}
 
-	backupPath, cleanup, err := s.backupSQLite()
-	if err != nil {
-		return nil, "", err
+	snapPath := filepath.Join(migDir, "snapshot.db")
+	if err := database.BackupSQLiteContext(ctx, snapPath); err != nil {
+		cleanup()
+		return nil, err
 	}
-	defer cleanup()
-	data, err := database.DumpSQLiteToBytes(backupPath)
+	dumpPath := filepath.Join(migDir, "migration.dump")
+	err = database.DumpSQLiteContext(ctx, snapPath, dumpPath)
+	_ = os.Remove(snapPath)
 	if err != nil {
-		return nil, "", err
+		cleanup()
+		return nil, err
 	}
-	return data, "x-ui.dump", nil
+	info, err := os.Stat(dumpPath)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	if info.Size() == 0 {
+		cleanup()
+		return nil, common.NewError("exported migration dump is empty")
+	}
+	return NewDatabaseArtifact(dumpPath, "x-ui.dump", "sqlite", info.Size(), cleanup), nil
 }
 
 // hostBoundSettingKeys are the settings that describe *this* machine rather
@@ -1759,15 +1453,21 @@ type hostBoundSnapshot struct {
 	taken   bool
 }
 
-func captureHostBoundSettings() hostBoundSnapshot {
+var sqliteCaptureHostSettingHook func() error
+
+func captureHostBoundSettingsStrict() (hostBoundSnapshot, error) {
+	if sqliteCaptureHostSettingHook != nil {
+		if err := sqliteCaptureHostSettingHook(); err != nil {
+			return hostBoundSnapshot{}, err
+		}
+	}
 	db := database.GetDB()
 	if db == nil {
-		return hostBoundSnapshot{}
+		return hostBoundSnapshot{}, errors.New("database is not initialized")
 	}
 	var rows []model.Setting
 	if err := db.Model(&model.Setting{}).Where("key IN ?", hostBoundSettingKeys).Find(&rows).Error; err != nil {
-		logger.Warningf("Import: could not read this machine's settings, they will come from the uploaded file: %v", err)
-		return hostBoundSnapshot{}
+		return hostBoundSnapshot{}, fmt.Errorf("could not read host-bound settings: %w", err)
 	}
 	snap := hostBoundSnapshot{
 		values:  make(map[string]string, len(rows)),
@@ -1778,19 +1478,41 @@ func captureHostBoundSettings() hostBoundSnapshot {
 		snap.values[row.Key] = row.Value
 		snap.present[row.Key] = struct{}{}
 	}
+	return snap, nil
+}
+
+func captureHostBoundSettings() hostBoundSnapshot {
+	snap, err := captureHostBoundSettingsStrict()
+	if err != nil {
+		logger.Warningf("Import: could not read this machine's settings, they will come from the uploaded file: %v", err)
+		return hostBoundSnapshot{}
+	}
 	return snap
 }
 
+var sqliteRestoreHostSettingHook func(key string) error
+
 func restoreHostBoundSettings(snap hostBoundSnapshot) {
+	if err := restoreHostBoundSettingsStrict(snap); err != nil {
+		logger.Warningf("Import: %v", err)
+	}
+}
+
+func restoreHostBoundSettingsStrict(snap hostBoundSnapshot) error {
 	if !snap.taken {
-		return
+		return nil
 	}
 	db := database.GetDB()
 	if db == nil {
-		return
+		return errors.New("database is not initialized")
 	}
 	settingSvc := &SettingService{}
 	for _, key := range hostBoundSettingKeys {
+		if sqliteRestoreHostSettingHook != nil {
+			if err := sqliteRestoreHostSettingHook(key); err != nil {
+				return fmt.Errorf("could not restore setting %q: %w", key, err)
+			}
+		}
 		if _, had := snap.present[key]; !had {
 			// Absent because it is minted on demand, not because a default applied:
 			// the imported copy is the only one that exists, so keep it (#6227).
@@ -1798,16 +1520,17 @@ func restoreHostBoundSettings(snap hostBoundSnapshot) {
 				continue
 			}
 			if err := db.Where("key = ?", key).Delete(&model.Setting{}).Error; err != nil {
-				logger.Warningf("Import: could not drop imported setting %q: %v", key, err)
+				return fmt.Errorf("could not drop imported setting %q: %w", key, err)
 			}
 			continue
 		}
 		// saveSetting rather than Assign(struct): GORM drops zero-valued fields from
 		// the assignment map, so an empty local value never overwrote the import.
 		if err := settingSvc.saveSetting(key, snap.values[key]); err != nil {
-			logger.Warningf("Import: could not restore setting %q for this machine: %v", key, err)
+			return fmt.Errorf("could not restore setting %q for this machine: %w", key, err)
 		}
 	}
+	return nil
 }
 
 // Minted on demand, so a fresh install has no row: dropping the imported copy
@@ -1820,15 +1543,14 @@ var lazilyMintedSettingKeys = map[string]bool{
 	"nodeMtlsClientCAPem":   true,
 }
 
-func (s *ServerService) ImportDB(file multipart.File, keepHostSettings bool) error {
+func (s *ServerService) ImportDB(stage *ImportUploadStage, keepHostSettings bool) error {
+	if stage == nil || stage.Path == "" {
+		return common.NewError("staged import file is missing")
+	}
 	if database.IsPostgres() {
-		return s.importPostgresDB(file, keepHostSettings)
+		return s.importPostgresDB(stage, keepHostSettings)
 	}
-	kind, err := sniffUploadKind(file)
-	if err != nil {
-		return common.NewErrorf("Error reading uploaded file: %v", err)
-	}
-	switch kind {
+	switch stage.Kind {
 	case importKindSQLiteDB, importKindSQLiteDump:
 	case importKindPgDump:
 		return common.NewError("This file is a PostgreSQL backup; it can only be restored on a panel running PostgreSQL")
@@ -1836,174 +1558,292 @@ func (s *ServerService) ImportDB(file multipart.File, keepHostSettings bool) err
 		return common.NewError("Invalid file: expected a SQLite database (.db) from Back Up or a SQLite migration dump (.dump)")
 	}
 
-	tempPath := fmt.Sprintf("%s.temp", config.GetDBPath())
+	return s.importSQLiteDB(stage, keepHostSettings, s.StopXrayService, s.RestartXrayService)
+}
 
-	if _, err := os.Stat(tempPath); err == nil {
-		if errRemove := os.Remove(tempPath); errRemove != nil {
-			return common.NewErrorf("Error removing existing temporary db file: %v", errRemove)
-		}
+var (
+	sqliteCloseLiveDBHook = func(tx *database.SQLiteRestoreTransaction) error { return tx.CloseLiveDB() }
+	sqliteInitLiveDBHook  = func(tx *database.SQLiteRestoreTransaction) error { return tx.InitLiveDB() }
+	sqliteCommitTxHook    = func(tx *database.SQLiteRestoreTransaction) (bool, error) { return tx.Commit() }
+)
+
+func (s *ServerService) importSQLiteDB(stage *ImportUploadStage, keepHostSettings bool, stopXray, restartXray func() error) (retErr error) {
+	tx, err := database.BeginSQLiteRestore(config.GetDBPath())
+	if err != nil {
+		return err
 	}
+	applied := false
+	finished := false
+	committedDurable := false
 	defer func() {
-		if _, err := os.Stat(tempPath); err == nil {
-			if rerr := os.Remove(tempPath); rerr != nil {
-				logger.Warningf("Warning: failed to remove temp file: %v", rerr)
-			}
+		if !finished && !applied {
+			_ = tx.AbortBeforeApply()
 		}
 	}()
 
-	if err := stageSQLiteUpload(file, kind, tempPath); err != nil {
+	if err := tx.PrepareCandidate(stage.Path, stage.Kind == importKindSQLiteDump); err != nil {
 		return err
 	}
 
-	if err = database.ValidateSQLiteDB(tempPath); err != nil {
-		return common.NewErrorf("Invalid or corrupt db file: %v", err)
-	}
-	if err = database.PrepareSQLiteForMigration(tempPath); err != nil {
-		return common.NewErrorf("This file cannot be imported: %v", err)
-	}
-
-	xrayStopped := true
+	xrayStopped := false
 	defer func() {
 		if xrayStopped {
-			if errR := s.RestartXrayService(); errR != nil {
+			if errR := restartXray(); errR != nil {
 				logger.Warningf("Failed to restart Xray after DB import error: %v", errR)
 			}
 		}
 	}()
-	if errStop := s.StopXrayService(); errStop != nil {
-		logger.Warningf("Failed to stop Xray before DB import: %v", errStop)
+	// Bounded panic boundary: runs before outer defers (LIFO) to avoid double Xray restarts.
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		logger.Errorf("Import panic (applied=%v, durable=%v, type=%T)\n%s", applied, committedDurable, r, debug.Stack())
+		if committedDurable {
+			retErr = common.NewErrorf("Imported DB and restarted Xray, but post-commit cleanup encountered an internal error")
+			return
+		}
+		if applied {
+			xrayStopped = false
+			finished = true
+			retErr = tx.Rollback(common.NewErrorf("Unexpected internal error while applying imported DB"), restartXray)
+			return
+		}
+		retErr = common.NewErrorf("Unexpected internal error before applying imported DB")
+	}()
+	// An already-stopped Xray satisfies the "not running during replacement"
+	// invariant; failing here would block restore precisely when the core is down.
+	if errStop := stopXray(); errStop != nil && !errors.Is(errStop, ErrXrayNotRunning) {
+		return common.NewErrorf("Failed to stop Xray before DB import: %v", errStop)
 	}
+	xrayStopped = true
 
 	var keptSettings hostBoundSnapshot
 	if keepHostSettings {
-		keptSettings = captureHostBoundSettings()
-	}
-
-	if errClose := database.CloseDB(); errClose != nil {
-		logger.Warningf("Failed to close existing DB before replacement: %v", errClose)
-	}
-
-	// Registered after the xray-restart defer so it runs first (LIFO): every
-	// error return below leaves a database file at the configured path, and the
-	// restart needs an open pool to build the xray config from it.
-	dbReopened := false
-	defer func() {
-		if dbReopened {
-			return
-		}
-		if errReopen := database.InitDB(config.GetDBPath()); errReopen != nil {
-			logger.Warningf("Failed to reopen the database after import error: %v", errReopen)
-		}
-	}()
-
-	// Backup the current database for fallback
-	fallbackPath := fmt.Sprintf("%s.backup", config.GetDBPath())
-
-	// Remove the existing fallback file (if any)
-	if _, err := os.Stat(fallbackPath); err == nil {
-		if errRemove := os.Remove(fallbackPath); errRemove != nil {
-			return common.NewErrorf("Error removing existing fallback db file: %v", errRemove)
+		keptSettings, err = captureHostBoundSettingsStrict()
+		if err != nil {
+			return common.NewErrorf("Failed to capture host-bound settings before DB import: %v", err)
 		}
 	}
 
-	// Move the current database to the fallback location
-	if err = os.Rename(config.GetDBPath(), fallbackPath); err != nil {
-		return common.NewErrorf("Error backing up current db file: %v", err)
+	if err := tx.CreateFallbackSnapshot(); err != nil {
+		return common.NewErrorf("Failed to create fallback snapshot before DB import: %v", err)
+	}
+	if err := tx.WritePreparedState(); err != nil {
+		return common.NewErrorf("Failed to persist restore state before DB import: %v", err)
 	}
 
-	// Move temp to DB path
-	if err = os.Rename(tempPath, config.GetDBPath()); err != nil {
-		// Restore from fallback
-		if errRename := os.Rename(fallbackPath, config.GetDBPath()); errRename != nil {
-			return common.NewErrorf("Error moving db file and restoring fallback: %v", errRename)
-		}
-		return common.NewErrorf("Error moving db file: %v", err)
+	if errClose := sqliteCloseLiveDBHook(tx); errClose != nil {
+		return common.NewErrorf("Failed to close existing DB before replacement: %v", errClose)
 	}
 
-	// Open & migrate new DB
-	if err = database.InitDB(config.GetDBPath()); err != nil {
-		// A failed InitDB still holds the imported file open; close before the
-		// rename or Windows refuses to replace it.
-		if errClose := database.CloseDB(); errClose != nil {
-			logger.Warningf("Failed to close the imported DB before restoring fallback: %v", errClose)
-		}
-		if errRename := os.Rename(fallbackPath, config.GetDBPath()); errRename != nil {
-			return common.NewErrorf("Error migrating db and restoring fallback: %v", errRename)
-		}
-		return common.NewErrorf("Error migrating db: %v", err)
+	applied = true
+	if err := tx.Apply(); err != nil {
+		xrayStopped = false
+		return tx.Rollback(common.NewErrorf("Error applying database replacement: %v", err), restartXray)
 	}
-	dbReopened = true
 
-	restoreHostBoundSettings(keptSettings)
+	if err := sqliteInitLiveDBHook(tx); err != nil {
+		xrayStopped = false
+		return tx.Rollback(common.NewErrorf("Error migrating db: %v", err), restartXray)
+	}
+	tx.MarkPostInitFailpoint()
 
-	s.inboundService.MigrateDB()
+	if keepHostSettings {
+		if err := restoreHostBoundSettingsStrict(keptSettings); err != nil {
+			xrayStopped = false
+			return tx.Rollback(common.NewErrorf("Failed restoring host-bound settings: %v", err), restartXray)
+		}
+	}
+	if err := s.inboundService.MigrateDBStrict(); err != nil {
+		xrayStopped = false
+		return tx.Rollback(common.NewErrorf("Error running post-import DB migrations: %v", err), restartXray)
+	}
+
+	if err := tx.ValidateLiveDB(); err != nil {
+		xrayStopped = false
+		return tx.Rollback(common.NewErrorf("Imported DB failed validation: %v", err), restartXray)
+	}
+	if err := tx.SyncLiveDB(); err != nil {
+		xrayStopped = false
+		return tx.Rollback(common.NewErrorf("Imported DB failed sync: %v", err), restartXray)
+	}
 
 	xrayStopped = false
-	if err = s.RestartXrayService(); err != nil {
-		return common.NewErrorf("Imported DB but failed to start Xray: %v; the previous database was kept at %s", err, fallbackPath)
+	if err := restartXray(); err != nil {
+		return tx.Rollback(common.NewErrorf("Imported DB but failed to start Xray: %v", err), restartXray)
 	}
 
-	if _, err := os.Stat(fallbackPath); err == nil {
-		if rerr := os.Remove(fallbackPath); rerr != nil {
-			logger.Warningf("Warning: failed to remove fallback file: %v", rerr)
+	finished = true
+	durable, err := sqliteCommitTxHook(tx)
+	committedDurable = durable
+	if err != nil {
+		if !durable {
+			return tx.Rollback(common.NewErrorf("Failed writing committed restore state: %v", err), restartXray)
 		}
+		return common.NewErrorf("Imported DB and restarted Xray, but post-commit cleanup failed: %v", err)
 	}
 	return nil
 }
 
-// pgConnEnv turns the configured PostgreSQL DSN into the PG* environment used by
-// pg_dump/pg_restore, keeping the password out of the process argument list.
-func pgConnEnv(dsn string) (env []string, dbname string, err error) {
-	u, err := url.Parse(strings.TrimSpace(dsn))
-	if err != nil {
-		return nil, "", err
-	}
-	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
-		return nil, "", common.NewErrorf("unsupported DSN scheme %q", u.Scheme)
-	}
-	dbname = strings.TrimPrefix(u.Path, "/")
-	if dbname == "" {
-		return nil, "", common.NewError("PostgreSQL DSN is missing a database name")
-	}
-	host := u.Hostname()
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	port := u.Port()
-	if port == "" {
-		port = "5432"
-	}
-	env = append(os.Environ(), "PGHOST="+host, "PGPORT="+port, "PGDATABASE="+dbname)
-	if user := u.User.Username(); user != "" {
-		env = append(env, "PGUSER="+user)
-	}
-	if pass, ok := u.User.Password(); ok {
-		env = append(env, "PGPASSWORD="+pass)
-	}
-	if sslmode := u.Query().Get("sslmode"); sslmode != "" {
-		env = append(env, "PGSSLMODE="+sslmode)
-	}
-	return env, dbname, nil
+const (
+	pgRestoreProbeTimeout   = 15 * time.Second
+	pgRestoreVersionTimeout = 15 * time.Second
+	pgDumpTimeout           = 10 * time.Minute
+	pgRestoreTimeout        = 15 * time.Minute
+)
+
+const maxPgToolStderrBytes = 64 * 1024
+
+type limitedBuffer struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
 }
 
-func (s *ServerService) exportPostgresDB() ([]byte, error) {
+func (l *limitedBuffer) Write(p []byte) (int, error) {
+	if l.limit <= 0 {
+		l.truncated = true
+		return len(p), nil
+	}
+	remaining := l.limit - l.buf.Len()
+	if remaining <= 0 {
+		l.truncated = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		_, _ = l.buf.Write(p[:remaining])
+		l.truncated = true
+		return len(p), nil
+	}
+	_, _ = l.buf.Write(p)
+	return len(p), nil
+}
+
+func (l *limitedBuffer) String() string {
+	s := strings.TrimSpace(l.buf.String())
+	if l.truncated && s != "" {
+		return s + " ... [stderr truncated]"
+	}
+	return s
+}
+
+func runBoundedCommand(ctx context.Context, bin string, args, env []string) ([]byte, string, bool, error) {
+	cmd := exec.CommandContext(ctx, bin, args...)
+	if env != nil {
+		cmd.Env = env
+	}
+	configurePgToolProcessGroup(cmd)
+	cmd.WaitDelay = 3 * time.Second
+
+	var stdout bytes.Buffer
+	stderr := &limitedBuffer{limit: maxPgToolStderrBytes}
+	cmd.Stdout = &stdout
+	cmd.Stderr = stderr
+
+	err := cmd.Run()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, stderr.String(), true, ctx.Err()
+	}
+	return stdout.Bytes(), stderr.String(), false, err
+}
+
+func runBoundedCommandToFile(ctx context.Context, bin string, args, env []string, stdoutFile *os.File) (string, bool, error) {
+	cmd := exec.CommandContext(ctx, bin, args...)
+	if env != nil {
+		cmd.Env = env
+	}
+	configurePgToolProcessGroup(cmd)
+	cmd.WaitDelay = 3 * time.Second
+
+	stderr := &limitedBuffer{limit: maxPgToolStderrBytes}
+	cmd.Stdout = stdoutFile
+	cmd.Stderr = stderr
+
+	err := cmd.Run()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return stderr.String(), true, ctx.Err()
+	}
+	return stderr.String(), false, err
+}
+
+var pgResolveCanonicalSchemaHook = func(ctx context.Context) (string, error) {
+	return database.ResolveCanonicalPostgresSchemaFromGorm(ctx, database.GetDB())
+}
+
+func (s *ServerService) exportPostgresDBFile(ctx context.Context, destPath string) (int64, error) {
 	bin, err := exec.LookPath("pg_dump")
 	if err != nil {
-		return nil, common.NewError("pg_dump not found on the server; install the postgresql-client package to back up a PostgreSQL database")
+		return 0, common.NewError("pg_dump was not found in this container; official Mikrozia container images bundle PostgreSQL client tools at build time, so this indicates an incomplete, unofficial, or incompatible image — replace or upgrade the container using an official Mikrozia image (your persistent /etc/x-ui and /root/cert mounts remain intact)")
 	}
-	env, dbname, err := pgConnEnv(config.GetDBDSN())
+	dsn := config.GetDBDSN()
+	toolEnv, err := database.PreparePostgresToolEnv(dsn)
 	if err != nil {
-		return nil, common.NewErrorf("invalid PostgreSQL DSN: %v", err)
+		return 0, common.NewErrorf("invalid PostgreSQL DSN: %v", database.RedactPostgresError(err, dsn))
 	}
-	cmd := exec.CommandContext(context.Background(), bin, "--format=custom", "--no-owner", "--no-privileges", "--dbname", dbname)
-	cmd.Env = env
-	var out, stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, common.NewErrorf("pg_dump failed: %v: %s", err, strings.TrimSpace(stderr.String()))
+	defer func() { _ = toolEnv.Cleanup() }()
+
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return out.Bytes(), nil
+	resolveCtx, resolveCancel := context.WithTimeout(ctx, pgRestoreProbeTimeout)
+	canonicalSchema, err := pgResolveCanonicalSchemaHook(resolveCtx)
+	resolveCancel()
+	if err != nil {
+		return 0, common.NewErrorf("failed to resolve PostgreSQL schema for backup: %v", database.RedactPostgresError(err, dsn))
+	}
+	dumpArgs, err := database.PgDumpArgs(toolEnv.Database, canonicalSchema)
+	if err != nil {
+		return 0, common.NewErrorf("failed to build pg_dump arguments: %v", database.RedactPostgresError(err, dsn))
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, pgDumpTimeout)
+	defer cancel()
+
+	destFile, err := os.OpenFile(destPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return 0, err
+	}
+	cleanupFile := true
+	defer func() {
+		if cleanupFile {
+			_ = destFile.Close()
+			_ = os.Remove(destPath)
+		}
+	}()
+
+	stderr, timedOut, err := runBoundedCommandToFile(
+		runCtx,
+		bin,
+		dumpArgs,
+		toolEnv.Env,
+		destFile,
+	)
+	if timedOut {
+		return 0, common.NewErrorf("pg_dump timed out after %s: %s", pgDumpTimeout, database.RedactPostgresString(stderr, dsn))
+	}
+	if err != nil {
+		return 0, common.NewErrorf("pg_dump failed: %v: %s", database.RedactPostgresError(err, dsn), database.RedactPostgresString(stderr, dsn))
+	}
+	if err := destFile.Sync(); err != nil {
+		return 0, err
+	}
+	if err := destFile.Close(); err != nil {
+		return 0, err
+	}
+	cleanupFile = false
+
+	info, err := os.Stat(destPath)
+	if err != nil {
+		_ = os.Remove(destPath)
+		return 0, err
+	}
+	if info.Size() == 0 {
+		_ = os.Remove(destPath)
+		return 0, common.NewError("pg_dump produced an empty backup file")
+	}
+	return info.Size(), nil
 }
 
 var (
@@ -2019,14 +1859,17 @@ var pgArchiveVersionIntroducedIn = map[string]int{
 // checkPgRestoreCanRead probes the dump with pg_restore --list (reads only the
 // TOC, no database connection) so an unreadable file fails before Xray is stopped.
 func checkPgRestoreCanRead(bin, dumpPath string) error {
-	cmd := exec.CommandContext(context.Background(), bin, "--list", dumpPath)
-	cmd.Stdout = io.Discard
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if cmd.Run() == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), pgRestoreProbeTimeout)
+	defer cancel()
+
+	_, stderr, timedOut, err := runBoundedCommand(ctx, bin, []string{"--list", dumpPath}, nil)
+	if err == nil && !timedOut {
 		return nil
 	}
-	return pgRestoreReadFailureError(strings.TrimSpace(stderr.String()), pgRestoreVersion(bin))
+	if timedOut {
+		return common.NewErrorf("pg_restore --list timed out after %s: %s", pgRestoreProbeTimeout, stderr)
+	}
+	return pgRestoreReadFailureError(stderr, pgRestoreVersion(bin))
 }
 
 func pgRestoreReadFailureError(probeOutput, localVersion string) error {
@@ -2038,14 +1881,17 @@ func pgRestoreReadFailureError(probeOutput, localVersion string) error {
 		localVersion = "unknown"
 	}
 	if major, known := pgArchiveVersionIntroducedIn[m[1]]; known {
-		return common.NewErrorf("This backup was created by pg_dump from PostgreSQL %d or newer, but the server's pg_restore is version %s and cannot read it; run 'x-ui pgclient %d' on the server (or upgrade the postgresql-client package to version %d or newer), then retry the import", major, localVersion, major, major)
+		return common.NewErrorf("This backup was created by pg_dump from PostgreSQL %d or newer, but this Mikrozia image's pg_restore is version %s and cannot read it; upgrade Mikrozia to a newer official container image with PostgreSQL %d+ client tools (your persistent mounts remain intact), then retry the import", major, localVersion, major)
 	}
-	return common.NewErrorf("This backup was created by a newer pg_dump than the server's pg_restore (version %s) can read; upgrade the postgresql-client package and retry the import", localVersion)
+	return common.NewErrorf("This backup was created by a newer pg_dump than this Mikrozia image's pg_restore (version %s) can read; upgrade Mikrozia to a newer official container image (your persistent mounts remain intact) and retry the import", localVersion)
 }
 
 func pgRestoreVersion(bin string) string {
-	out, err := exec.CommandContext(context.Background(), bin, "--version").Output()
-	if err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), pgRestoreVersionTimeout)
+	defer cancel()
+
+	out, _, timedOut, err := runBoundedCommand(ctx, bin, []string{"--version"}, nil)
+	if err != nil || timedOut {
 		return ""
 	}
 	return parsePgToolVersion(string(out))
@@ -2078,130 +1924,435 @@ func sniffImportKind(header []byte) int {
 	return importKindUnknown
 }
 
-func sniffUploadKind(file multipart.File) (int, error) {
-	header := make([]byte, 64)
-	n, err := file.ReadAt(header, 0)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return importKindUnknown, err
-	}
-	if _, err := file.Seek(0, 0); err != nil {
-		return importKindUnknown, err
-	}
-	return sniffImportKind(header[:n]), nil
-}
-
-func (s *ServerService) importPostgresDB(file multipart.File, keepHostSettings bool) error {
-	kind, err := sniffUploadKind(file)
-	if err != nil {
-		return common.NewErrorf("Error reading uploaded file: %v", err)
-	}
-	switch kind {
+func (s *ServerService) importPostgresDB(stage *ImportUploadStage, keepHostSettings bool) error {
+	switch stage.Kind {
 	case importKindPgDump:
-		return s.restorePostgresDump(file, keepHostSettings)
+		return s.restorePostgresDump(stage.Path, keepHostSettings)
 	case importKindSQLiteDB:
-		return s.migrateSQLiteIntoPostgres(file, false)
+		return s.migrateSQLiteIntoPostgres(stage.Path, stage.Dir, false, keepHostSettings)
 	case importKindSQLiteDump:
-		return s.migrateSQLiteIntoPostgres(file, true)
+		return s.migrateSQLiteIntoPostgres(stage.Path, stage.Dir, true, keepHostSettings)
 	default:
 		return common.NewError("Invalid file: expected a PostgreSQL custom-format dump (.dump) from this panel's Back Up, a SQLite database (.db), or a SQLite migration dump")
 	}
 }
 
-func (s *ServerService) restorePostgresDump(file multipart.File, keepHostSettings bool) error {
-	bin, err := exec.LookPath("pg_restore")
-	if err != nil {
-		return common.NewError("pg_restore not found on the server; install the postgresql-client package to restore a PostgreSQL database")
+const (
+	postgresSnapshotDirPrefix = ".mikrozia-pg-restore-"
+	postgresSnapshotFileName  = "pre-import.dump"
+	postgresSnapshotHeadroom  = uint64(16 << 20)
+)
+
+type postgresSnapshot struct {
+	Dir  string
+	Path string
+}
+
+type postgresSnapshotConfig struct {
+	dumpBin         string
+	restoreBin      string
+	dsn             string
+	canonicalSchema string
+	toolEnv         *database.PostgresToolEnv
+}
+
+var (
+	postgresSchemaSizeHook = database.PostgresSchemaSize
+	postgresDiskUsageHook  = disk.Usage
+)
+
+func postgresSnapshotRequiredBytes(schemaSize int64) uint64 {
+	if schemaSize <= 0 {
+		return postgresSnapshotHeadroom
 	}
-	env, dbname, err := pgConnEnv(config.GetDBDSN())
-	if err != nil {
-		return common.NewErrorf("invalid PostgreSQL DSN: %v", err)
+	size := uint64(schemaSize)
+	if size > math.MaxUint64-size/4-postgresSnapshotHeadroom {
+		return math.MaxUint64
+	}
+	return size + size/4 + postgresSnapshotHeadroom
+}
+
+func createPostgresSnapshot(ctx context.Context, cfg postgresSnapshotConfig) (snapshot *postgresSnapshot, retErr error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if cfg.toolEnv == nil {
+		return nil, errors.New("postgres tool environment is unavailable")
+	}
+	dbFolder := config.GetDBFolderPath()
+	if err := os.MkdirAll(dbFolder, 0o700); err != nil {
+		return nil, fmt.Errorf("create PostgreSQL snapshot root: %w", err)
 	}
 
-	tempFile, err := os.CreateTemp("", "x-ui-pg-restore-*.dump")
+	schemaSize, err := postgresSchemaSizeHook(ctx, cfg.dsn, cfg.canonicalSchema)
 	if err != nil {
-		return common.NewErrorf("Error creating temporary dump file: %v", err)
+		return nil, fmt.Errorf("measure PostgreSQL schema before snapshot: %w", database.RedactPostgresError(err, cfg.dsn))
 	}
-	tempPath := tempFile.Name()
-	defer os.Remove(tempPath)
-	if _, err := io.Copy(tempFile, file); err != nil {
-		tempFile.Close()
-		return common.NewErrorf("Error saving dump: %v", err)
+	usage, err := postgresDiskUsageHook(dbFolder)
+	if err != nil {
+		return nil, fmt.Errorf("check free space for PostgreSQL snapshot: %w", err)
 	}
-	if err := tempFile.Close(); err != nil {
-		return common.NewErrorf("Error closing temporary dump file: %v", err)
-	}
-
-	if err := checkPgRestoreCanRead(bin, tempPath); err != nil {
-		return err
+	required := postgresSnapshotRequiredBytes(schemaSize)
+	if usage.Free < required {
+		return nil, fmt.Errorf("not enough free space for a safe PostgreSQL snapshot: need at least %d bytes, have %d bytes", required, usage.Free)
 	}
 
-	xrayStopped := true
+	opDir, err := os.MkdirTemp(dbFolder, postgresSnapshotDirPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("create PostgreSQL snapshot directory: %w", err)
+	}
+	snapshot = &postgresSnapshot{Dir: opDir, Path: filepath.Join(opDir, postgresSnapshotFileName)}
+	cleanup := true
 	defer func() {
-		if xrayStopped {
-			if errR := s.RestartXrayService(); errR != nil {
-				logger.Warningf("Failed to restart Xray after DB restore error: %v", errR)
-			}
+		if !cleanup {
+			return
+		}
+		if removeErr := os.RemoveAll(opDir); removeErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("remove failed PostgreSQL snapshot directory: %w", removeErr))
+		}
+		if syncErr := syncPostgresSnapshotDir(dbFolder); syncErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("sync PostgreSQL snapshot root after cleanup: %w", syncErr))
 		}
 	}()
-	if errStop := s.StopXrayService(); errStop != nil {
-		logger.Warningf("Failed to stop Xray before DB restore: %v", errStop)
+	if err := os.Chmod(opDir, 0o700); err != nil {
+		return nil, fmt.Errorf("secure PostgreSQL snapshot directory: %w", err)
+	}
+	if err := syncPostgresSnapshotDir(dbFolder); err != nil {
+		return nil, fmt.Errorf("sync PostgreSQL snapshot root: %w", err)
 	}
 
-	var keptSettings hostBoundSnapshot
-	if keepHostSettings {
-		keptSettings = captureHostBoundSettings()
+	dumpArgs, err := database.PgDumpArgs(cfg.toolEnv.Database, cfg.canonicalSchema)
+	if err != nil {
+		return nil, err
 	}
-
-	if errClose := database.CloseDB(); errClose != nil {
-		logger.Warningf("Failed to close existing DB before restore: %v", errClose)
+	snapshotFile, err := os.OpenFile(snapshot.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("create PostgreSQL snapshot file: %w", err)
 	}
+	fileOpen := true
+	defer func() {
+		if fileOpen {
+			_ = snapshotFile.Close()
+		}
+	}()
 
-	cmd := exec.CommandContext(context.Background(), bin,
-		"--clean", "--if-exists", "--no-owner", "--no-privileges",
-		"--single-transaction", "--dbname", dbname, tempPath,
-	)
-	cmd.Env = env
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	runErr := cmd.Run()
-
-	if errInit := database.InitDB(config.GetDBPath()); errInit != nil {
-		return common.NewErrorf("Restore finished but reopening the database failed: %v", errInit)
+	dumpCtx, dumpCancel := context.WithTimeout(ctx, pgDumpTimeout)
+	stderr, timedOut, runErr := runBoundedCommandToFile(dumpCtx, cfg.dumpBin, dumpArgs, cfg.toolEnv.Env, snapshotFile)
+	dumpCancel()
+	if timedOut {
+		return nil, fmt.Errorf("pre-import pg_dump timed out after %s: %s", pgDumpTimeout, database.RedactPostgresString(stderr, cfg.dsn))
 	}
-	restoreHostBoundSettings(keptSettings)
-
-	s.inboundService.MigrateDB()
-
 	if runErr != nil {
-		return common.NewErrorf("pg_restore failed (database left unchanged): %v: %s", runErr, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("pre-import pg_dump failed: %w: %s", database.RedactPostgresError(runErr, cfg.dsn), database.RedactPostgresString(stderr, cfg.dsn))
 	}
+	if err := snapshotFile.Sync(); err != nil {
+		return nil, fmt.Errorf("sync PostgreSQL snapshot file: %w", err)
+	}
+	if err := snapshotFile.Close(); err != nil {
+		fileOpen = false
+		return nil, fmt.Errorf("close PostgreSQL snapshot file: %w", err)
+	}
+	fileOpen = false
+	if err := os.Chmod(snapshot.Path, 0o600); err != nil {
+		return nil, fmt.Errorf("secure PostgreSQL snapshot file: %w", err)
+	}
+	info, err := os.Stat(snapshot.Path)
+	if err != nil {
+		return nil, fmt.Errorf("stat PostgreSQL snapshot: %w", err)
+	}
+	if info.Size() == 0 {
+		return nil, errors.New("pre-import pg_dump produced an empty snapshot")
+	}
+	if info.Mode().Perm() != 0o600 {
+		return nil, fmt.Errorf("PostgreSQL snapshot has insecure permissions %#o", info.Mode().Perm())
+	}
+	if err := checkPgRestoreCanRead(cfg.restoreBin, snapshot.Path); err != nil {
+		return nil, fmt.Errorf("validate PostgreSQL snapshot: %w", err)
+	}
+	if err := syncPostgresSnapshotDir(opDir); err != nil {
+		return nil, fmt.Errorf("sync PostgreSQL snapshot directory: %w", err)
+	}
+	cleanup = false
+	return snapshot, nil
+}
 
-	xrayStopped = false
-	if err := s.RestartXrayService(); err != nil {
-		return common.NewErrorf("Restored DB but failed to start Xray: %v", err)
+func cleanupPostgresSnapshot(snapshot *postgresSnapshot) error {
+	if snapshot == nil || snapshot.Dir == "" {
+		return nil
+	}
+	root := filepath.Dir(snapshot.Dir)
+	if err := os.RemoveAll(snapshot.Dir); err != nil {
+		return fmt.Errorf("remove PostgreSQL snapshot directory: %w", err)
+	}
+	if err := syncPostgresSnapshotDir(root); err != nil {
+		return fmt.Errorf("sync PostgreSQL snapshot root after removal: %w", err)
 	}
 	return nil
 }
 
-func (s *ServerService) migrateSQLiteIntoPostgres(file multipart.File, isSQLDump bool) error {
-	tempDir, err := os.MkdirTemp("", "x-ui-pg-migrate-*")
+type postgresImportOps struct {
+	stopXray         func() error
+	restartXray      func() error
+	closeDB          func() error
+	initDB           func() error
+	migrateData      func(string, string) error
+	migrateDB        func() error
+	captureSettings  func() (hostBoundSnapshot, error)
+	restoreSettings  func(hostBoundSnapshot) error
+	createSnapshot   func(context.Context, postgresSnapshotConfig) (*postgresSnapshot, error)
+	rollbackSnapshot func(context.Context, postgresImportOps, postgresSnapshotConfig, *postgresSnapshot) error
+	cleanupSnapshot  func(*postgresSnapshot) error
+}
+
+func (s *ServerService) defaultPostgresImportOps() postgresImportOps {
+	ops := postgresImportOps{
+		stopXray:    s.StopXrayService,
+		restartXray: s.RestartXrayService,
+		closeDB:     database.CloseDB,
+		initDB:      func() error { return database.InitDB(config.GetDBPath()) },
+		migrateData: database.MigrateData,
+		migrateDB: func() error {
+			return s.inboundService.MigrateDBStrict()
+		},
+		captureSettings: captureHostBoundSettingsStrict,
+		restoreSettings: restoreHostBoundSettingsStrict,
+		createSnapshot:  createPostgresSnapshot,
+		cleanupSnapshot: cleanupPostgresSnapshot,
+	}
+	ops.rollbackSnapshot = rollbackPostgresSnapshot
+	return ops
+}
+
+func restartXrayAfterPostgresFailure(ops postgresImportOps, primary error) error {
+	if err := ops.restartXray(); err != nil {
+		return errors.Join(primary, fmt.Errorf("failed to restart Xray after PostgreSQL import failure: %w", err))
+	}
+	return primary
+}
+
+func reopenPostgresAfterPreCommitFailure(ops postgresImportOps, primary error, dsn string, snapshot *postgresSnapshot) error {
+	if err := ops.initDB(); err != nil {
+		primary = errors.Join(
+			primary,
+			fmt.Errorf("the import did not commit, but reopening the existing PostgreSQL database failed: %w", database.RedactPostgresError(err, dsn)),
+		)
+	}
+	primary = restartXrayAfterPostgresFailure(ops, primary)
+	if snapshot != nil {
+		if err := ops.cleanupSnapshot(snapshot); err != nil {
+			primary = errors.Join(primary, fmt.Errorf("the unchanged database is active, but its temporary snapshot could not be removed: %w", err))
+		}
+	}
+	return primary
+}
+
+func rollbackPostgresSnapshot(ctx context.Context, ops postgresImportOps, cfg postgresSnapshotConfig, snapshot *postgresSnapshot) error {
+	if snapshot == nil || snapshot.Path == "" {
+		return errors.New("PostgreSQL rollback snapshot is unavailable")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ops.closeDB(); err != nil {
+		return fmt.Errorf("close failed imported database: %w", database.RedactPostgresError(err, cfg.dsn))
+	}
+	if err := database.ClearPostgresSchemaObjects(ctx, cfg.dsn, cfg.canonicalSchema); err != nil {
+		return fmt.Errorf("clear canonical schema before rollback: %w", database.RedactPostgresError(err, cfg.dsn))
+	}
+	restoreArgs, err := database.PgRollbackRestoreArgs(cfg.toolEnv.Database, cfg.canonicalSchema, snapshot.Path)
 	if err != nil {
-		return common.NewErrorf("Error creating temporary folder: %v", err)
+		return fmt.Errorf("build PostgreSQL rollback arguments: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	restoreCtx, cancel := context.WithTimeout(ctx, pgRestoreTimeout)
+	defer cancel()
+	_, stderr, timedOut, runErr := runBoundedCommand(restoreCtx, cfg.restoreBin, restoreArgs, cfg.toolEnv.Env)
+	if timedOut {
+		return fmt.Errorf("PostgreSQL rollback timed out after %s: %s", pgRestoreTimeout, database.RedactPostgresString(stderr, cfg.dsn))
+	}
+	if runErr != nil {
+		return fmt.Errorf("restore PostgreSQL rollback snapshot: %w: %s", database.RedactPostgresError(runErr, cfg.dsn), database.RedactPostgresString(stderr, cfg.dsn))
+	}
+	if err := ops.initDB(); err != nil {
+		return fmt.Errorf("reopen rolled-back PostgreSQL database: %w", database.RedactPostgresError(err, cfg.dsn))
+	}
+	if err := ops.restartXray(); err != nil {
+		return fmt.Errorf("restart Xray after PostgreSQL rollback: %w", err)
+	}
+	if err := ops.cleanupSnapshot(snapshot); err != nil {
+		return fmt.Errorf("rollback succeeded but snapshot cleanup failed: %w", err)
+	}
+	return nil
+}
 
-	uploadPath := filepath.Join(tempDir, "upload.db")
-	if isSQLDump {
-		uploadPath = filepath.Join(tempDir, "upload.dump")
+func rollbackPostgresImport(ops postgresImportOps, cfg postgresSnapshotConfig, snapshot *postgresSnapshot, primary error) error {
+	if err := ops.rollbackSnapshot(context.Background(), ops, cfg, snapshot); err != nil {
+		return errors.Join(
+			primary,
+			fmt.Errorf("automatic PostgreSQL rollback failed; recovery snapshot was retained at %s for manual recovery: %w", snapshot.Path, err),
+		)
 	}
-	if err := saveUploadedFile(file, uploadPath); err != nil {
-		return common.NewErrorf("Error saving uploaded file: %v", err)
+	return errors.Join(primary, errors.New("the previous PostgreSQL database was restored automatically"))
+}
+
+func runPostgresImportTransaction(
+	ops postgresImportOps,
+	cfg postgresSnapshotConfig,
+	keepHostSettings bool,
+	mutation func() error,
+	operationName string,
+) (retErr error) {
+	// Same invariant as the SQLite path: not running already means stopped.
+	if err := ops.stopXray(); err != nil && !errors.Is(err, ErrXrayNotRunning) {
+		retErr = fmt.Errorf("failed to stop Xray before PostgreSQL import; database was not changed: %w", err)
+		if restartErr := ops.restartXray(); restartErr != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("failed to restore Xray after the stop failure: %w", restartErr))
+		}
+		return
 	}
 
-	dbPath := uploadPath
+	var (
+		snapshot          *postgresSnapshot
+		keptSettings      hostBoundSnapshot
+		dbClosed          bool
+		mutationStarted   bool
+		operationAccepted bool
+	)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Errorf("PostgreSQL import panic (mutation_started=%t, accepted=%t, type=%T)\n%s", mutationStarted, operationAccepted, recovered, debug.Stack())
+			primary := common.NewError("Unexpected internal error while applying PostgreSQL import")
+			switch {
+			case operationAccepted:
+				retErr = primary
+			case mutationStarted && snapshot != nil:
+				retErr = rollbackPostgresImport(ops, cfg, snapshot, primary)
+			case dbClosed:
+				retErr = reopenPostgresAfterPreCommitFailure(ops, primary, cfg.dsn, snapshot)
+			default:
+				retErr = restartXrayAfterPostgresFailure(ops, primary)
+			}
+		}
+	}()
+
+	if keepHostSettings {
+		var err error
+		keptSettings, err = ops.captureSettings()
+		if err != nil {
+			return restartXrayAfterPostgresFailure(ops, common.NewErrorf("failed to preserve this router's settings; database was not changed: %v", err))
+		}
+	}
+	if err := ops.closeDB(); err != nil {
+		primary := common.NewErrorf("failed to close the existing database before %s; database mutation was not run: %v", operationName, database.RedactPostgresError(err, cfg.dsn))
+		return reopenPostgresAfterPreCommitFailure(ops, primary, cfg.dsn, nil)
+	}
+	dbClosed = true
+
+	var err error
+	snapshot, err = ops.createSnapshot(context.Background(), cfg)
+	if err != nil {
+		primary := common.NewErrorf("failed to create a verified PostgreSQL recovery snapshot before %s; database was not changed: %v", operationName, database.RedactPostgresError(err, cfg.dsn))
+		return reopenPostgresAfterPreCommitFailure(ops, primary, cfg.dsn, nil)
+	}
+
+	mutationStarted = true
+	if err := mutation(); err != nil {
+		primary := common.NewErrorf("%s failed before commit; the PostgreSQL transaction was rolled back and the database was left unchanged: %v", operationName, database.RedactPostgresError(err, cfg.dsn))
+		return reopenPostgresAfterPreCommitFailure(ops, primary, cfg.dsn, snapshot)
+	}
+
+	if err := ops.initDB(); err != nil {
+		primary := common.NewErrorf("%s committed, but reopening the imported database failed: %v", operationName, database.RedactPostgresError(err, cfg.dsn))
+		return rollbackPostgresImport(ops, cfg, snapshot, primary)
+	}
+	if keepHostSettings {
+		if err := ops.restoreSettings(keptSettings); err != nil {
+			primary := common.NewErrorf("%s committed, but restoring this router's settings failed: %v", operationName, err)
+			return rollbackPostgresImport(ops, cfg, snapshot, primary)
+		}
+	}
+	if err := ops.migrateDB(); err != nil {
+		primary := common.NewErrorf("%s committed, but applying panel data migrations failed: %v", operationName, database.RedactPostgresError(err, cfg.dsn))
+		return rollbackPostgresImport(ops, cfg, snapshot, primary)
+	}
+	if err := ops.restartXray(); err != nil {
+		primary := common.NewErrorf("%s committed, but restarting Xray with the imported database failed: %v", operationName, err)
+		return rollbackPostgresImport(ops, cfg, snapshot, primary)
+	}
+	operationAccepted = true
+	if err := ops.cleanupSnapshot(snapshot); err != nil {
+		return common.NewErrorf("%s was accepted, but its temporary recovery snapshot could not be removed: %v", operationName, err)
+	}
+	return nil
+}
+
+func (s *ServerService) restorePostgresDump(dumpPath string, keepHostSettings bool) error {
+	return s.restorePostgresDumpWithOps(dumpPath, keepHostSettings, s.defaultPostgresImportOps())
+}
+
+func (s *ServerService) restorePostgresDumpWithOps(dumpPath string, keepHostSettings bool, ops postgresImportOps) error {
+	restoreBin, err := exec.LookPath("pg_restore")
+	if err != nil {
+		return common.NewError("pg_restore was not found in this container; official Mikrozia container images bundle PostgreSQL client tools at build time, so this indicates an incomplete, unofficial, or incompatible image — replace or upgrade the container using an official Mikrozia image (your persistent /etc/x-ui and /root/cert mounts remain intact)")
+	}
+	dumpBin, err := exec.LookPath("pg_dump")
+	if err != nil {
+		return common.NewError("pg_dump was not found in this container; a verified pre-restore snapshot is mandatory, so replace or upgrade the container using an official Mikrozia image before importing")
+	}
+	dsn := config.GetDBDSN()
+	toolEnv, err := database.PreparePostgresToolEnv(dsn)
+	if err != nil {
+		return common.NewErrorf("invalid PostgreSQL DSN: %v", database.RedactPostgresError(err, dsn))
+	}
+	defer func() { _ = toolEnv.Cleanup() }()
+
+	if err := checkPgRestoreCanRead(restoreBin, dumpPath); err != nil {
+		return err
+	}
+
+	resolveCtx, resolveCancel := context.WithTimeout(context.Background(), pgRestoreProbeTimeout)
+	canonicalSchema, err := pgResolveCanonicalSchemaHook(resolveCtx)
+	resolveCancel()
+	if err != nil {
+		return common.NewErrorf("failed to resolve PostgreSQL schema for restore: %v", database.RedactPostgresError(err, dsn))
+	}
+	restoreArgs, err := database.PgRestoreArgs(toolEnv.Database, canonicalSchema, dumpPath)
+	if err != nil {
+		return common.NewErrorf("failed to build pg_restore arguments: %v", database.RedactPostgresError(err, dsn))
+	}
+	cfg := postgresSnapshotConfig{
+		dumpBin:         dumpBin,
+		restoreBin:      restoreBin,
+		dsn:             dsn,
+		canonicalSchema: canonicalSchema,
+		toolEnv:         toolEnv,
+	}
+	return runPostgresImportTransaction(ops, cfg, keepHostSettings, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), pgRestoreTimeout)
+		defer cancel()
+		_, stderr, timedOut, runErr := runBoundedCommand(ctx, restoreBin, restoreArgs, toolEnv.Env)
+
+		if timedOut {
+			return common.NewErrorf("pg_restore timed out after %s: %s", pgRestoreTimeout, database.RedactPostgresString(stderr, dsn))
+		}
+		if runErr != nil {
+			return common.NewErrorf("pg_restore failed: %v: %s", database.RedactPostgresError(runErr, dsn), database.RedactPostgresString(stderr, dsn))
+		}
+		return nil
+	}, "PostgreSQL restore")
+}
+
+func (s *ServerService) migrateSQLiteIntoPostgres(srcPath, stageDir string, isSQLDump, keepHostSettings bool) error {
+	return s.migrateSQLiteIntoPostgresWithOps(srcPath, stageDir, isSQLDump, keepHostSettings, s.defaultPostgresImportOps())
+}
+
+func (s *ServerService) migrateSQLiteIntoPostgresWithOps(srcPath, stageDir string, isSQLDump, keepHostSettings bool, ops postgresImportOps) error {
+	dbPath := srcPath
 	if isSQLDump {
-		dbPath = filepath.Join(tempDir, "restored.db")
-		if err := database.RestoreSQLite(uploadPath, dbPath); err != nil {
+		if stageDir == "" {
+			stageDir = filepath.Dir(srcPath)
+		}
+		dbPath = filepath.Join(stageDir, "restored.db")
+		if err := database.RestoreSQLite(srcPath, dbPath); err != nil {
 			return common.NewErrorf("Error rebuilding a SQLite database from the migration dump: %v", err)
 		}
 	}
@@ -2212,398 +2363,49 @@ func (s *ServerService) migrateSQLiteIntoPostgres(file multipart.File, isSQLDump
 		return common.NewErrorf("This file cannot be imported: %v", err)
 	}
 
-	xrayStopped := true
-	defer func() {
-		if xrayStopped {
-			if errR := s.RestartXrayService(); errR != nil {
-				logger.Warningf("Failed to restart Xray after DB restore error: %v", errR)
-			}
-		}
-	}()
-	if errStop := s.StopXrayService(); errStop != nil {
-		logger.Warningf("Failed to stop Xray before DB restore: %v", errStop)
-	}
-
-	if errClose := database.CloseDB(); errClose != nil {
-		logger.Warningf("Failed to close existing DB before restore: %v", errClose)
-	}
-
-	migrateErr := database.MigrateData(dbPath, config.GetDBDSN())
-
-	if errInit := database.InitDB(config.GetDBPath()); errInit != nil {
-		return common.NewErrorf("Restore finished but reopening the database failed: %v", errInit)
-	}
-	s.inboundService.MigrateDB()
-
-	if migrateErr != nil {
-		return common.NewErrorf("Importing the SQLite data into PostgreSQL failed: %v; the import runs in a single transaction, so the database was left unchanged", migrateErr)
-	}
-
-	xrayStopped = false
-	if err := s.RestartXrayService(); err != nil {
-		return common.NewErrorf("Restored DB but failed to start Xray: %v", err)
-	}
-	return nil
-}
-
-func saveUploadedFile(file multipart.File, dstPath string) error {
-	dst, err := os.Create(dstPath)
+	dumpBin, err := exec.LookPath("pg_dump")
 	if err != nil {
-		return err
+		return common.NewError("pg_dump was not found in this container; a verified pre-migration snapshot is mandatory, so replace or upgrade the container using an official Mikrozia image before importing")
 	}
-	if _, err := io.Copy(dst, file); err != nil {
-		dst.Close()
-		return err
+	restoreBin, err := exec.LookPath("pg_restore")
+	if err != nil {
+		return common.NewError("pg_restore was not found in this container; automatic rollback is mandatory, so replace or upgrade the container using an official Mikrozia image before importing")
 	}
-	return dst.Close()
+	dsn := config.GetDBDSN()
+	toolEnv, err := database.PreparePostgresToolEnv(dsn)
+	if err != nil {
+		return common.NewErrorf("invalid PostgreSQL DSN: %v", database.RedactPostgresError(err, dsn))
+	}
+	defer func() { _ = toolEnv.Cleanup() }()
+	resolveCtx, resolveCancel := context.WithTimeout(context.Background(), pgRestoreProbeTimeout)
+	canonicalSchema, err := pgResolveCanonicalSchemaHook(resolveCtx)
+	resolveCancel()
+	if err != nil {
+		return common.NewErrorf("failed to resolve PostgreSQL schema before migration: %v", database.RedactPostgresError(err, dsn))
+	}
+	cfg := postgresSnapshotConfig{
+		dumpBin:         dumpBin,
+		restoreBin:      restoreBin,
+		dsn:             dsn,
+		canonicalSchema: canonicalSchema,
+		toolEnv:         toolEnv,
+	}
+	return runPostgresImportTransaction(ops, cfg, keepHostSettings, func() error {
+		return ops.migrateData(dbPath, dsn)
+	}, "SQLite-to-PostgreSQL import")
 }
 
-func stageSQLiteUpload(file multipart.File, kind int, tempPath string) error {
+func stageSQLiteUpload(srcPath string, kind int, tempPath string) error {
 	if kind == importKindSQLiteDump {
-		dumpPath := tempPath + ".dump"
-		defer os.Remove(dumpPath)
-		if err := saveUploadedFile(file, dumpPath); err != nil {
-			return common.NewErrorf("Error saving migration dump: %v", err)
-		}
-		if err := database.RestoreSQLite(dumpPath, tempPath); err != nil {
+		if err := database.RestoreSQLite(srcPath, tempPath); err != nil {
 			return common.NewErrorf("Error rebuilding a SQLite database from the migration dump: %v", err)
 		}
 		return nil
 	}
-	if err := saveUploadedFile(file, tempPath); err != nil {
-		return common.NewErrorf("Error saving db: %v", err)
+	if err := os.Rename(srcPath, tempPath); err != nil {
+		return common.NewErrorf("Error moving staged db: %v", err)
 	}
 	return nil
-}
-
-// IsValidGeofileName validates that the filename is safe for geofile operations.
-// It checks for path traversal attempts and ensures the filename contains only safe characters.
-func (s *ServerService) IsValidGeofileName(filename string) bool {
-	if filename == "" {
-		return false
-	}
-
-	// Check for path traversal attempts
-	if strings.Contains(filename, "..") {
-		return false
-	}
-
-	// Check for path separators (both forward and backward slash)
-	if strings.ContainsAny(filename, `/\`) {
-		return false
-	}
-
-	// Check for absolute path indicators
-	if filepath.IsAbs(filename) {
-		return false
-	}
-
-	// Additional security: only allow alphanumeric, dots, underscores, and hyphens
-	// This is stricter than the general filename regex
-	validGeofilePattern := `^[a-zA-Z0-9._-]+\.dat$`
-	matched, _ := regexp.MatchString(validGeofilePattern, filename)
-	return matched
-}
-
-// Repo is the upstream release base and Asset the name it publishes under; all
-// three publish "geoip.dat", so only FileName tells the local copies apart.
-type geofileEntry struct {
-	Repo     string
-	Asset    string
-	FileName string
-}
-
-var geofileAllowlist = map[string]geofileEntry{
-	"geoip.dat":      {"https://github.com/Loyalsoldier/v2ray-rules-dat", "geoip.dat", "geoip.dat"},
-	"geosite.dat":    {"https://github.com/Loyalsoldier/v2ray-rules-dat", "geosite.dat", "geosite.dat"},
-	"geoip_IR.dat":   {"https://github.com/chocolate4u/Iran-v2ray-rules", "geoip.dat", "geoip_IR.dat"},
-	"geosite_IR.dat": {"https://github.com/chocolate4u/Iran-v2ray-rules", "geosite.dat", "geosite_IR.dat"},
-	"geoip_RU.dat":   {"https://github.com/runetfreedom/russia-v2ray-rules-dat", "geoip.dat", "geoip_RU.dat"},
-	"geosite_RU.dat": {"https://github.com/runetfreedom/russia-v2ray-rules-dat", "geosite.dat", "geosite_RU.dat"},
-}
-
-// GeodataSource identifies a file Xray downloads through its geodata configuration.
-type GeodataSource struct {
-	URL  string `json:"url"`
-	File string `json:"file"`
-}
-
-// StandardGeodataSources derives the panel presets from the geofile update allowlist.
-func StandardGeodataSources() []GeodataSource {
-	sources := make([]GeodataSource, 0, len(geofileAllowlist))
-	for _, entry := range geofileAllowlist {
-		sources = append(sources, GeodataSource{URL: entry.latestURL(), File: entry.FileName})
-	}
-	slices.SortFunc(sources, func(a, b GeodataSource) int { return strings.Compare(a.File, b.File) })
-	return sources
-}
-
-func (entry geofileEntry) latestURL() string {
-	return entry.Repo + "/releases/latest/download/" + entry.Asset
-}
-
-func (entry geofileEntry) taggedURL(tag string) string {
-	return entry.Repo + "/releases/download/" + tag + "/" + entry.Asset
-}
-
-// stagedGeofile is a verified download waiting to be moved into the asset folder.
-type stagedGeofile struct {
-	destPath  string
-	stagePath string
-}
-
-// restartXrayAfterGeofileUpdate is a seam: tests assert that an update which
-// installed nothing also restarted nothing.
-var restartXrayAfterGeofileUpdate = (*ServerService).RestartXrayService
-
-func (s *ServerService) UpdateGeofile(fileName string) error {
-	// Strict allowlist check to avoid writing uncontrolled files
-	if fileName != "" {
-		if _, ok := geofileAllowlist[fileName]; !ok {
-			return common.NewErrorf("Invalid geofile name: %q not in allowlist", fileName)
-		}
-	}
-
-	wanted := geofileAllowlist
-	if fileName != "" {
-		wanted = map[string]geofileEntry{fileName: geofileAllowlist[fileName]}
-	}
-
-	// Atomic per upstream, not across all six: one release's databases belong
-	// together, but a failing repo must not discard another repo's good files.
-	byRepo := make(map[string][]geofileEntry, len(wanted))
-	for _, entry := range wanted {
-		byRepo[entry.Repo] = append(byRepo[entry.Repo], entry)
-	}
-	repos := slices.Sorted(maps.Keys(byRepo))
-
-	binFolder := config.GetBinFolderPath()
-	stageDir, err := os.MkdirTemp(binFolder, "geofile-")
-	if err != nil {
-		return common.NewErrorf("Failed to create staging folder for Geofiles: %v", err)
-	}
-	defer os.RemoveAll(stageDir)
-
-	client := s.settingService.NewProxiedHTTPClient(0)
-
-	var errorMessages []string
-	installed := 0
-	for _, repo := range repos {
-		entries := byRepo[repo]
-		slices.SortFunc(entries, func(a, b geofileEntry) int { return strings.Compare(a.FileName, b.FileName) })
-
-		staged, err := s.stageGeofileRelease(client, entries, binFolder, stageDir)
-		if err != nil {
-			errorMessages = append(errorMessages, err.Error())
-			continue
-		}
-		for _, file := range staged {
-			if err := os.Rename(file.stagePath, file.destPath); err != nil {
-				errorMessages = append(errorMessages, fmt.Sprintf("Failed to install Geofile %s: %v", file.destPath, err))
-				continue
-			}
-			installed++
-		}
-	}
-
-	// Nothing changed, so there is no reason to restart the core and drop every
-	// client connection.
-	if installed > 0 {
-		if err := restartXrayAfterGeofileUpdate(s); err != nil {
-			errorMessages = append(errorMessages, fmt.Sprintf("Updated Geofiles but Failed to start Xray: %v", err))
-		}
-	}
-
-	if len(errorMessages) > 0 {
-		return common.NewErrorf("%s", strings.Join(errorMessages, "\r\n"))
-	}
-
-	return nil
-}
-
-// stageGeofileRelease downloads one upstream's databases and verifies each
-// against a digest from the same release, staging all of them or none.
-func (s *ServerService) stageGeofileRelease(client *http.Client, entries []geofileEntry, binFolder, stageDir string) ([]stagedGeofile, error) {
-	// Resolve "latest" once. These upstreams publish several times a day, and a
-	// release landing mid-batch would check one release's digest against another's bytes.
-	tag, err := resolveGeofileTag(client, entries[0].latestURL())
-	if err != nil {
-		return nil, common.NewErrorf("Error resolving Geofile release from %s: %v", entries[0].Repo, err)
-	}
-
-	var staged []stagedGeofile
-	for _, entry := range entries {
-		destPath := filepath.Join(binFolder, entry.FileName)
-		stagePath := filepath.Join(stageDir, entry.FileName)
-		changed, err := s.stageGeofile(client, entry, tag, destPath, stagePath)
-		if err != nil {
-			return nil, common.NewErrorf("Error downloading Geofile '%s': %v", entry.FileName, err)
-		}
-		if changed {
-			staged = append(staged, stagedGeofile{destPath: destPath, stagePath: stagePath})
-		}
-	}
-	return staged, nil
-}
-
-// resolveGeofileTag reads the immutable release tag a `latest` download
-// redirects to, so the asset and its digest cannot come from two releases.
-func resolveGeofileTag(client *http.Client, latestURL string) (string, error) {
-	pinned := *client
-	pinned.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, latestURL, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := pinned.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
-
-	location := resp.Header.Get("Location")
-	if location == "" {
-		return "", common.NewErrorf("expected a redirect to a tagged release, got HTTP %d", resp.StatusCode)
-	}
-	return geofileTagFromLocation(location)
-}
-
-// geofileTagFromLocation pulls <tag> out of a .../releases/download/<tag>/<asset>
-// redirect target.
-func geofileTagFromLocation(location string) (string, error) {
-	const marker = "/releases/download/"
-	_, after, ok := strings.Cut(location, marker)
-	if !ok {
-		return "", common.NewErrorf("unexpected release redirect %q", location)
-	}
-	tag, _, found := strings.Cut(after, "/")
-	if !found || tag == "" {
-		return "", common.NewErrorf("unexpected release redirect %q", location)
-	}
-	return tag, nil
-}
-
-// stageGeofile downloads one database into stagePath and checks it against the
-// SHA-256 its upstream publishes. It reports false on 304, staging nothing.
-func (s *ServerService) stageGeofile(client *http.Client, entry geofileEntry, tag, destPath, stagePath string) (bool, error) {
-	assetURL := entry.taggedURL(tag)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, assetURL, nil)
-	if err != nil {
-		return false, common.NewErrorf("Failed to create HTTP request for %s: %v", assetURL, err)
-	}
-
-	if fileInfo, err := os.Stat(destPath); err == nil {
-		if localFileModTime := fileInfo.ModTime(); !localFileModTime.IsZero() {
-			req.Header.Set("If-Modified-Since", localFileModTime.UTC().Format(http.TimeFormat))
-		}
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, common.NewErrorf("Failed to download Geofile from %s: %v", assetURL, err)
-	}
-	defer resp.Body.Close()
-
-	// Parse Last-Modified header from server
-	var serverModTime time.Time
-	if serverModTimeStr := resp.Header.Get("Last-Modified"); serverModTimeStr != "" {
-		parsedTime, err := time.Parse(http.TimeFormat, serverModTimeStr)
-		if err != nil {
-			logger.Warningf("Failed to parse Last-Modified header for %s: %v", assetURL, err)
-		} else {
-			serverModTime = parsedTime
-		}
-	}
-
-	// The conditional GET above reads this back, so it must survive the rename.
-	setModTime := func(target string) {
-		if !serverModTime.IsZero() {
-			if err := os.Chtimes(target, serverModTime, serverModTime); err != nil {
-				logger.Warningf("Failed to update modification time for %s: %v", target, err)
-			}
-		}
-	}
-
-	// Handle 304 Not Modified
-	if resp.StatusCode == http.StatusNotModified {
-		setModTime(destPath)
-		return false, nil
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return false, common.NewErrorf("Failed to download Geofile from %s: received status code %d", assetURL, resp.StatusCode)
-	}
-
-	file, err := os.Create(stagePath)
-	if err != nil {
-		return false, common.NewErrorf("Failed to create Geofile %s: %v", stagePath, err)
-	}
-	hasher := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(file, hasher), resp.Body); err != nil {
-		file.Close()
-		return false, common.NewErrorf("Failed to save Geofile %s: %v", stagePath, err)
-	}
-	if err := file.Close(); err != nil {
-		return false, common.NewErrorf("Failed to save Geofile %s: %v", stagePath, err)
-	}
-
-	// TLS protects the transport, not the artifact. Xray parses these databases
-	// when it builds its routing matchers, so a bad one takes the core down.
-	want, err := s.fetchGeofileDigest(client, assetURL+".sha256sum", entry.Asset)
-	if err != nil {
-		return false, err
-	}
-	if got := hex.EncodeToString(hasher.Sum(nil)); !strings.EqualFold(got, want) {
-		return false, common.NewErrorf("does not match the published SHA-256 checksum, so the download is corrupted or has been tampered with (expected %s, got %s)", want, got)
-	}
-
-	setModTime(stagePath)
-	return true, nil
-}
-
-// fetchGeofileDigest downloads the .sha256sum sidecar published beside a geo
-// database and returns the digest it lists for assetName.
-func (s *ServerService) fetchGeofileDigest(client *http.Client, sumsURL, assetName string) (string, error) {
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, sumsURL, nil)
-	if reqErr != nil {
-		return "", fmt.Errorf("download geofile checksum: %w", reqErr)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("download geofile checksum: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download geofile checksum: unexpected HTTP %d", resp.StatusCode)
-	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxXrayDigestBytes))
-	if err != nil {
-		return "", fmt.Errorf("download geofile checksum: %w", err)
-	}
-	return parseGeofileDigest(raw, assetName)
-}
-
-// parseGeofileDigest returns the SHA-256 hex a sidecar lists for assetName,
-// matching on base name since upstreams record "geoip.dat" or "release/geoip.dat".
-func parseGeofileDigest(sums []byte, assetName string) (string, error) {
-	for line := range strings.SplitSeq(string(sums), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 {
-			continue
-		}
-		// A leading "*" is sha256sum's own binary-mode marker, not part of the name.
-		if path.Base(strings.TrimPrefix(fields[1], "*")) != assetName {
-			continue
-		}
-		digest := strings.ToLower(fields[0])
-		if _, err := hex.DecodeString(digest); err != nil || len(digest) != sha256.Size*2 {
-			return "", fmt.Errorf("geofile checksum: malformed SHA-256 entry for %s", assetName)
-		}
-		return digest, nil
-	}
-	return "", fmt.Errorf("geofile checksum: no SHA-256 entry for %s", assetName)
 }
 
 // parseXrayKeyPairOutput reads the two-line "Label: value" output that xray's

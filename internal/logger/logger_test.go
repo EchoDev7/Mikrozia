@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -58,4 +59,21 @@ func TestInitLoggerConcurrentWithLogging(t *testing.T) {
 	}
 	close(stop)
 	logging.Wait()
+}
+
+func TestGetLogs_ErrorLevelReturnsErrorEntries(t *testing.T) {
+	logBufferMu.Lock()
+	logBuffer = nil
+	logBufferMu.Unlock()
+	addToBuffer("INFO", "info-msg-excluded")
+	addToBuffer("ERROR", "err-msg-included")
+
+	got := GetLogs(10, "error")
+	joined := strings.Join(got, "\n")
+	if !strings.Contains(joined, "err-msg-included") {
+		t.Fatalf("GetLogs(10, \"error\") = %q, want error entry included", got)
+	}
+	if strings.Contains(joined, "info-msg-excluded") {
+		t.Fatalf("GetLogs(10, \"error\") = %q, must not include info entries", got)
+	}
 }

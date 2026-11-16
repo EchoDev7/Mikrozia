@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
@@ -10,8 +11,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
 )
 
-// datapathInbound builds a minimal AmneziaWG inbound, kernel mode on or off.
-func datapathInbound(t *testing.T, id, port int, kernelMode bool) *model.Inbound {
+func datapathInbound(t *testing.T, id, port int, withLegacyKernelFlag *bool) *model.Inbound {
 	t.Helper()
 	srvPriv, srvPub, err := wireguard.GenerateWireguardKeypair()
 	if err != nil {
@@ -21,11 +21,15 @@ func datapathInbound(t *testing.T, id, port int, kernelMode bool) *model.Inbound
 	if err != nil {
 		t.Fatalf("generate peer keypair: %v", err)
 	}
+	kernelJSON := ""
+	if withLegacyKernelFlag != nil {
+		kernelJSON = fmt.Sprintf(`,"kernelMode":%t`, *withLegacyKernelFlag)
+	}
 	settings := fmt.Sprintf(
 		`{"server":{"privateKey":%q,"publicKey":%q,"subnetIp":"10.209.0.0","subnetCidr":24,"mtu":1420,`+
-			`"jc":4,"jmin":40,"jmax":70,"s1":20,"s2":30,"s3":20,"s4":20,"kernelMode":%t},`+
+			`"jc":4,"jmin":40,"jmax":70,"s1":20,"s2":30,"s3":20,"s4":20%s},`+
 			`"clients":[{"email":"peer@example.test","enable":true,"publicKey":%q,"allowedIPs":["10.209.0.2/32"]}]}`,
-		srvPriv, srvPub, kernelMode, peerPub)
+		srvPriv, srvPub, kernelJSON, peerPub)
 	return &model.Inbound{
 		Id:       id,
 		Enable:   true,
@@ -40,31 +44,41 @@ func newTestLocal() *Local {
 	return NewLocal(LocalDeps{APIPort: func() int { return 0 }, SetNeedRestart: func() {}})
 }
 
-// Both datapaths bind the inbound's own UDP port, so an embedded device raised
-// here collides with the kernel interface the reconcile tick brings up.
-func TestAddInboundKeepsKernelModeOffTheEmbeddedDatapath(t *testing.T) {
-	ib := datapathInbound(t, 4181, 58731, true)
+func TestAddInboundRejectsLegacyKernelMode(t *testing.T) {
+	trueFlag := true
+	ib := datapathInbound(t, 4181, 58731, &trueFlag)
 	t.Cleanup(func() { amneziawgnet.GetManager().Remove(ib.Id) })
 
-	// The kernel side wants awg-quick and root, so it is expected to fail on a
-	// dev box; what matters is that amneziawgnet was never asked to take over.
-	_ = newTestLocal().AddInbound(context.Background(), ib)
-
+	err := newTestLocal().AddInbound(context.Background(), ib)
+	if err == nil || !strings.Contains(err.Error(), "kernel mode is not supported") {
+		t.Fatalf("AddInbound error = %v, want kernel mode unsupported rejection", err)
+	}
 	if _, _, ok := amneziawgnet.GetManager().Lookup(ib.Id); ok {
-		t.Fatal("a kernel-mode inbound created an embedded device")
+		t.Fatal("rejected kernelMode=true inbound must not start an embedded device")
 	}
 }
 
-// The other half: without the toggle the dispatch must still reach
-// amneziawgnet, or it would be a blanket opt-out rather than a routing choice.
-func TestAddInboundStillUsesTheEmbeddedDatapath(t *testing.T) {
-	ib := datapathInbound(t, 4182, 58732, false)
-	t.Cleanup(func() { amneziawgnet.GetManager().Remove(ib.Id) })
+func TestAddInboundUsesUserspaceDatapath(t *testing.T) {
+	falseFlag := false
+	for _, tc := range []struct {
+		name string
+		id   int
+		port int
+		flag *bool
+	}{
+		{name: "without kernelMode", id: 4182, port: 58732, flag: nil},
+		{name: "with legacy kernelMode false", id: 4183, port: 58733, flag: &falseFlag},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ib := datapathInbound(t, tc.id, tc.port, tc.flag)
+			t.Cleanup(func() { amneziawgnet.GetManager().Remove(ib.Id) })
 
-	if err := newTestLocal().AddInbound(context.Background(), ib); err != nil {
-		t.Fatalf("AddInbound: %v", err)
-	}
-	if _, _, ok := amneziawgnet.GetManager().Lookup(ib.Id); !ok {
-		t.Fatal("an embedded inbound did not create a device")
+			if err := newTestLocal().AddInbound(context.Background(), ib); err != nil {
+				t.Fatalf("AddInbound: %v", err)
+			}
+			if _, _, ok := amneziawgnet.GetManager().Lookup(ib.Id); !ok {
+				t.Fatal("userspace inbound did not create an embedded device")
+			}
+		})
 	}
 }

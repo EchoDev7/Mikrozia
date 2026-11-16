@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, Form, Input, Modal, Select, Tag } from 'antd';
+import { Alert, Button, Checkbox, Form, Input, Modal, Select, Tag } from 'antd';
 import { DownloadOutlined, SyncOutlined } from '@ant-design/icons';
 
 import { HttpUtil, FileManager, IntlUtil, PromiseUtil } from '@/utils';
@@ -222,6 +222,14 @@ export default function XrayLogModal({ open, onClose }: XrayLogModalProps) {
           />
         </Form.Item>
       </Form>
+
+      <Alert
+        type="warning"
+        showIcon
+        style={{ marginBottom: 12 }}
+        title={t('pages.index.xrayAccessLogPrivacyNotice')}
+        description={t('pages.index.xrayAccessLogPrivacyDesc')}
+      />
 
       <div className={`log-container ${isMobile ? 'log-container-mobile' : ''}`}>
         {orderedLogs.length === 0 ? (

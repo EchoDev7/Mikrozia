@@ -285,18 +285,6 @@ export default function GeneralTab({ allSetting, updateSetting }: GeneralTabProp
 
               <SettingListItem
                 paddings="small"
-                title={t('pages.settings.ipLimitAllowlist')}
-                description={t('pages.settings.ipLimitAllowlistDesc')}
-              >
-                <Input
-                  value={allSetting.ipLimitAllowlist}
-                  placeholder="203.0.113.10,198.51.100.0/24"
-                  onChange={(e) => updateSetting({ ipLimitAllowlist: e.target.value })}
-                />
-              </SettingListItem>
-
-              <SettingListItem
-                paddings="small"
                 title={t('pages.settings.panelOutbound')}
                 description={t('pages.settings.panelOutboundDesc')}
               >

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, Form, Modal, Select, Space } from 'antd';
+import { Alert, Button, Checkbox, Form, Modal, Select, Space } from 'antd';
 import { DownloadOutlined, SyncOutlined } from '@ant-design/icons';
 
 import { HttpUtil, FileManager, PromiseUtil } from '@/utils';
@@ -21,7 +21,6 @@ export default function LogModal({ open, onClose }: LogModalProps) {
   const { isMobile } = useMediaQuery();
   const [rows, setRows] = useState('20');
   const [level, setLevel] = useState('info');
-  const [syslog, setSyslog] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -30,7 +29,6 @@ export default function LogModal({ open, onClose }: LogModalProps) {
     try {
       const msg = await HttpUtil.post<string[]>(`/panel/api/server/logs/${rows}`, {
         level,
-        syslog,
       });
       if (msg?.success) {
         setLogs(msg.obj || []);
@@ -39,7 +37,7 @@ export default function LogModal({ open, onClose }: LogModalProps) {
     } finally {
       setLoading(false);
     }
-  }, [rows, level, syslog]);
+  }, [rows, level]);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -53,7 +51,7 @@ export default function LogModal({ open, onClose }: LogModalProps) {
 
   // The spinner is raised during render so the fetch effect stays side-effect
   // free until its response lands.
-  const refreshKey = open ? `${rows}\u0000${level}\u0000${syslog}` : null;
+  const refreshKey = open ? `${rows}\u0000${level}` : null;
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   if (refreshKey !== loadingKey) {
     setLoadingKey(refreshKey);
@@ -129,15 +127,12 @@ export default function LogModal({ open, onClose }: LogModalProps) {
                 { value: 'info', label: t('pages.index.logLevelInfo') },
                 { value: 'notice', label: t('pages.index.logLevelNotice') },
                 { value: 'warning', label: t('pages.index.logLevelWarning') },
-                { value: 'err', label: t('pages.index.logLevelError') },
+                { value: 'error', label: t('pages.index.logLevelError') },
               ]}
             />
           </Space.Compact>
         </Form.Item>
         <Form.Item>
-          <Checkbox checked={syslog} onChange={(e) => setSyslog(e.target.checked)}>
-            SysLog
-          </Checkbox>
           <Checkbox checked={autoUpdate} onChange={(e) => setAutoUpdate(e.target.checked)}>
             {t('pages.index.autoUpdate')}
           </Checkbox>
@@ -151,6 +146,32 @@ export default function LogModal({ open, onClose }: LogModalProps) {
           />
         </Form.Item>
       </Form>
+
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 12 }}
+        title={t('pages.index.routerosContainerLogsTitle')}
+        description={
+          <div>
+            <div>{t('pages.index.routerosContainerLogsDesc')}</div>
+            <pre
+              dir="ltr"
+              style={{
+                direction: 'ltr',
+                textAlign: 'left',
+                margin: '8px 0 0',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {
+                '/container/set [find where comment="[Mikrozia:container] Container"] logging=yes\n/log/print follow-only where topics~"container"'
+              }
+            </pre>
+          </div>
+        }
+      />
 
       <div className={`log-container ${isMobile ? 'log-container-mobile' : ''}`}>
         {parsedLogs.length === 0 ? (

@@ -4,12 +4,11 @@ description: Complete reference for 3x-ui's XUI_* environment variables — data
 icon: Variable
 ---
 
-3x-ui reads its runtime configuration from `XUI_*` environment variables. On a
-script install the installer writes them to the service environment file
-(`/etc/default/x-ui`, or `/etc/conf.d/x-ui` / `/etc/sysconfig/x-ui` depending on
-the distro); for Docker you set them in `docker-compose.yml` or `docker run -e`.
-Defaults are sensible — set only what you need to change, then restart:
-`systemctl restart x-ui`.
+Mikrozia reads its runtime configuration from `XUI_*` environment variables. On
+RouterOS Container, define them in `/container/envs` and attach the `envlist` to
+your container; for local development with Docker, set them in
+`docker-compose.yml` or `docker run -e`. To apply environment changes, recreate
+the container with the same persistent mounts (`/etc/x-ui` and `/root/cert`).
 
 ## Database
 
@@ -17,7 +16,7 @@ Defaults are sensible — set only what you need to change, then restart:
 | ------------------------ | ----------- | -------------------------------------------------------------------- |
 | `XUI_DB_TYPE`            | `sqlite`    | Backend: `sqlite`, or `postgres` (also accepts `postgresql` / `pg`). |
 | `XUI_DB_FOLDER`          | `/etc/x-ui` | Folder for the SQLite database file (`x-ui.db`).                     |
-| `XUI_DB_DSN`             | —           | PostgreSQL connection string (used when `XUI_DB_TYPE=postgres`).     |
+| `XUI_DB_DSN`             | —           | PostgreSQL URI (`postgres://`/`postgresql://`) or keyword/value DSN (advanced; when `XUI_DB_TYPE=postgres`). Place TLS certs under `/root/cert` (`sslmode=verify-full` recommended); `PGPASSWORD` is not supported. |
 | `XUI_DB_MAX_OPEN_CONNS`  | —           | Max open connections in the PostgreSQL pool.                         |
 | `XUI_DB_MAX_IDLE_CONNS`  | —           | Max idle connections in the PostgreSQL pool.                         |
 
@@ -30,7 +29,6 @@ The default SQLite database path is `/etc/x-ui/x-ui.db`. See
 | ------------------------ | ------- | ------------------------------------------------------------------------ |
 | `XUI_PORT`               | —       | Override the panel port (1–65535). Takes precedence over the stored setting. |
 | `XUI_INIT_WEB_BASE_PATH` | `/`     | Initial web base path on **first** launch (e.g. `/panel`).               |
-| `XUI_ENABLE_FAIL2BAN`    | `true`  | Enable Fail2ban-based IP-limit enforcement.                              |
 | `XUI_SKIP_HSTS`          | `false` | Skip the HSTS header — set `true` when TLS is terminated by a reverse proxy. |
 
 ## Node token encryption
@@ -42,7 +40,7 @@ default. Encryption at rest is opt-in and fails closed: with any mode other than
 | Variable                  | Default                         | Description                                                                                                                                                            |
 | ------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NODE_TOKEN_ENCRYPTION`   | `off`                           | `off`, `migration` (reads accept plaintext or ciphertext, writes encrypt), or `required` (same writes, startup fails without a key). Note the missing `XUI_` prefix.    |
-| `XUI_NODE_TOKEN_KEY_FILE` | `/etc/x-ui/node_token_key.json` | JSON keyring, mode `0600` or stricter (not checked on Windows, where NTFS permissions protect it). Loaded first.                                                       |
+| `XUI_NODE_TOKEN_KEY_FILE` | `/etc/x-ui/node_token_key.json` | JSON keyring, mode `0600` or stricter. Loaded first.                                                                                                                   |
 | `XUI_NODE_TOKEN_KEY`      | —                               | A single base64 32-byte key, read only when the key file fails to load. Its key id is fixed to `env`, so it cannot rotate.                                              |
 
 The key file names the active key plus every older key still needed to decrypt:
@@ -106,9 +104,3 @@ clients, so enable it deliberately.
 | `XUI_TUNNEL_HEALTH_TIMEOUT`   | `10s`                                        | Per-probe timeout.                                               |
 | `XUI_TUNNEL_HEALTH_FAILURES`  | `3`                                          | Consecutive failures before a restart.                          |
 | `XUI_TUNNEL_HEALTH_COOLDOWN`  | `5m`                                         | Minimum delay between restarts.                                 |
-
-## Unattended install
-
-| Variable             | Description                                                                                  |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| `XUI_NONINTERACTIVE` | Set to `1` (or run with no TTY) to install with zero prompts; generated credentials are written to `/etc/x-ui/install-result.env`. See [Installation](/docs/guide/installation#unattended--cloud-init). |

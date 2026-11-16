@@ -164,18 +164,17 @@ type HistoryOfSeeders struct {
 const ApiTokenUnixMillisecondsThreshold int64 = 100_000_000_000
 
 const (
-	ApiScopeAdmin     = "admin"
-	ApiScopeMonitor   = "monitor"
-	ApiScopeNodeSync  = "node-sync"
-	ApiScopeNodeAdmin = "node-admin"
+	ApiScopeAdmin    = "admin"
+	ApiScopeMonitor  = "monitor"
+	ApiScopeNodeSync = "node-sync"
 )
 
 func IsKnownApiScope(s string) bool {
-	return s == ApiScopeAdmin || s == ApiScopeMonitor || s == ApiScopeNodeSync || s == ApiScopeNodeAdmin
+	return s == ApiScopeAdmin || s == ApiScopeMonitor || s == ApiScopeNodeSync
 }
 
 func IsNodeSyncApiScope(s string) bool {
-	return s == ApiScopeNodeSync || s == ApiScopeNodeAdmin
+	return s == ApiScopeNodeSync
 }
 
 type ApiToken struct {
@@ -350,6 +349,66 @@ func StripInboundXhttpClientFields(streamSettings string) (string, bool) {
 	return string(out), true
 }
 
+func stripBbrFromSockoptMap(sockopt map[string]any) bool {
+	if len(sockopt) == 0 {
+		return false
+	}
+	removed := false
+	for k, v := range sockopt {
+		if !strings.EqualFold(k, "tcpcongestion") {
+			continue
+		}
+		if s, ok := v.(string); ok && strings.EqualFold(strings.TrimSpace(s), "bbr") {
+			delete(sockopt, k)
+			removed = true
+		}
+	}
+	return removed
+}
+
+// StripUnsupportedRouterOSTcpCongestionFromMap omits tcpcongestion="bbr" from
+// known Xray sockopt paths on a runtime map, preserving cubic/reno and userspace BBR.
+func StripUnsupportedRouterOSTcpCongestionFromMap(stream map[string]any) []string {
+	if len(stream) == 0 {
+		return nil
+	}
+	var paths []string
+	if sockopt, ok := stream["sockopt"].(map[string]any); ok {
+		if stripBbrFromSockoptMap(sockopt) {
+			paths = append(paths, "sockopt.tcpcongestion")
+		}
+	}
+	if tlsSettings, ok := stream["tlsSettings"].(map[string]any); ok {
+		if echSockopt, ok := tlsSettings["echSockopt"].(map[string]any); ok {
+			if stripBbrFromSockoptMap(echSockopt) {
+				paths = append(paths, "tlsSettings.echSockopt.tcpcongestion")
+			}
+		}
+	}
+	return paths
+}
+
+// StripUnsupportedRouterOSTcpCongestion removes tcpcongestion="bbr" from known
+// Xray sockopt paths on a runtime copy without mutating stored database data.
+func StripUnsupportedRouterOSTcpCongestion(streamSettings string) (string, []string, bool) {
+	if streamSettings == "" {
+		return streamSettings, nil, false
+	}
+	var stream map[string]any
+	if err := json.Unmarshal([]byte(streamSettings), &stream); err != nil {
+		return streamSettings, nil, false
+	}
+	paths := StripUnsupportedRouterOSTcpCongestionFromMap(stream)
+	if len(paths) == 0 {
+		return streamSettings, nil, false
+	}
+	out, err := json.MarshalIndent(stream, "", "  ")
+	if err != nil {
+		return streamSettings, nil, false
+	}
+	return string(out), paths, true
+}
+
 // GenXrayInboundConfig generates an Xray inbound configuration from the Inbound model.
 func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	listen := i.Listen
@@ -387,6 +446,9 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	}
 	streamSettings := i.StreamSettings
 	if stripped, ok := StripInboundXhttpClientFields(streamSettings); ok {
+		streamSettings = stripped
+	}
+	if stripped, _, ok := StripUnsupportedRouterOSTcpCongestion(streamSettings); ok {
 		streamSettings = stripped
 	}
 	if i.Protocol == Hysteria {

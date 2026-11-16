@@ -89,7 +89,8 @@ func checkNodeCanHostProtocol(db *gorm.DB, nodeID int, protocol model.Protocol) 
 		return common.NewErrorf("node %q has not reported its panel version yet; %s inbounds need %s or newer",
 			node.Name, protocol, firstRelease)
 	}
-	// A dev build reports "dev+<sha>": it tracks main, which carries every protocol.
+	// A build without a parseable release version (for example "dev") tracks the
+	// development line, which carries every protocol.
 	if cmp, ok := version.Compare(node.PanelVersion, firstRelease); ok && cmp < 0 {
 		return common.NewErrorf("node %q runs panel %s; %s inbounds need %s or newer",
 			node.Name, node.PanelVersion, protocol, firstRelease)

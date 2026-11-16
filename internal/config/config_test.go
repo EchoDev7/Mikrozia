@@ -2,26 +2,100 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
+func readCanonicalMikroziaVersion(t *testing.T) string {
+	t.Helper()
+	bytes, err := os.ReadFile("../../MIKROZIA_VERSION")
+	if err != nil {
+		t.Fatalf("could not read MIKROZIA_VERSION file: %v", err)
+	}
+	return string(bytes)
+}
+
 func TestGetPanelVersion(t *testing.T) {
-	orig := buildCommit
-	t.Cleanup(func() { buildCommit = orig })
+	orig := mikroziaVersion
+	t.Cleanup(func() { mikroziaVersion = orig })
 
-	buildCommit = ""
-	if got := GetPanelVersion(); got != GetBaseVersion() {
-		t.Fatalf("stable build: GetPanelVersion = %q, want %q", got, GetBaseVersion())
+	if got := GetBaseVersion(); got != "3.11.0" {
+		t.Fatalf("GetBaseVersion = %q, want %q", got, "3.11.0")
+	}
+	if got := GetUpstreamVersion(); got != "3.11.0" {
+		t.Fatalf("GetUpstreamVersion = %q, want %q", got, "3.11.0")
 	}
 
-	buildCommit = "1d1128cf"
-	if got := GetPanelVersion(); got != "dev+1d1128cf" {
-		t.Fatalf("dev build: GetPanelVersion = %q, want %q", got, "dev+1d1128cf")
+	canonical := readCanonicalMikroziaVersion(t)
+	if !releaseVersionPattern.MatchString(canonical) {
+		t.Fatalf("canonical MIKROZIA_VERSION %q is not a valid release version", canonical)
 	}
 
-	buildCommit = "1d1128cf945c4615efa05cf41ba7fa766e2ee428"
-	if got := GetPanelVersion(); got != "dev+1d1128cf" {
-		t.Fatalf("dev build (full sha): GetPanelVersion = %q, want %q", got, "dev+1d1128cf")
+	tests := []struct {
+		name     string
+		injected string
+		want     string
+	}{
+		{name: "missing linker value", injected: "", want: devVersion},
+		{name: "whitespace linker value", injected: "  \n", want: devVersion},
+		{name: "explicit dev", injected: "dev", want: devVersion},
+		{name: "malformed version", injected: "v3.11", want: devVersion},
+		{name: "missing v prefix", injected: strings.TrimPrefix(canonical, "v"), want: devVersion},
+		{name: "empty suffix", injected: "v3.11.0-", want: devVersion},
+		{name: "release version", injected: canonical, want: canonical},
+		{name: "independent version", injected: "v1.0.0", want: "v1.0.0"},
+		{name: "leading space", injected: " v1.0.0", want: devVersion},
+		{name: "trailing space", injected: "v1.0.0 ", want: devVersion},
+		{name: "trailing newline", injected: "v1.0.0\n", want: devVersion},
+		{name: "trailing tab", injected: "v1.0.0\t", want: devVersion},
+		{name: "embedded space", injected: "v1. 0.0", want: devVersion},
+		{name: "multiline", injected: "v1.0.0\nv1.0.0", want: devVersion},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mikroziaVersion = tt.injected
+			if got := GetMikroziaVersion(); got != tt.want {
+				t.Fatalf("GetMikroziaVersion = %q, want %q", got, tt.want)
+			}
+			if got := GetPanelVersion(); got != tt.want {
+				t.Fatalf("GetPanelVersion = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMissingInjectionNeverFallsBackToCanonicalRelease(t *testing.T) {
+	orig := mikroziaVersion
+	t.Cleanup(func() { mikroziaVersion = orig })
+
+	canonical := readCanonicalMikroziaVersion(t)
+	if !releaseVersionPattern.MatchString(canonical) {
+		t.Fatalf("canonical MIKROZIA_VERSION %q is not a valid release version", canonical)
+	}
+
+	for _, injected := range []string{
+		"", " ", "\t", "\n", "dev", "v3.11", "v3.11.0-",
+		" " + canonical,
+		canonical + " ",
+		canonical + "\t",
+		canonical + "\n",
+		strings.Replace(canonical, ".", ". ", 1),
+		canonical + "\n" + canonical,
+	} {
+		mikroziaVersion = injected
+		if got := GetPanelVersion(); got != devVersion {
+			t.Fatalf("injected %q produced %q, want %q", injected, got, devVersion)
+		}
+	}
+}
+
+func TestUpstreamVersionStaysSeparateFromMikroziaIdentity(t *testing.T) {
+	upstream := GetUpstreamVersion()
+	if strings.Contains(strings.ToLower(upstream), "mikrozia") {
+		t.Fatalf("upstream version %q must not carry Mikrozia identity", upstream)
+	}
+	if upstream == GetMikroziaVersion() {
+		t.Fatalf("upstream version %q must stay separate from the Mikrozia release version", upstream)
 	}
 }
 

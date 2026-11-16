@@ -180,6 +180,14 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Geo data is immutable image content: it is downloaded and checksum-verified
+	// when the image is built, and the container RootFS stays read-only. A stored
+	// Xray-native geodata block would download assets at runtime, so it is kept in
+	// the template (nothing is deleted from the user's settings) but never emitted.
+	if raw := strings.TrimSpace(string(xrayConfig.Geodata)); raw != "" && raw != "null" {
+		logger.Warning("Stored Xray geodata configuration is preserved in the template but omitted from the RouterOS runtime config; bundled Geo data only changes with a new image.")
+		xrayConfig.Geodata = nil
+	}
 	xrayConfig.LogConfig = resolveXrayLogPaths(xrayConfig.LogConfig)
 	xrayConfig.API = ensureAPIServices(xrayConfig.API)
 	xrayConfig.Policy = ensureStatsPolicy(xrayConfig.Policy)
@@ -412,6 +420,13 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 			}
 		}
 
+		if _, bbrPaths, bbrOmitted := model.StripUnsupportedRouterOSTcpCongestion(inbound.StreamSettings); bbrOmitted {
+			logger.Warningf(
+				"Inbound %q: stored %s=\"bbr\" is preserved, but omitted from the RouterOS runtime config because the host kernel lacks tcp_bbr. Select OS Default in the UI to remove the legacy setting.",
+				inbound.Tag, strings.Join(bbrPaths, ", "),
+			)
+		}
+
 		inboundConfig := inbound.GenXrayInboundConfig()
 		xrayConfig.InboundConfigs = append(xrayConfig.InboundConfigs, *inboundConfig)
 	}
@@ -425,6 +440,11 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 	subSvc := &OutboundSubscriptionService{}
 	if prepend, appendList, err := subSvc.activeOutboundsSplit(); err == nil && (len(prepend) > 0 || len(appendList) > 0) {
 		mergeSubscriptionOutbounds(xrayConfig, prepend, appendList)
+	}
+	var bbrWarnings []string
+	xrayConfig.OutboundConfigs, bbrWarnings = sanitizeRuntimeOutboundsTcpCongestion(xrayConfig.OutboundConfigs)
+	for _, msg := range bbrWarnings {
+		logger.Warning(msg)
 	}
 
 	// Route opted-in local mtproto inbounds through the core's router. Each one
@@ -788,11 +808,6 @@ func injectAmneziawgnetSocks(cfg *xray.Config, inbounds []*model.Inbound) {
 		}
 		inst, ok := amneziawg.InstanceFromInbound(inbound)
 		if !ok {
-			continue
-		}
-		// Kernel-mode inbounds forward in the kernel and never dial Xray, so a
-		// relay inbound for them would listen forever with nothing behind it.
-		if inst.KernelMode {
 			continue
 		}
 		if _, taken := existingTags[inbound.Tag]; taken {
@@ -1878,6 +1893,46 @@ func healOutboundStreams(raw json_util.RawMessage, heals ...func(stream map[stri
 		return rewritten
 	}
 	return raw
+}
+
+func sanitizeRuntimeOutboundsTcpCongestion(raw json_util.RawMessage) (json_util.RawMessage, []string) {
+	if len(raw) == 0 {
+		return raw, nil
+	}
+	var outbounds []map[string]any
+	if err := json.Unmarshal(raw, &outbounds); err != nil {
+		return raw, nil
+	}
+	changed := false
+	var warnings []string
+	for idx, ob := range outbounds {
+		stream, ok := ob["streamSettings"].(map[string]any)
+		if !ok {
+			continue
+		}
+		paths := model.StripUnsupportedRouterOSTcpCongestionFromMap(stream)
+		if len(paths) == 0 {
+			continue
+		}
+		changed = true
+		tag, _ := ob["tag"].(string)
+		label := fmt.Sprintf("index %d", idx)
+		if strings.TrimSpace(tag) != "" {
+			label = fmt.Sprintf("%q", tag)
+		}
+		warnings = append(warnings, fmt.Sprintf(
+			"Outbound %s: stored %s=\"bbr\" is preserved, but omitted from the RouterOS runtime config because the host kernel lacks tcp_bbr. Select OS Default in the UI to remove the legacy setting.",
+			label, strings.Join(paths, ", "),
+		))
+	}
+	if !changed {
+		return raw, nil
+	}
+	rewritten, err := json.Marshal(outbounds)
+	if err != nil {
+		return raw, nil
+	}
+	return rewritten, warnings
 }
 
 // dropInboundsRefusedByXDrive keeps out an XDRIVE inbound stored before xray-core 26.10.17 made it

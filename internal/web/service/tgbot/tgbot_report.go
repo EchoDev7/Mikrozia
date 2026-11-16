@@ -1,6 +1,7 @@
 package tgbot
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -103,26 +104,34 @@ func (t *Tgbot) backupSummary() string {
 }
 
 // SendBackupToAdmins sends the database and, when it exists, the generated Xray
-// config to admin chats. A failed DB read is reported, not sent silently.
+// config to admin chats. A failed DB backup is reported, not sent silently.
 func (t *Tgbot) SendBackupToAdmins() {
 	if !t.IsRunning() {
 		return
 	}
-	dbData, err := t.serverService.GetDb()
+	admins := adminSnapshot()
+	if len(admins) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	artifact, err := t.serverService.PrepareBackup(ctx, "")
+	if artifact != nil {
+		defer artifact.Cleanup()
+	}
 	if err != nil {
 		logger.Error("Error in getting db backup: ", err)
 	}
-	dbFilename := t.serverService.BackupFilename("")
 	config, configErr := os.ReadFile(xray.GetConfigPath())
 	if configErr != nil {
 		logger.Warning("Cannot read the Xray config for the backup: ", configErr)
 	}
-	admins := adminSnapshot()
 	for i, adminId := range admins {
-		if dbData == nil {
+		if err != nil || artifact == nil {
 			t.sendNotice(adminId, t.I18nBot("tgbot.messages.backupFailed"))
 		} else {
-			t.sendDocumentWithCaption(adminId, dbData, dbFilename, t.backupSummary())
+			t.sendBackupArtifactWithCaption(adminId, artifact, t.backupSummary())
 			time.Sleep(500 * time.Millisecond)
 			if configErr == nil {
 				t.sendDocumentWithCaption(adminId, config, "config.json", "")

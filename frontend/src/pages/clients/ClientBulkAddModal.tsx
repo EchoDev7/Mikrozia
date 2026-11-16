@@ -10,7 +10,6 @@ import {
   Select,
   Space,
   Switch,
-  Tooltip,
   message,
 } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
@@ -24,7 +23,6 @@ import { TLS_FLOW_CONTROL, TRAFFIC_RESETS } from '@/schemas/primitives';
 import { DateTimePicker, SelectAllClearButtons } from '@/components/form';
 import { FormField } from '@/components/form/rhf';
 import { useClients, type InboundOption } from '@/hooks/useClients';
-import { useFail2banStatusQuery, getLimitIpNotice } from '@/api/queries/useFail2banStatusQuery';
 import ClientRenewalFields from './ClientRenewalFields';
 import { ClientBulkAddFormSchema, type ClientBulkAddFormValues } from '@/schemas/client';
 
@@ -93,13 +91,9 @@ export default function ClientBulkAddModal({
   const flow = useWatch({ control: methods.control, name: 'flow' });
   const expiryTime = useWatch({ control: methods.control, name: 'expiryTime' });
   const subId = useWatch({ control: methods.control, name: 'subId' });
-  const limitIp = useWatch({ control: methods.control, name: 'limitIp' });
   const trafficReset = useWatch({ control: methods.control, name: 'trafficReset' });
   const [delayedStart, setDelayedStart] = useState(false);
   const [saving, setSaving] = useState(false);
-  const fail2ban = useFail2banStatusQuery();
-  const limitIpDisabled = !fail2ban.usable;
-  const limitIpNotice = getLimitIpNotice(fail2ban, t);
 
   const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
@@ -382,21 +376,6 @@ export default function ClientBulkAddModal({
                 />
               </FormField>
             )}
-
-            <Form.Item label={t('pages.clients.limitIp')} htmlFor={`${uid}-limit-ip`}>
-              <Tooltip title={limitIpNotice || undefined}>
-                <span style={{ display: 'inline-flex' }}>
-                  <InputNumber
-                    id={`${uid}-limit-ip`}
-                    value={limitIp}
-                    min={0}
-                    disabled={limitIpDisabled}
-                    style={limitIpDisabled ? { pointerEvents: 'none' } : undefined}
-                    onChange={(v) => methods.setValue('limitIp', Number(v) || 0)}
-                  />
-                </span>
-              </Tooltip>
-            </Form.Item>
 
             <FormField
               name="totalGB"

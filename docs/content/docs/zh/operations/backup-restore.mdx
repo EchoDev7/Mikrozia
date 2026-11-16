@@ -1,6 +1,6 @@
 ---
 title: 备份与恢复
-description: 手动或通过 Telegram 机器人备份并恢复你的 3x-ui 数据库与证书。
+description: 从 RouterOS 容器挂载中手动或通过 Telegram 机器人备份并恢复 Mikrozia 数据库与证书。
 icon: DatabaseBackup
 ---
 
@@ -15,13 +15,31 @@ icon: DatabaseBackup
 
 ## 手动备份
 
-你可以从面板的概览页下载备份，也可以直接从服务器上复制数据库文件：
+如需在面板运行时创建一致的 SQLite 备份，请在容器内生成 SQL 文本转储：
 
-```bash title="copy the SQLite database"
-cp /etc/x-ui/x-ui.db /root/x-ui-backup-$(date +%F).db
+```bash title="create a consistent SQLite backup"
+x-ui migrate-db --dump /etc/x-ui/x-ui-backup-$(date +%F).sql
 ```
 
-要恢复时，先停止面板，把数据库文件放回原位，然后重新启动面板。
+该转储读取单个一致的数据库快照，即使 SQLite WAL 模式已启用也适用。容器
+运行时，请勿直接复制 `/etc/x-ui/x-ui.db`。如果需要原始 `.db` 文件，请先停止
+容器，再从 RouterOS 持久化挂载中复制数据库。Web 面板下载、跨引擎迁移导出
+（`.dump` / `.db`）以及 Telegram 和 Discord 备份会先写入 `/etc/x-ui`（或
+`XUI_DB_FOLDER`）下的私有临时文件，再以流式方式传输；请确保挂载点有足够空间
+存放临时文件。
+
+恢复 SQL 转储时，请先将其重建为一个新的数据库文件；该命令只写入单独的文件，
+不会修改正在使用的数据库。然后停止容器，用新文件替换 `/etc/x-ui/x-ui.db`，
+再启动容器：
+
+```bash
+x-ui migrate-db --restore /etc/x-ui/x-ui-backup-YYYY-MM-DD.sql --out /etc/x-ui/x-ui-restored.db
+```
+
+CLI 不会覆盖已存在的目标文件。使用原始 `.db` 备份替换数据库文件之前，请先
+停止容器。
+
+> 通过 Web 面板导入数据库（`POST /panel/api/server/importDB`）会直接流式写入持久化挂载 `/etc/x-ui`（或 `XUI_DB_FOLDER`）下的私有暂存文件，默认上限为 **256 MiB**（可通过 `XUI_DB_IMPORT_MAX_MIB` 设置，允许范围 **32–2048 MiB**）。超过上限的上传会返回 **HTTP 413**（`Request Entity Too Large`）错误。仅在 `/etc/x-ui` 挂载点有足够可用空间时再调高 `XUI_DB_IMPORT_MAX_MIB`；Mikrozia 不会自动创建或修改 RouterOS 防火墙与 NAT 规则。
 
 <Callout type="warn">
   尽量将备份恢复到与其来源**相同的主版本**上。跨主版本升级时，应让面板自行
@@ -38,11 +56,37 @@ cp /etc/x-ui/x-ui.db /root/x-ui-backup-$(date +%F).db
 （便于检查，或在不同机器之间转移）：
 
 ```bash
-x-ui migrate-db --dump /root/x-ui.sql       # SQLite -> SQL text
-x-ui migrate-db --restore /root/x-ui.sql     # SQL text -> SQLite
+x-ui migrate-db --dump /etc/x-ui/x-ui.sql       # SQLite -> SQL text
+x-ui migrate-db --restore /etc/x-ui/x-ui.sql --out /etc/x-ui/x-ui-restored.db
 ```
 
+`--restore` 必须同时指定 `--out`，CLI 绝不会覆盖已存在的数据库。交互式 **数据库工具** 菜单会先恢复到临时文件，仅在恢复成功后替换所选输出文件；恢复失败时原文件保持不变。
+
+> 恢复 SQLite 纯文本 SQL 转储（`x-ui migrate-db --restore` 以及通过 `importDB` 上传 SQLite `.sql` 转储）会流式逐条执行 SQL 语句，而不会把整个文件加载到内存中。单条 SQL 语句默认上限为 **16 MiB**（可通过 `XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB` 配置，允许范围 **1–256 MiB**）。调高该限制会增加单条语句的内存占用，因此在 RouterOS 容器中仅在可用内存充足时才提高它。原始二进制 `.db` 导入与 PostgreSQL 转储不使用 `XUI_SQLITE_RESTORE_MAX_STATEMENT_MIB`（上传总大小仍由 `XUI_DB_IMPORT_MAX_MIB` 单独控制）。
+
 若想改用 PostgreSQL，请参阅[数据库](/docs/reference/database)。
+
+> 使用 PostgreSQL 后端时，`.dump` 备份（`pg_dump`）与恢复（`pg_restore`）会在单个固定连接上解析 `search_path` 为核心表（`users`、`settings`、`inbounds`）选中的实际 Schema，并使用 `--strict-names` 与 `--schema=...` 严格限定为该单一 Schema；若核心表分散在多个 Schema 中或解析到系统 Schema，则会直接拒绝。
+
+> 在替换在线 SQLite 数据库之前，Mikrozia 会先创建与 WAL 一致的回退快照，并在 `XUI_DB_FOLDER` 下写入持久化状态标记。若在恢复过程中发生断电或崩溃，下次启动会自动完成事务恢复。**切勿手动删除** `.mikrozia-sqlite-restore-*` 目录或 `.mikrozia-sqlite-restore-state.json` 标记文件；若标记损坏，启动会安全中止并保留日志与现场文件，Mikrozia 不会为了恢复而盲目删除用户数据。
+
+## PostgreSQL 备份与导入安全
+
+PostgreSQL 仍是可选的外部后端——参见[数据库](/docs/reference/database)。镜像已内置 PostgreSQL 客户端工具；请勿在 RouterOS 主机上安装 `pg_dump` 或 `pg_restore`。
+
+在执行破坏性 PostgreSQL 导入（恢复 `.dump` 或把 SQLite 文件导入 PostgreSQL）之前，Mikrozia 会创建一个经过验证的导入前快照：
+
+- 快照位于 `XUI_DB_FOLDER` 下的私有 `.mikrozia-pg-restore-*` 目录中；目录权限为 `0700`，`pre-import.dump` 文件权限为 `0600`。
+- 仅当可用空间至少约为规范 Schema 大小加 25% 再加 16 MiB 时，导入才会开始。
+- 在任何修改之前，快照都会通过 `pg_restore --list` 校验，并在导入成功后删除。
+
+如果导入在提交后失败（重新打开数据库、恢复本路由器的设置、应用面板数据迁移或重启 Xray），Mikrozia 会执行精确回滚：只清除已解析规范 Schema 中的对象，保留 Schema 本身、其所有者与 ACL，其他 Schema 不受影响，在不使用 `--clean` 的情况下恢复快照，重新打开连接池并重启 Xray。如果自动回滚失败，快照会被保留，错误信息会报告其路径以便手动恢复；在确认数据库状态之前请勿删除它。
+
+如果面板或容器在导入期间崩溃，经过验证的 `.mikrozia-pg-restore-*` 快照会保留在原处。请勿删除它，也不要让其他镜像对已更改的 Schema 启动；请先检查数据库，再用 `pg_restore` 手动恢复该快照，然后继续。
+
+`POST /panel/api/server/importDB` 的 `keepHostSettings` 选项控制与主机绑定的设置，例如 `webPort`、`webBasePath`、证书路径、`panelGuid` 和节点 mTLS 材料。为 **true** 时，导入后会重新应用本路由器的当前值；为 **false** 时，保留导入数据中的值。
+
+PostgreSQL 凭据绝不会出现在日志或 CLI 输出中。不支持 `PGPASSWORD`；工具通过权限为 `0600` 的临时 `PGPASSFILE` 获取凭据，错误/stderr 输出会被脱敏。
 
 <Callout type="info">
   无论采用哪种方式，都请将备份保存在**服务器之外**，并不时测试一次恢复——

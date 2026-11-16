@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
@@ -73,6 +72,9 @@ func (l *Local) AddInbound(_ context.Context, ib *model.Inbound) error {
 		return mtproto.GetManager().Ensure(inst)
 	}
 	if ib.Protocol == model.AmneziaWG {
+		if err := amneziawg.RejectLegacyKernelMode(ib.Settings); err != nil {
+			return err
+		}
 		inst, ok := amneziawg.InstanceFromInbound(ib)
 		if !ok {
 			return nil
@@ -98,6 +100,12 @@ func (l *Local) AddInbound(_ context.Context, ib *model.Inbound) error {
 			l.deps.RequestReconcile()
 		}
 		return err
+	}
+	if _, bbrPaths, bbrOmitted := model.StripUnsupportedRouterOSTcpCongestion(ib.StreamSettings); bbrOmitted {
+		logger.Warningf(
+			"Inbound %q: stored %s=\"bbr\" is preserved, but omitted from the RouterOS runtime config because the host kernel lacks tcp_bbr. Select OS Default in the UI to remove the legacy setting.",
+			ib.Tag, strings.Join(bbrPaths, ", "),
+		)
 	}
 	body, err := json.MarshalIndent(ib.GenXrayInboundConfig(), "", "  ")
 	if err != nil {
@@ -186,6 +194,11 @@ func (l *Local) updateAmneziaWGInbound(ctx context.Context, oldIb, newIb *model.
 	if l.deps.SetNeedRestart != nil {
 		l.deps.SetNeedRestart()
 	}
+	if newIb.Protocol == model.AmneziaWG {
+		if err := amneziawg.RejectLegacyKernelMode(newIb.Settings); err != nil {
+			return err
+		}
+	}
 	if oldIb.Protocol == model.AmneziaWG && newIb.Protocol != model.AmneziaWG {
 		removeAmneziaWG(oldIb.Id)
 		if !newIb.Enable {
@@ -208,20 +221,8 @@ func (l *Local) updateAmneziaWGInbound(ctx context.Context, oldIb, newIb *model.
 	return ensureAmneziaWG(inst)
 }
 
-// ensureAmneziaWG routes an inbound to its own datapath's manager and clears
-// the other's: both bind the inbound's UDP port, so they must never overlap.
+// ensureAmneziaWG applies an inbound to the embedded userspace manager.
 func ensureAmneziaWG(inst amneziawg.Instance) error {
-	if inst.KernelMode {
-		amneziawgnet.GetManager().Remove(inst.Id)
-		return amneziawgkern.GetManager().Ensure(amneziawgkern.Desired{
-			Instance:         inst,
-			EgressInterface:  inst.ExternalInterface,
-			RouteThroughXray: inst.RouteThroughXray,
-		})
-	}
-	if err := amneziawgkern.GetManager().Remove(inst.Id); err != nil {
-		return err
-	}
 	return amneziawgnet.GetManager().Ensure(amneziawgnet.Desired{
 		Instance: inst,
 		Options: amneziawgnet.DeviceOptions{
@@ -238,12 +239,9 @@ func ensureAmneziaWG(inst amneziawg.Instance) error {
 	})
 }
 
-// removeAmneziaWG tears the inbound down on whichever datapath is holding it.
+// removeAmneziaWG tears down an AmneziaWG inbound from the userspace manager.
 func removeAmneziaWG(id int) {
 	amneziawgnet.GetManager().Remove(id)
-	if err := amneziawgkern.GetManager().Remove(id); err != nil {
-		logger.Warning("amneziawgkern: removing inbound ", id, ": ", err)
-	}
 }
 
 func (l *Local) updateTuicInbound(ctx context.Context, oldIb, newIb *model.Inbound) error {

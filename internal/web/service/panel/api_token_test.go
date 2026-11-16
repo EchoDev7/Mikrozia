@@ -127,9 +127,9 @@ func TestRecreateByNameAppliesGivenScope(t *testing.T) {
 		wantErr   string
 	}{
 		{name: "replaces a monitor token as node-sync", seedScope: model.ApiScopeMonitor, scope: model.ApiScopeNodeSync, want: model.ApiScopeNodeSync},
-		{name: "replaces a monitor token as node-admin", seedScope: model.ApiScopeMonitor, scope: model.ApiScopeNodeAdmin, want: model.ApiScopeNodeAdmin},
+		{name: "replaces a monitor token requesting legacy node-admin as node-sync", seedScope: model.ApiScopeMonitor, scope: "node-admin", want: model.ApiScopeNodeSync},
 		{name: "creates a new token as monitor", scope: model.ApiScopeMonitor, want: model.ApiScopeMonitor},
-		{name: "refuses an unknown scope", seedScope: model.ApiScopeMonitor, scope: "root", want: model.ApiScopeMonitor, wantErr: "scope must be 'admin', 'monitor', 'node-sync', or 'node-admin'"},
+		{name: "refuses an unknown scope", seedScope: model.ApiScopeMonitor, scope: "root", want: model.ApiScopeMonitor, wantErr: "scope must be 'admin', 'monitor', or 'node-sync'"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

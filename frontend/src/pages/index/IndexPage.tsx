@@ -30,16 +30,14 @@ import ThroughputCard from './ThroughputCard';
 import ConnectionsCard from './ConnectionsCard';
 import SystemStrip from './SystemStrip';
 import { mean, peak, useOverviewHistory } from './useOverviewHistory';
-import type { PanelUpdateInfo } from './PanelUpdateModal';
+import type { PanelUpdateInfo } from '@/generated/types';
 const JsonEditor = lazy(() => import('@/components/form/JsonEditor'));
-const PanelUpdateModal = lazy(() => import('./PanelUpdateModal'));
 const LogModal = lazy(() => import('./LogModal'));
 const BackupModal = lazy(() => import('./BackupModal'));
 const SystemHistoryModal = lazy(() => import('./SystemHistoryModal'));
 const XrayMetricsModal = lazy(() => import('./XrayMetricsModal'));
 const XrayLogModal = lazy(() => import('./XrayLogModal'));
 const AmneziaWGLogModal = lazy(() => import('./AmneziaWGLogModal'));
-const VersionModal = lazy(() => import('./VersionModal'));
 import './IndexPage.css';
 
 export default function IndexPage() {
@@ -53,8 +51,8 @@ export default function IndexPage() {
   }, [messageApi]);
 
   const [accessLogEnable, setAccessLogEnable] = useState(false);
-  const [devChannelEnable, setDevChannelEnable] = useState(false);
   const [panelUpdateInfo, setPanelUpdateInfo] = useState<PanelUpdateInfo>({
+    channel: 'stable',
     currentVersion: '',
     latestVersion: '',
     updateAvailable: false,
@@ -65,12 +63,10 @@ export default function IndexPage() {
   const [showIp, setShowIp] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
-  const [panelUpdateOpen, setPanelUpdateOpen] = useState(false);
   const [sysHistoryOpen, setSysHistoryOpen] = useState(false);
   const [xrayMetricsOpen, setXrayMetricsOpen] = useState(false);
   const [xrayLogsOpen, setXrayLogsOpen] = useState(false);
   const [amneziawgLogsOpen, setAmneziawgLogsOpen] = useState(false);
-  const [versionOpen, setVersionOpen] = useState(false);
   const [configTextOpen, setConfigTextOpen] = useState(false);
   const [configText, setConfigText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,14 +75,13 @@ export default function IndexPage() {
   const history = useOverviewHistory(status, fetched && !fetchError);
 
   useEffect(() => {
-    HttpUtil.post<{ accessLogEnable?: boolean; devChannelEnable?: boolean }>(
-      '/panel/api/setting/defaultSettings',
-    ).then((msg) => {
-      if (msg?.success && msg.obj) {
-        setAccessLogEnable(!!msg.obj.accessLogEnable);
-        setDevChannelEnable(!!msg.obj.devChannelEnable);
-      }
-    });
+    HttpUtil.post<{ accessLogEnable?: boolean }>('/panel/api/setting/defaultSettings').then(
+      (msg) => {
+        if (msg?.success && msg.obj) {
+          setAccessLogEnable(!!msg.obj.accessLogEnable);
+        }
+      },
+    );
     HttpUtil.get<PanelUpdateInfo>('/panel/api/server/getPanelUpdateInfo').then((msg) => {
       if (msg?.success && msg.obj) setPanelUpdateInfo(msg.obj);
     });
@@ -111,14 +106,6 @@ export default function IndexPage() {
     await HttpUtil.post('/panel/api/server/restartXrayService');
     await refresh();
   }, [refresh]);
-
-  async function handleChannelChange(dev: boolean) {
-    const res = await HttpUtil.post('/panel/api/server/setUpdateChannel', { dev });
-    if (!res?.success) return;
-    setDevChannelEnable(dev);
-    const msg = await HttpUtil.get<PanelUpdateInfo>('/panel/api/server/getPanelUpdateInfo');
-    if (msg?.success && msg.obj) setPanelUpdateInfo(msg.obj);
-  }
 
   async function openConfig() {
     setLoading(true);
@@ -199,8 +186,6 @@ export default function IndexPage() {
                     isMobile={isMobile}
                     accessLogEnable={accessLogEnable}
                     panelVersion={displayVersion}
-                    latestVersion={panelUpdateInfo.latestVersion}
-                    updateAvailable={panelUpdateInfo.updateAvailable}
                     onStopXray={stopXray}
                     onRestartXray={restartXray}
                     onOpenLogs={() => setLogsOpen(true)}
@@ -210,8 +195,6 @@ export default function IndexPage() {
                     onOpenBackup={() => setBackupOpen(true)}
                     onOpenSystemHistory={() => setSysHistoryOpen(true)}
                     onOpenXrayMetrics={() => setXrayMetricsOpen(true)}
-                    onOpenPanelUpdate={() => setPanelUpdateOpen(true)}
-                    onOpenVersionSwitch={() => setVersionOpen(true)}
                   />
 
                   <SponsorSlot slot="dashboard" />
@@ -306,16 +289,6 @@ export default function IndexPage() {
           </Layout.Content>
         </Layout>
 
-        <LazyMount when={panelUpdateOpen}>
-          <PanelUpdateModal
-            open={panelUpdateOpen}
-            info={panelUpdateInfo}
-            devChannelEnable={devChannelEnable}
-            onChannelChange={handleChannelChange}
-            onClose={() => setPanelUpdateOpen(false)}
-            onBusy={setBusy}
-          />
-        </LazyMount>
         <LazyMount when={logsOpen}>
           <LogModal open={logsOpen} onClose={() => setLogsOpen(false)} />
         </LazyMount>
@@ -343,15 +316,6 @@ export default function IndexPage() {
         <LazyMount when={amneziawgLogsOpen}>
           <AmneziaWGLogModal open={amneziawgLogsOpen} onClose={() => setAmneziawgLogsOpen(false)} />
         </LazyMount>
-        <LazyMount when={versionOpen}>
-          <VersionModal
-            open={versionOpen}
-            status={status}
-            onClose={() => setVersionOpen(false)}
-            onBusy={setBusy}
-          />
-        </LazyMount>
-
         <LazyMount when={configTextOpen}>
           <Modal
             open={configTextOpen}

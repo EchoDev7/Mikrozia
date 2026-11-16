@@ -1,5 +1,5 @@
 // Package logger provides logging functionality for the 3x-ui panel with
-// dual-backend logging (console/syslog and file) and buffered log storage for web UI.
+// stderr console backend + rotating file backend and buffered log storage for web UI.
 package logger
 
 import (
@@ -54,13 +54,13 @@ func init() {
 	logger.Store(logging.MustGetLogger("x-ui"))
 }
 
-// InitLogger initializes dual logging backends: console/syslog and file.
+// InitLogger initializes the stderr console backend + rotating file backend.
 // Console logging uses the specified level, file logging always uses DEBUG level.
 func InitLogger(level logging.Level) {
 	newLogger := logging.MustGetLogger("x-ui")
 	backends := make([]logging.Backend, 0, 2)
 
-	// Console/syslog backend with configurable level
+	// Stderr console backend with configurable level
 	consoleBackend := initDefaultBackend()
 	leveledBackend := logging.AddModuleLevel(consoleBackend)
 	leveledBackend.SetLevel(level, "x-ui")
@@ -78,7 +78,7 @@ func InitLogger(level logging.Level) {
 	logger.Store(newLogger)
 }
 
-// initDefaultBackend creates the console logging backend: syslog where the platform has it, else stderr.
+// initDefaultBackend creates the stderr console logging backend.
 func initDefaultBackend() logging.Backend {
 	backend, includeTime := newConsoleBackend()
 	return logging.NewBackendFormatter(backend, newFormatter(includeTime))

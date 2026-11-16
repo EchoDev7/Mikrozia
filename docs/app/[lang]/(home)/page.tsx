@@ -4,7 +4,6 @@ import { GitHubIcon, TelegramIcon } from '@/components/icons';
 import { Logo } from '@/components/logo';
 import { Features } from '@/components/home/features';
 import { GitHubStatsRow } from '@/components/home/github-stats';
-import { InstallCommand } from '@/components/home/install-command';
 import { getGitHubStats } from '@/lib/github-stats';
 import { i18n } from '@/lib/i18n';
 import { appName, productRepoUrl, deepWikiUrl, telegramChannelUrl, donateUrl } from '@/lib/shared';
@@ -13,9 +12,6 @@ import { getSiteMessages, type SiteMessages } from '@/lib/site-i18n';
 export function generateStaticParams() {
   return i18n.languages.map((lang) => ({ lang }));
 }
-
-const INSTALL_COMMAND =
-  'bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)';
 
 export default async function HomePage({ params }: PageProps<'/[lang]'>) {
   const { lang } = await params;
@@ -58,13 +54,6 @@ export default async function HomePage({ params }: PageProps<'/[lang]'>) {
               {m.viewOnGitHub}
             </a>
           </div>
-
-          <InstallCommand
-            command={INSTALL_COMMAND}
-            copyLabel={m.copyCommand}
-            copiedLabel={m.copied}
-            className="mt-8 w-full max-w-2xl"
-          />
 
           {/* Build-time stats as the initial render; refreshed live on the client. */}
           <GitHubStatsRow

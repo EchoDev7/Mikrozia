@@ -285,13 +285,6 @@ export const sections: readonly Section[] = [
       },
       {
         method: 'GET',
-        path: '/panel/api/inbounds/amneziawgKernelReadiness',
-        responseSchema: 'Readiness',
-        summary:
-          'Whether this host can run an AmneziaWG inbound on the kernel module. Returns ready, host blocker codes (root/tools/module/nft), and the command that fixes them. Saving an inbound also checks its features and rejects IPv6, port forwarding, routeThroughXray, or a pinned listen address that the kernel backend cannot honor.',
-      },
-      {
-        method: 'GET',
         path: '/panel/api/inbounds/allLinks',
         responseObjectSchema: { type: 'array', nullable: true, items: { type: 'string' } },
         summary:
@@ -460,14 +453,6 @@ export const sections: readonly Section[] = [
       },
       {
         method: 'GET',
-        path: '/panel/api/server/fail2banStatus',
-        summary:
-          'Reports whether per-client IP limits can be enforced on this host. The panel uses it to gate the "IP Limit" field, since enforcement depends on Fail2ban being installed.',
-        response:
-          '{\n  "success": true,\n  "obj": {\n    "enabled": true,\n    "installed": true,\n    "usable": true,\n    "windows": false\n  }\n}',
-      },
-      {
-        method: 'GET',
         path: '/panel/api/server/cpuHistory/:bucket',
         summary:
           'Legacy: aggregated CPU history. Use /history/cpu/:bucket instead — same data with a uniform {t, v} shape.',
@@ -556,21 +541,8 @@ export const sections: readonly Section[] = [
       },
       {
         method: 'GET',
-        path: '/panel/api/server/getXrayVersion',
-        summary: 'List Xray binary versions available for install on this host.',
-        response: '{\n  "success": true,\n  "obj": ["v25.10.31", "v25.9.15", "v25.8.1"]\n}',
-      },
-      {
-        method: 'GET',
         path: '/panel/api/server/getPanelUpdateInfo',
-        summary: 'Check whether a newer 3x-ui release is available on GitHub.',
-      },
-      {
-        method: 'GET',
-        path: '/panel/api/server/getUpdateStatus',
-        summary:
-          'Report the outcome of the most recently launched panel self-update (see POST updatePanel). Compare the returned runId against the one updatePanel returned to tell this run apart from a stale result.',
-        responseSchema: 'PanelUpdateStatus',
+        summary: 'Get current running Mikrozia version information.',
       },
       {
         method: 'GET',
@@ -655,70 +627,6 @@ export const sections: readonly Section[] = [
       },
       {
         method: 'POST',
-        path: '/panel/api/server/installXray/:version',
-        summary:
-          'Download and install the specified Xray version. Pass "latest" for the newest release.',
-        params: [
-          {
-            name: 'version',
-            in: 'path',
-            type: 'string',
-            desc: 'Xray tag (e.g. v25.10.31) or "latest".',
-          },
-        ],
-      },
-      {
-        method: 'POST',
-        path: '/panel/api/server/updatePanel',
-        summary:
-          'Self-update the panel to the latest version. The server restarts on success. Bearer-token callers need admin or node-admin scope.',
-        params: [
-          {
-            name: 'dev',
-            in: 'body (form)',
-            type: 'boolean',
-            desc: "Override this run's channel. Omit to use the panel's configured channel.",
-            optional: true,
-          },
-        ],
-        response: '{\n  "success": true,\n  "obj": {\n    "runId": "1735689600123456789"\n  }\n}',
-      },
-      {
-        method: 'POST',
-        path: '/panel/api/server/setUpdateChannel',
-        summary:
-          'Toggle the panel update channel between stable and the rolling per-commit dev release. Only effective on dev builds.',
-        params: [
-          {
-            name: 'dev',
-            in: 'body (form)',
-            type: 'boolean',
-            desc: 'true = dev channel, false = stable.',
-          },
-        ],
-        body: 'dev=true',
-      },
-      {
-        method: 'POST',
-        path: '/panel/api/server/updateGeofile',
-        summary:
-          'Refresh the default GeoIP / GeoSite data files. Use the /:fileName variant to update one file.',
-      },
-      {
-        method: 'POST',
-        path: '/panel/api/server/updateGeofile/:fileName',
-        summary: 'Refresh a single Geo file by filename (e.g. geoip.dat, geosite.dat).',
-        params: [
-          {
-            name: 'fileName',
-            in: 'path',
-            type: 'string',
-            desc: 'Filename of the data file to refresh.',
-          },
-        ],
-      },
-      {
-        method: 'POST',
         path: '/panel/api/server/logs/:count',
         summary: 'Return the last N lines of the panel\u2019s own log.',
         params: [
@@ -730,15 +638,8 @@ export const sections: readonly Section[] = [
             desc: 'Minimum log level filter.',
             optional: true,
           },
-          {
-            name: 'syslog',
-            in: 'body (form)',
-            type: 'boolean',
-            desc: 'Read system logs instead of the panel log.',
-            optional: true,
-          },
         ],
-        body: 'level=info&syslog=false',
+        body: 'level=info',
         responseObjectSchema: { type: 'array', nullable: true, items: { type: 'string' } },
         response:
           '{\n  "success": true,\n  "obj": [\n    "2025/01/01 12:00:00 [INFO] Server started",\n    "2025/01/01 12:00:01 [INFO] Xray is running"\n  ]\n}',
@@ -1805,15 +1706,6 @@ export const sections: readonly Section[] = [
         params: [{ name: 'id', in: 'path', type: 'number', desc: 'Node ID.' }],
       },
       {
-        method: 'POST',
-        path: '/panel/api/nodes/updatePanel',
-        summary:
-          'Trigger the official panel self-updater on each given node (downloads the latest release and restarts). Only enabled, online nodes are updated; offline/disabled ones are reported as skipped. Set "dev": true to move the nodes to the rolling per-commit dev channel instead of the latest stable release. Returns a per-node result list.',
-        body: '{\n  "ids": [1, 2, 3],\n  "dev": false\n}',
-        response:
-          '{\n  "success": true,\n  "obj": [\n    { "id": 1, "name": "de-1", "ok": true },\n    { "id": 2, "name": "fr-1", "ok": false, "error": "node is offline" }\n  ]\n}',
-      },
-      {
         method: 'GET',
         path: '/panel/api/nodes/history/:id/:metric/:bucket',
         summary:
@@ -2049,7 +1941,7 @@ export const sections: readonly Section[] = [
     id: 'api-tokens',
     title: 'API Tokens',
     description:
-      'Manage scoped Bearer tokens for programmatic auth. admin grants the full panel API; monitor is read-only for status and metrics; node-sync manages node configuration without panel updates; node-admin adds panel self-update to node-sync. Tokens may expire and are stored as SHA-256 hashes. The plaintext is returned only once at creation.',
+      'Manage scoped Bearer tokens for programmatic auth. admin grants the full panel API; monitor is read-only for status and metrics; node-sync manages node configuration without panel updates. Tokens may expire and are stored as SHA-256 hashes. The plaintext is returned only once at creation.',
     endpoints: [
       {
         method: 'GET',
@@ -2057,7 +1949,7 @@ export const sections: readonly Section[] = [
         summary:
           'List every API token, enabled or not. The token value is never returned — only metadata.',
         response:
-          '{\n  "success": true,\n  "obj": [\n    {\n      "id": 1,\n      "name": "central-panel-a",\n      "enabled": true,\n      "createdAt": 1736000000,\n      "scope": "node-admin",\n      "expiresAt": 0\n    }\n  ]\n}',
+          '{\n  "success": true,\n  "obj": [\n    {\n      "id": 1,\n      "name": "central-panel-a",\n      "enabled": true,\n      "createdAt": 1736000000,\n      "scope": "node-sync",\n      "expiresAt": 0\n    }\n  ]\n}',
       },
       {
         method: 'POST',
@@ -2075,8 +1967,8 @@ export const sections: readonly Section[] = [
             name: 'scope',
             in: 'body',
             type: 'string',
-            desc: 'admin (default), monitor, node-sync, or node-admin. node-admin inherits node-sync and may also start a panel update.',
-            enum: ['admin', 'monitor', 'node-sync', 'node-admin'],
+            desc: 'admin (default), monitor, or node-sync.',
+            enum: ['admin', 'monitor', 'node-sync'],
             optional: true,
           },
           {
@@ -2087,7 +1979,7 @@ export const sections: readonly Section[] = [
             optional: true,
           },
         ],
-        body: '{\n  "name": "central-panel-a",\n  "scope": "node-admin",\n  "expiresAt": 1798761600000\n}',
+        body: '{\n  "name": "central-panel-a",\n  "scope": "node-sync",\n  "expiresAt": 1798761600000\n}',
         responseSchema: 'ApiTokenView',
         errorResponse:
           '{\n  "success": false,\n  "msg": "a token with that name already exists"\n}',

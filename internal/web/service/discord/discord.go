@@ -29,9 +29,12 @@ const (
 )
 
 // FileAttachment represents a file attachment to be uploaded with a Discord message.
+// Exactly one of Data or Reader must be provided. When Reader is set, the caller
+// retains ownership of closing any underlying file or ReadCloser.
 type FileAttachment struct {
 	Filename string
 	Data     []byte
+	Reader   io.Reader
 }
 
 // MessagePayload represents the Discord create message payload.
@@ -196,7 +199,8 @@ func (s *DiscordService) SendMessage(ctx context.Context, payload MessagePayload
 	return parseDiscordResponse(resp)
 }
 
-// SendMessageWithFiles sends a Discord message payload with optional file attachments using multipart/form-data.
+// SendMessageWithFiles sends a Discord message payload with optional file attachments
+// using streaming multipart/form-data over an io.Pipe without buffering attachments in RAM.
 func (s *DiscordService) SendMessageWithFiles(ctx context.Context, payload MessagePayload, files ...FileAttachment) error {
 	if len(files) == 0 {
 		return s.SendMessage(ctx, payload)
@@ -209,47 +213,94 @@ func (s *DiscordService) SendMessageWithFiles(ctx context.Context, payload Messa
 		return err
 	}
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
+	for i, file := range files {
+		if strings.TrimSpace(file.Filename) == "" {
+			return fmt.Errorf("discord attachment %d filename is empty", i)
+		}
+		if file.Reader != nil && file.Data != nil {
+			return fmt.Errorf("discord attachment %d (%s) cannot specify both Data and Reader", i, file.Filename)
+		}
+		if file.Reader == nil && file.Data == nil {
+			return fmt.Errorf("discord attachment %d (%s) source is nil", i, file.Filename)
+		}
+	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal discord payload: %w", err)
 	}
 
-	if err := writer.WriteField("payload_json", string(payloadBytes)); err != nil {
-		return fmt.Errorf("write payload_json: %w", err)
-	}
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+	contentType := writer.FormDataContentType()
 
-	for i, file := range files {
-		part, err := writer.CreateFormFile(fmt.Sprintf("files[%d]", i), file.Filename)
-		if err != nil {
-			return fmt.Errorf("create form file part %d: %w", i, err)
-		}
-		if _, err := part.Write(file.Data); err != nil {
-			return fmt.Errorf("write form file part %d: %w", i, err)
-		}
-	}
+	writeErrCh := make(chan error, 1)
+	go func() {
+		var writeErr error
+		defer func() {
+			if writeErr != nil {
+				_ = pw.CloseWithError(writeErr)
+			} else {
+				_ = pw.Close()
+			}
+			writeErrCh <- writeErr
+		}()
 
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("close multipart writer: %w", err)
-	}
+		if err := writer.WriteField("payload_json", string(payloadBytes)); err != nil {
+			writeErr = fmt.Errorf("write payload_json: %w", err)
+			return
+		}
+		for i, file := range files {
+			part, err := writer.CreateFormFile(fmt.Sprintf("files[%d]", i), file.Filename)
+			if err != nil {
+				writeErr = fmt.Errorf("create form file part %d: %w", i, err)
+				return
+			}
+			src := file.Reader
+			if src == nil {
+				src = bytes.NewReader(file.Data)
+			}
+			if _, err := io.Copy(part, src); err != nil {
+				writeErr = fmt.Errorf("write form file part %d: %w", i, err)
+				return
+			}
+		}
+		if err := writer.Close(); err != nil {
+			writeErr = fmt.Errorf("close multipart writer: %w", err)
+			return
+		}
+	}()
 
 	endpoint := fmt.Sprintf("%s/channels/%s/messages", s.getBaseURL(), channelID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, pr)
 	if err != nil {
+		_ = pr.CloseWithError(err)
+		if writeErr := <-writeErrCh; writeErr != nil && !errors.Is(writeErr, io.ErrClosedPipe) {
+			return fmt.Errorf("create discord request: %w (stream: %w)", err, writeErr)
+		}
 		return fmt.Errorf("create discord request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bot "+cleanToken)
 	req.Header.Set("User-Agent", discordUserAgent)
 
-	resp, err := s.getClient().Do(req)
-	if err != nil {
-		return fmt.Errorf("discord request failed: %w", err)
+	resp, reqErr := s.getClient().Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
 	}
-	defer resp.Body.Close()
+	_ = pr.Close()
+	writeErr := <-writeErrCh
+
+	if reqErr != nil {
+		if writeErr != nil && !errors.Is(writeErr, io.ErrClosedPipe) {
+			return fmt.Errorf("discord upload stream failed: %w (request: %w)", writeErr, reqErr)
+		}
+		return fmt.Errorf("discord request failed: %w", reqErr)
+	}
+	if writeErr != nil && !errors.Is(writeErr, io.ErrClosedPipe) {
+		return writeErr
+	}
 
 	return parseDiscordResponse(resp)
 }

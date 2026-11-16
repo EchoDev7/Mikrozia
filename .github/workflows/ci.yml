@@ -314,8 +314,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: shellcheck
         run: |
-          shellcheck --severity=style DockerInit.sh DockerEntrypoint.sh deploy/test/smoke-noninteractive.sh
-          shellcheck --severity=error install.sh update.sh x-ui.sh
+          shellcheck --severity=style DockerInit.sh DockerEntrypoint.sh scripts/build/verify-xray-checksum.sh scripts/build/verify-mtg-checksum.sh scripts/build/verify-mikrozia-version.sh
+          shellcheck --severity=error x-ui.sh
 
   frontend:
     runs-on: ubuntu-latest

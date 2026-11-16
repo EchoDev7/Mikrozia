@@ -20,8 +20,7 @@ import (
 // ServerProvider abstracts server status and database backup operations.
 type ServerProvider interface {
 	GetStatus(lastStatus *service.Status) *service.Status
-	GetDb() ([]byte, error)
-	BackupFilename(requestHost string) string
+	PrepareBackup(ctx context.Context, requestHost string) (*service.DatabaseArtifact, error)
 }
 
 // InboundProvider abstracts inbound management operations.
@@ -29,8 +28,9 @@ type InboundProvider interface {
 	GetAllInbounds() ([]*model.Inbound, error)
 }
 
-// BuildReport constructs the status report payload and backup attachments.
-func (s *DiscordService) BuildReport(ctx context.Context, server ServerProvider, inbound InboundProvider) (MessagePayload, []FileAttachment, error) {
+// BuildReport constructs the status report payload. Backup preparation and
+// upload are handled separately in SendReport so no open file handles escape.
+func (s *DiscordService) BuildReport(ctx context.Context, server ServerProvider, inbound InboundProvider) (MessagePayload, error) {
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "3x-ui"
@@ -164,44 +164,59 @@ func (s *DiscordService) BuildReport(ctx context.Context, server ServerProvider,
 		Embeds: []Embed{embed},
 	}
 
-	var files []FileAttachment
-	backupEnabled, err := s.settingService.GetDiscordBotBackup()
-	if err == nil && backupEnabled && server != nil {
-		dbData, err := server.GetDb()
-		if err != nil {
-			logger.Warning("Discord report: failed to get DB backup: ", err)
-		} else if len(dbData) > 0 {
-			filename := server.BackupFilename("")
-			if filename == "" {
-				filename = "x-ui.db"
-			}
-			files = append(files, FileAttachment{
-				Filename: filename,
-				Data:     dbData,
-			})
-		}
-
-		configPath := xray.GetConfigPath()
-		if configData, err := os.ReadFile(configPath); err == nil && len(configData) > 0 {
-			files = append(files, FileAttachment{
-				Filename: "config.json",
-				Data:     configData,
-			})
-		}
-	}
-
-	return payload, files, nil
+	return payload, nil
 }
 
-// SendReport generates and sends the periodic report to Discord.
+// SendReport generates and sends the periodic report to Discord, followed by
+// file-backed backup attachments when Discord backup is enabled.
 func (s *DiscordService) SendReport(ctx context.Context, server ServerProvider, inbound InboundProvider) error {
-	payload, files, err := s.BuildReport(ctx, server, inbound)
+	payload, err := s.BuildReport(ctx, server, inbound)
 	if err != nil {
 		return fmt.Errorf("build discord report: %w", err)
 	}
 	// Separate messages: a backup over Discord's upload cap must not drop the report with it.
 	if err := s.SendMessage(ctx, payload); err != nil {
 		return err
+	}
+	return s.sendReportBackup(ctx, server)
+}
+
+func (s *DiscordService) sendReportBackup(ctx context.Context, server ServerProvider) error {
+	backupEnabled, err := s.settingService.GetDiscordBotBackup()
+	if err != nil || !backupEnabled || server == nil {
+		return nil
+	}
+
+	var files []FileAttachment
+	artifact, err := server.PrepareBackup(ctx, "")
+	if artifact != nil {
+		defer artifact.Cleanup()
+	}
+	if err != nil {
+		logger.Warning("Discord report: failed to get DB backup: ", err)
+	} else if artifact != nil {
+		dbFile, openErr := artifact.Open()
+		if openErr != nil {
+			logger.Warning("Discord report: failed to open DB backup: ", openErr)
+		} else {
+			defer func() { _ = dbFile.Close() }()
+			filename := artifact.Filename
+			if filename == "" {
+				filename = "x-ui.db"
+			}
+			files = append(files, FileAttachment{
+				Filename: filename,
+				Reader:   dbFile,
+			})
+		}
+	}
+
+	configPath := xray.GetConfigPath()
+	if configData, err := os.ReadFile(configPath); err == nil && len(configData) > 0 {
+		files = append(files, FileAttachment{
+			Filename: "config.json",
+			Data:     configData,
+		})
 	}
 	if len(files) == 0 {
 		return nil

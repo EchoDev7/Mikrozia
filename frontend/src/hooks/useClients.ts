@@ -290,7 +290,6 @@ export function useClients(options: UseClientsOptions = {}) {
     ],
   );
 
-  const ipLimitEnable = !!defaults.ipLimitEnable;
   const tgBotEnable = !!defaults.tgBotEnable;
   const expireDiff = ((defaults.expireDiff as number) ?? 0) * 86400000;
   const trafficDiff = ((defaults.trafficDiff as number) ?? 0) * 1073741824;
@@ -863,7 +862,6 @@ export function useClients(options: UseClientsOptions = {}) {
     fetched,
     fetchError,
     subSettings,
-    ipLimitEnable,
     tgBotEnable,
     expireDiff,
     trafficDiff,

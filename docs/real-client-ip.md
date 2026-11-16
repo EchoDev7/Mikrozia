@@ -2,12 +2,14 @@
 
 When an Xray inbound sits behind an intermediary — a CDN like Cloudflare, an L4 tunnel/relay,
 or another panel — the IP that Xray sees is the **intermediary's** address, not the visitor's.
-That intermediary IP is what shows up in the panel's online/IP view and what the per-client
-**IP limit** counts against, which makes both useless behind a proxy.
+That intermediary IP is what shows up in the panel's online/IP view, which makes the record
+misleading behind a proxy.
 
-Xray-core can recover the real visitor IP. 3x-ui exposes the two mechanisms in the inbound form
-and feeds the recovered IP into the same pipeline that drives IP-limit enforcement, the online
-list, and multi-node sync — so once it is set, everything downstream just works.
+Xray-core can recover the real visitor IP. Mikrozia exposes the two mechanisms in the inbound
+form and feeds the recovered IP into the online list, per-client IP logging, and multi-node
+sync — so once it is set, the recorded address is the visitor's. Mikrozia observes and records
+source IPs only; it does not enforce per-client IP counts (see
+[Security](content/docs/en/operations/security.mdx)).
 
 ## Where to set it
 

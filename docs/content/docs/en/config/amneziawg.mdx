@@ -1,6 +1,6 @@
 ---
 title: AmneziaWG
-description: Configure embedded or optional Linux kernel AmneziaWG inbounds in 3x-ui.
+description: Configure userspace AmneziaWG inbounds and outbounds in Mikrozia.
 icon: Lock
 ---
 
@@ -11,14 +11,14 @@ plain WireGuard is blocked but a WireGuard-shaped tunnel with a different
 fingerprint gets through.
 
 <Callout type="info">
-  AmneziaWG runs **embedded in the panel process** — `amneziawg-go` over a
-  userspace (gVisor) network stack, not a kernel module. There is no DKMS
-  build, no Secure Boot conflict, and no host network/kernel access
-  requirement, so it works the same way inside a container as on bare
-  metal. Each peer's decapsulated traffic relays into its own loopback Xray
-  SOCKS5 inbound, so a peer's routing, sniffing, and per-client stats all
-  come from Xray's own machinery — the same as any other protocol's
-  inbound, not a separate code path.
+  AmneziaWG runs **embedded in the panel process** using `amneziawg-go` over a
+  userspace (gVisor) network stack with no dependency on a host kernel module,
+  `/dev/net/tun`, `privileged=yes`, `nftables`, or `iptables`. The userspace
+  architecture is designed for restricted containers and has been validated in
+  the `linux/amd64` container image; an end-to-end handshake on live RouterOS
+  CHR remains a documented hardware-validation step. Each peer's decapsulated
+  traffic relays into its own loopback Xray SOCKS5 inbound, so routing,
+  sniffing, and per-client stats come from Xray's own machinery.
 </Callout>
 
 ## Key settings
@@ -46,7 +46,7 @@ value defeats the point, since DPI can fingerprint it over time.
 | **S1/S2**    | Padding added to the handshake init/response packets, `0`-`1552` / `0`-`1608`: the packets are `148 + S1` and `92 + S2` bytes and must fit the 1700-byte receive buffer amneziawg-go uses on iOS. The panel also rejects `S1 + 56 = S2`, which would give both packets the same size on the wire (amneziawg-go itself accepts it). An AmneziaWG outbound takes the remote server's values as they are, up to `65535`. |
 | **S3**       | Cookie-reply padding, `0`-`1636`: the reply is `64 + S3` bytes and must fit the 1700-byte receive buffer amneziawg-go uses on iOS. An outbound, as with S1/S2, takes the remote server's value up to `65535`. |
 | **S4**       | Transport (data) packet padding, `0`-`32`.                                    |
-| **H1-H4**    | Header values that replace WireGuard's message-type field. Each is a single integer or a `low-high` range, and the four must not overlap — amneziawg-go and the kernel module refuse the whole device otherwise. `1`-`4` are WireGuard's own types and the engine default for a blank field: valid, but without a HeaderProtectionKey the type field then reads like plain WireGuard. |
+| **H1-H4**    | Header values that replace WireGuard's message-type field. Each is a single integer or a `low-high` range, and the four must not overlap — amneziawg-go refuses the whole device otherwise. `1`-`4` are WireGuard's own types and the engine default for a blank field: valid, but without a HeaderProtectionKey the type field then reads like plain WireGuard. |
 | **I1-I5**    | Optional signature packets — random bytes prepended before the handshake, e.g. `<r 148>`. Generated sets fill `I1` only, matching Amnezia's own generator. |
 | **HeaderProtectionKey** | A base64 32-byte key for the 3.0 header-protection mechanism. Must match on every client config; blank disables it. |
 | **ContentPaddingAddition** | A single integer or `low-high` byte range of extra padding on content packets. Kept `<= 64` by the generator so a 1420-MTU tunnel doesn't fragment. |
@@ -116,53 +116,33 @@ the server.
 
 </Steps>
 
-In the **embedded** backend, each peer relays into its own loopback SOCKS5
-inbound, tagged with the AmneziaWG inbound's tag. Its traffic therefore uses
-Xray routing and appears on the [Routing](/docs/operations/outbounds-routing)
-page, like other Xray inbounds.
+In the embedded **userspace** backend (`amneziawg-go` + gVisor netstack), each
+peer relays into its own loopback SOCKS5 inbound tagged with the AmneziaWG
+inbound's tag. Its traffic therefore uses Xray routing and appears on the
+[Routing](/docs/operations/outbounds-routing) page like other Xray inbounds,
+with support for per-client IPv6, forwarded ports, and Xray sniffing.
 
-## Optional Linux kernel backend
+## Userspace-only architecture & legacy migration
 
-The embedded backend remains the default. On a supported Linux host, an
-administrator can opt an individual inbound into the kernel backend with
-**Kernel mode**. The panel then creates an `xui-awg<id>` interface on the
-AmneziaWG kernel module, configures it with `awg setconf`, and masquerades
-peer traffic out of the host NIC with an nftables table of its own
-(`xui_awg<id>`). Peer traffic bypasses Xray. Nothing runs through a shell:
-every step is a direct `ip`, `awg` or `nft` command, and the interface's
-config lives in a panel-private directory (`/etc/x-ui/amneziawg` on a standard
-install), never next to your own `awg-quick` configs.
+Mikrozia does **not** include, build, or support a kernel-module backend for
+AmneziaWG (`amneziawg.ko`). RouterOS Container does not permit loading
+out-of-tree kernel modules, so all AmneziaWG inbounds run exclusively through
+the userspace `amneziawg-go` engine inside the panel process.
 
-Kernel mode requires a Linux host running the panel as root, with the
-`amneziawg` module installed and `awg`, `ip` and `nft` available. The
-readiness panel reports missing host requirements and provides the install
-command. On a standard install, run
-`sudo /usr/local/x-ui/x-ui install-awg-kernel`. The bundled command builds a
-pinned, commit-verified release of the module and tools on Debian and Ubuntu;
-kernel headers and, when Secure Boot is enabled, module signing must be
-available. Review the script and host changes before running it.
-
-The panel enables IPv4 forwarding and, when `iptables` is installed, adds two
-`FORWARD` accept rules per interface (commented `3x-ui:xui-awg<id>`), so a host
-whose `FORWARD` policy is `DROP` — as Docker and ufw set it — still forwards
-the tunnel. A firewall that drops forwarded traffic in its own nftables table,
-such as firewalld, still needs a rule from you.
-
-Kernel mode is not supported in Docker. Embedded mode continues to work in
-containers. The kernel backend does not support Xray routing or sniffing,
-per-client IPv6, client port forwarding, or a pinned listen address; the panel
-rejects saves that request those features. On a multi-node setup the master
-checks that the target node supports kernel mode before pushing such an
-inbound, and the node checks its own host when it applies it.
-
-Stopping the panel records the interfaces' final traffic and then tears them
-down, exactly as the embedded backend stops: a stopped panel enforces no quota
-or expiry, so nothing keeps forwarding. A panel-only restart (`SIGHUP`) leaves
-them running. If the panel process dies instead, the next start adopts the
-surviving interfaces; traffic between the crash and the first counter read
-after it is not charged. Interfaces and configs the panel cannot prove are its
-own — a same-named link with a different key, or an unmarked, non-regular or
-symlinked config file — are never changed or removed.
+- **Lossless startup migration:** On startup, Mikrozia transactionally removes
+  only `server.kernelMode` from stored AmneziaWG inbound settings while
+  preserving keys, subnet settings, flat obfuscation fields, clients
+  (`allowedIPs`, `forwardedPorts`, quotas, expiry, enable state), unknown JSON
+  properties, 64-bit integer precision, inbound columns, and `client_traffics`
+  rows (verified by idempotency and rollback migration tests against both
+  current and legacy stored shapes).
+- **API compatibility guard:** Inbound API payloads that omit `kernelMode` or
+  supply `"kernelMode": false` are accepted and normalized to userspace;
+  requests specifying `"kernelMode": true` are rejected explicitly.
+- **Hardware validation status:** Unit tests, startup migration tests, and the
+  `linux/amd64` Docker container smoke test pass. Live RouterOS CHR hardware
+  has not yet been tested end-to-end and remains a documented
+  **Hardware Validation Gap**.
 
 ## Keepalive ranges
 

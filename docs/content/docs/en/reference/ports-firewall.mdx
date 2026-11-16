@@ -1,36 +1,59 @@
 ---
 title: Ports & Firewall
-description: The ports 3x-ui uses by default and ready-made ufw / nftables rules to open them.
+description: Ports Mikrozia listens on inside the RouterOS container. All firewall, NAT, port-forwarding, and access policy is managed by the RouterOS administrator.
 icon: Network
 ---
 
-Open only the ports you actually use. Below are the common ones and a generator
-for `ufw` and `nftables` rules.
+Mikrozia listens on a small set of ports **inside** the container. It never
+creates or changes RouterOS firewall, NAT, masquerade, port-forwarding, routing,
+or access-control rules, and the image contains no `ufw`, `iptables`, or
+`nftables`.
 
-## Common ports
+## Ports inside the container
 
-| Port (default) | Purpose                                   |
-| -------------- | ----------------------------------------- |
-| `22`           | SSH (keep this open!).                     |
-| `2053`         | Panel (configurable).                     |
-| `2096`         | Subscription server (if separate).        |
-| `443`          | A common inbound port (TLS / REALITY).    |
-| `80` / `443`   | Reverse proxy (if you run one).           |
+| Port (default) | Purpose |
+| -------------- | ------- |
+| `2053` | Panel (configurable in Panel Settings) |
+| `2096` | Subscription server (if enabled) |
+| inbound ports | Every port you assign to an Xray inbound |
 
-Your actual inbound ports depend on the inbounds you create.
+The container address in the beginner layout is `172.16.10.2`.
 
-## Generate firewall rules
+## Network policy is yours
 
-<FirewallRulesGenerator />
+Decide in RouterOS how these ports are reached:
+
+- which interface or address list may reach the panel;
+- whether and how an inbound port is forwarded to `172.16.10.2`;
+- how the container reaches the internet;
+- drop, rate-limit, and logging policy.
+
+Mikrozia documents the required ports but does not automate any of these steps.
+Follow MikroTik's RouterOS documentation for firewall, NAT, and routing.
 
 <Callout type="warn">
-  Always keep SSH allowed before enabling a default-deny policy, and test from a
-  second session so you don't lock yourself out.
+  Keep management access to RouterOS itself working before you apply any
+  restrictive policy. Test from a second session so you do not lock yourself
+  out.
 </Callout>
+
+## Verify from inside
+
+If a client cannot connect, first confirm the panel and Xray are running inside
+the container:
+
+```text
+/container/print detail where comment="[Mikrozia:container] Container"
+/log/print follow-only where topics~"container"
+```
+
+Then confirm your RouterOS policy actually delivers traffic to the container
+address and port. See [Troubleshooting](/docs/help/troubleshooting).
 
 ## Related
 
 <Cards>
-  <Card title="Security" href="/docs/operations/security" description="Fail2ban, IP limits, and hardening." />
+  <Card title="Security" href="/docs/operations/security" description="Panel hardening and the RouterOS kernel boundary." />
   <Card title="Environment variables" href="/docs/reference/env-vars" description="XUI_PORT and friends." />
+  <Card title="CHR installation" href="/docs/guide/installation" description="The supported RouterOS install path." />
 </Cards>

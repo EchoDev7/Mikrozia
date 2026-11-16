@@ -182,7 +182,7 @@ useful fields:
 | Field                 | Default | Meaning                                                          |
 | --------------------- | ------- | ---------------------------------------------------------------- |
 | `tcpFastOpen`         | `false` | Enable TCP Fast Open.                                            |
-| `tcpcongestion`       | `bbr`   | Congestion control: `bbr`, `cubic`, or `reno`.                  |
+| `tcpcongestion`       | _(unset)_ | Congestion control: `OS Default (Unset)` recommended (`cubic` observed on CHR; `reno` kept). New sockopt blocks no longer inject `bbr`; legacy stored `bbr` is preserved in DB, omitted from RouterOS runtime config, and removed if you select `OS Default`. Rollback to an older version may re-send stored legacy `bbr`. Userspace BBR in TUIC/QUIC/FinalMask is unaffected. |
 | `tproxy`              | `off`   | Transparent proxy mode: `off`, `redirect`, or `tproxy`.          |
 | `domainStrategy`      | `AsIs`  | How addresses resolve (`UseIP`, `ForceIPv4`, …).                 |
 | `dialerProxy`         | _(none)_| Chain this outbound's dialing through another outbound tag.      |

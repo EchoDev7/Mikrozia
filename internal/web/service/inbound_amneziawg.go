@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgkern"
 	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
@@ -199,6 +198,9 @@ func (s *InboundService) normalizeAmneziaWGSettings(inbound *model.Inbound, old 
 	}
 
 	trimmed := strings.TrimSpace(inbound.Settings)
+	if err := amneziawg.RejectLegacyKernelMode(trimmed); err != nil {
+		return err
+	}
 	if trimmed == "" || trimmed == "null" || trimmed == "{}" {
 		server, err := defaultAmneziaWGServer()
 		if err != nil {
@@ -306,35 +308,6 @@ func (s *InboundService) normalizeAmneziaWGSettings(inbound *model.Inbound, old 
 		return err
 	}
 	inbound.Settings = string(bs)
-
-	// Host readiness gates only a save that starts the kernel datapath: a host that
-	// later loses its module must still let the admin edit, disable or switch it.
-	if parsed.Server.KernelMode && inbound.NodeID == nil {
-		inst, ok := amneziawg.InstanceFromInbound(inbound)
-		if !ok {
-			inst = amneziawg.Instance{
-				Listen:           inbound.Listen,
-				IPv6Enabled:      parsed.Server.IPv6Enabled,
-				RouteThroughXray: parsed.Server.RouteThroughXray,
-			}
-			for _, client := range parsed.Clients {
-				if client.Enable {
-					inst.Peers = append(inst.Peers, amneziawg.Peer{
-						AllowedIPs:     client.AllowedIPs,
-						ForwardedPorts: client.ForwardedPorts,
-					})
-				}
-			}
-		}
-		check := amneziawgkern.ValidateInstanceFeatures
-		wasRunningKernel := old != nil && old.Enable && amneziawgKernelModeSettings(old.Settings)
-		if inbound.Enable && !wasRunningKernel {
-			check = amneziawgkern.Preflight
-		}
-		if err := check(inst, inst.RouteThroughXray); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -421,9 +394,6 @@ func (s *InboundService) checkForwardedPortsConflict(ctx portConflictContext, fo
 		var socksPort int
 		switch ib.Protocol {
 		case model.AmneziaWG:
-			if amneziawgKernelMode(ib) {
-				continue
-			}
 			socksPort = amneziawgnet.SOCKSPortForInbound(ib.Id)
 		case model.TUIC:
 			socksPort = tuic.SOCKSPortForInbound(ib.Id)

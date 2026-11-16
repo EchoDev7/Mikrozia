@@ -54,7 +54,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
         # Release CI injects the freshly built local image. Never pull the new
         # release tag before it has passed tests and been published.
         cls.test_image = os.environ.get(
-            "MIKROZIA_TEST_IMAGE", "majlot/mikrozia:v3.11.0-mikrozia.4"
+            "MIKROZIA_TEST_IMAGE", "majlot/mikrozia:v1-mikrozia"
         )
         if cls.docker_available:
             images = subprocess.run(["docker", "images", "-q", cls.test_image], capture_output=True, text=True).stdout.strip()

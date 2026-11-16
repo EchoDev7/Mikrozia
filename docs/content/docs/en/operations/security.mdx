@@ -1,6 +1,6 @@
 ---
 title: Security
-description: Harden 3x-ui — panel auth and 2FA, Fail2ban IP limits, firewall rules, BBR, and staying current.
+description: Harden the panel — authentication and 2FA, RouterOS-managed network policy, kernel boundaries, and image-based updates.
 icon: ShieldCheck
 ---
 
@@ -17,50 +17,45 @@ A proxy panel is a high-value target. A few layers of hardening go a long way.
 
 See [First login](/docs/guide/first-login) for the full checklist.
 
-## Fail2ban & IP limits
+## Client IP logging
 
-Set an **IP limit** per client (see [Clients](/docs/config/clients)) to cap the
-number of simultaneous source IPs. Enforcement is handled by **Fail2ban**, which
-3x-ui installs and configures for you (enabled by default on script installs, and
-on Docker via `XUI_ENABLE_FAIL2BAN=true`).
+The panel records the source IPs it observes for each client through the Xray
+online-stats API (see [Clients](/docs/config/clients)). This is observation only:
+a RouterOS container cannot install or run Fail2ban, `iptables`, or `nftables`,
+and Mikrozia never creates or changes RouterOS firewall rules. Limiting the
+number of simultaneous source IPs per client is therefore the RouterOS
+administrator's responsibility.
 
-Manage it from the `x-ui` menu (**22 — IP Limit Management**): install/configure,
-change the ban duration (default **30 minutes**), ban/unban an IP, view ban logs,
-and check status. Under the hood:
+`limitIp` values stored by earlier versions are preserved as-is. They are not
+applied by the panel and are not reset, zeroed, or reinterpreted during upgrade,
+migration, backup, or restore.
 
-- The jail is named **`3x-ipl`**; ban logs live at `/var/log/x-ui/3xipl.log` and
-  `/var/log/x-ui/3xipl-banned.log` (also via `x-ui banlog`).
-- Bans cover all TCP/UDP **except** your SSH and panel ports, so a ban can't lock
-  you out of the server or panel.
+## Network policy
 
-<Callout type="warn">
-  On Docker, Fail2ban bans with `iptables`, which needs the `NET_ADMIN` (and
-  `NET_RAW`) capability — `docker-compose.yml` grants them. With a bare
-  `docker run`, add `--cap-add=NET_ADMIN --cap-add=NET_RAW` or bans are logged
-  but never applied.
-</Callout>
-
-## Firewall
-
-Open only the ports you actually use: SSH, the panel port, the subscription
-port, and your inbound ports. The `x-ui` menu (**23 — Firewall Management**) wraps
-`ufw`, or generate rules here:
-
-<FirewallRulesGenerator />
+Open only the ports you actually use: RouterOS management, the panel port, the
+subscription port, and your inbound ports. Mikrozia has no firewall menu and
+ships no `ufw`, `iptables`, or `nftables`; all filter, NAT, port-forwarding,
+routing, and access-control policy is configured by the RouterOS administrator.
+See [Ports & firewall](/docs/reference/ports-firewall).
 
 <Callout type="warn">
-  Make sure SSH stays allowed before enabling a default-deny firewall, or you can
-  lock yourself out. Test with a second session open.
+  Keep RouterOS management access working before you apply a restrictive policy.
+  Test from a second session so you do not lock yourself out.
 </Callout>
 
-## Network tuning (BBR)
+## Host kernel boundaries (BBR)
 
-The `x-ui` menu (**26 — Enable BBR**) toggles Google's BBR congestion control
-(`net.ipv4.tcp_congestion_control = bbr`, `net.core.default_qdisc = fq`), which
-often improves throughput on congested links.
+Mikrozia does **not** include a Host Kernel BBR menu or `sysctl` toggle in `x-ui`:
+
+- RouterOS owns the host kernel; a RouterOS Container cannot install kernel modules or change host-kernel TCP congestion algorithms (`net.ipv4.tcp_congestion_control`, `net.core.default_qdisc`).
+- Running `sysctl` inside the container cannot create a missing host-kernel congestion algorithm, and RouterOS Queue or Firewall rules cannot substitute for Kernel BBR.
+- Userspace congestion control (`bbr`) in **TUIC**, **QUIC**, and **FinalMask** is independent of the host kernel and remains preserved.
+- Xray sockopt `tcpcongestion=bbr` is kernel-dependent and remains marked for a separate compatibility audit rather than being presented as RouterOS-verified.
 
 ## Keep current
 
-Update 3x-ui and Xray-core regularly — security fixes land in new releases. Watch
-the [releases page](https://github.com/MHSanaei/3x-ui/releases) and see
-[Update & uninstall](/docs/guide/update-uninstall).
+Panel, Xray, sidecars, and Geo data are immutable image content. There is no
+in-container software updater. Security fixes arrive in a new versioned image:
+pull the new tag from Docker Hub `majlot/mikrozia`, recreate the container with
+the same `/etc/x-ui` and `/root/cert` mounts, and keep the previous image until
+the new one is verified. See [Update & uninstall](/docs/guide/update-uninstall).

@@ -1,56 +1,75 @@
 ---
-title: 认识 3x-ui
-description: 面向 Xray-core 的 Web 面板——在浏览器中管理入站、协议、客户端与订阅，无需手动编辑 JSON。
+title: 认识 Mikrozia
+description: 基于 3x-ui 面板与 Xray-core 的 RouterOS 容器产品——在浏览器中管理入站、协议、客户端与订阅。
 icon: Info
 ---
 
-**3x-ui** 是一个 Web 控制面板，运行在
-[Xray-core](https://github.com/XTLS/Xray-core)（真正负责转发流量的代理引擎）之上。
-你无需手动编写并重载 Xray 的 JSON 配置，而是通过浏览器仪表盘管理一切——入站、协议、客户端、证书、订阅。
+**Mikrozia** 是面向 [Xray-core](https://github.com/XTLS/Xray-core) 的 Web 控制面板，
+以不可变的 MikroTik RouterOS 容器镜像形式交付。你无需手写并重载 Xray 的 JSON
+配置，而是通过浏览器仪表盘管理一切——入站、协议、客户端、证书与订阅。
 
-## 各组件如何协同工作
+## 组件如何协作
 
 <Mermaid
   chart={`
 flowchart LR
-  Admin["Admin browser"] -->|HTTPS panel| Panel["3x-ui panel"]
-  Panel -->|writes config, reloads| Xray["Xray-core"]
-  Panel --- DB[("SQLite or PostgreSQL")]
-  Clients["Client apps"] -->|VLESS / VMess / Trojan / ...| Xray
-  Xray -->|proxied traffic| Internet["Internet"]
+  Admin["管理员浏览器"] -->|面板端口| ROS["RouterOS 网络策略（由用户管理）"]
+  ROS -->|容器地址| Panel["Mikrozia 面板（容器）"]
+  Panel -->|写入配置并重载| Xray["Xray-core（同一镜像）"]
+  Panel --- DB[("SQLite 或外部 PostgreSQL")]
+  Clients["客户端应用"] -->|VLESS / VMess / Trojan / ...| ROS
+  Xray -->|代理流量| Internet["互联网"]
 `}
 />
 
-- **面板**是管理层：它将你的配置存储在数据库中，渲染仪表盘，暴露 REST API，并写入实时生效的 Xray 配置。
-- **Xray-core** 是数据平面：它在你的**入站**上终结客户端连接，并将流量转发到目标地址。
-- **客户端应用**（例如 v2rayNG、Clash/Mihomo、Hiddify 等）使用面板为每个客户端生成的分享链接或订阅进行连接。
+- **面板**是管理层：把配置保存到数据库、渲染仪表盘、提供 REST API，并写入
+  运行中的 Xray 配置。
+- **Xray-core** 是数据层：在你的**入站**上接受客户端连接，并将流量转发到目标。
+- **客户端应用**（如 v2rayNG、Clash/Mihomo、Hiddify 等）使用面板为每个客户端
+  生成的分享链接或订阅进行连接。
+- **RouterOS** 负责容器运行时、网络路径以及全部防火墙、NAT 和路由策略。
 
-## 它为你提供什么
+## 你能获得什么
 
-- 一个面向所有主流协议的**入站**仪表盘——VLESS、VMess、Trojan、Shadowsocks、WireGuard、AmneziaWG、TUIC v5、Hysteria2、SOCKS、HTTP 以及 Dokodemo-door。
-- 一流的 **REALITY** 与 **XTLS-Vision** 支持，带来隐蔽、快速的传输方式。
-- **按客户端**设置的流量配额、到期日期、IP 限制、在线状态，以及一键生成分享链接 / 二维码。
-- 支持 VLESS、Clash/Mihomo 和 JSON 格式的**订阅**。
-- 运维工具：**多节点**管理、**Telegram 和 Discord 机器人**、备份、基于 Fail2ban 的 IP 限制，以及一套有文档说明的 REST API。
+- 覆盖所有主流协议的**入站**仪表盘——VLESS、VMess、Trojan、Shadowsocks、
+  WireGuard、AmneziaWG（用户态）、TUIC v5、Hysteria2、SOCKS、HTTP 和
+  Dokodemo-door。
+- 对 **REALITY** 与 **XTLS-Vision** 的一流支持，实现隐蔽且快速的传输。
+- **按客户端**的流量配额、到期时间、IP 记录、在线状态以及一键分享链接/二维码。
+- **订阅**支持 VLESS、Clash/Mihomo 与 JSON 格式。
+- 运维工具：**多节点**管理、**Telegram 与 Discord 机器人**、备份以及有文档的
+  REST API。
 
-## 底层原理
+## 它不是什么
 
-| 层级         | 技术                                         |
-| ------------ | -------------------------------------------- |
-| 后端         | Go，搭配 Gin Web 框架                        |
-| 前端         | TypeScript / React                           |
-| 数据库       | SQLite（默认）或 PostgreSQL                  |
-| 代理引擎     | Xray-core（由面板内置并管理）                |
+- 不是 Linux VPS 或 systemd 服务；没有主机安装程序、发行版软件包、tarball、
+  Windows 构建或 Docker Compose 生产路径。
+- 不是防火墙、NAT、端口转发或访问控制管理器。
+- 不是证书颁发机构或 ACME 客户端；证书按路径挂载。
+- 不会自我更新：面板、Xray、sidecar 组件与 Geo 数据只能通过替换镜像更新。
 
-默认的 SQLite 数据库位于 `/etc/x-ui/x-ui.db`，面板默认监听 **2053** 端口。两者均可配置——参见
-[首次登录](/docs/guide/first-login)和环境变量参考。
+## 内部实现
 
-## 它适合谁
+| 层       | 技术 |
+| -------- | ---- |
+| 平台     | MikroTik RouterOS 容器（参考平台 CHR x86_64） |
+| 后端     | Go 与 Gin Web 框架 |
+| 前端     | TypeScript / React |
+| 数据库   | `/etc/x-ui` 上的 SQLite（默认）或外部 PostgreSQL |
+| 代理引擎 | Xray-core（随镜像内置） |
 
-3x-ui 面向任何运行自己 Xray 服务器的人：从一台个人 VPS，到管理众多节点和客户端的运营者。如果你想拥有 Xray-core 的强大能力，又不想终日埋首于 JSON 配置文件，那么它正适合你。
+默认 SQLite 数据库位于 `/etc/x-ui/x-ui.db`，面板在容器内监听端口 **2053**。
+两者均可配置——参见[首次登录](/docs/guide/first-login)与环境变量参考。
+
+## 适用人群
+
+Mikrozia 面向希望拥有 Xray 面板、又不想放弃 RouterOS 对网络控制权的 RouterOS
+运维人员。如果你需要 systemd 的 VPS 安装，请使用上游
+[3x-ui](https://github.com/MHSanaei/3x-ui)。
 
 <Callout type="info">
-  3x-ui 是原始 X-UI 项目的增强分支，增加了更广泛的协议支持、更高的稳定性、按客户端的流量统计、多节点管理，以及许多提升使用体验的特性。
+  Mikrozia 源自 3x-ui——原始 X-UI 项目的增强分支。上游项目及其 GPL-3.0 许可证
+  均已保留并注明出处。
 </Callout>
 
-准备好安装了吗？继续阅读[安装](/docs/guide/installation)。
+准备安装？继续阅读[安装](/docs/guide/installation)。

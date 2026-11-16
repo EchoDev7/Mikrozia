@@ -16,6 +16,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
 )
 
 // A sub-node stores whatever the master pushes. A master row whose certificate
@@ -29,12 +30,13 @@ func TestNodeSyncPushSkipsOperatorTLSGuard(t *testing.T) {
 	runtime.SetManager(runtime.NewManager(runtime.LocalDeps{APIPort: func() int { return 0 }, SetNeedRestart: func() {}}))
 	t.Cleanup(func() { runtime.SetManager(prev) })
 
-	for name, scope := range map[string]string{
+	for name, rawScope := range map[string]string{
 		"node-sync":  model.ApiScopeNodeSync,
-		"node-admin": model.ApiScopeNodeAdmin,
+		"node-admin": "node-admin",
 		"admin":      model.ApiScopeAdmin,
 	} {
-		row := &model.ApiToken{Name: name, Token: crypto.HashTokenSHA256(name + "-token"), Enabled: true, Scope: scope}
+		normScope, _ := panel.NormalizeScope(rawScope)
+		row := &model.ApiToken{Name: name, Token: crypto.HashTokenSHA256(name + "-token"), Enabled: true, Scope: normScope}
 		if err := database.GetDB().Create(row).Error; err != nil {
 			t.Fatalf("seed %s token: %v", name, err)
 		}

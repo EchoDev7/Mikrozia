@@ -49,6 +49,10 @@ func toView(t *model.ApiToken) *ApiTokenView {
 	}
 }
 
+// legacyNodeAdminScope is the unexported legacy scope string accepted solely
+// for backward compatibility when creating or rotating tokens.
+const legacyNodeAdminScope = "node-admin"
+
 // NormalizeScope validates a requested scope, defaulting empty to admin so
 // callers that omit it keep the legacy full-access behavior.
 func NormalizeScope(scope string) (string, error) {
@@ -57,12 +61,10 @@ func NormalizeScope(scope string) (string, error) {
 		return model.ApiScopeAdmin, nil
 	case model.ApiScopeMonitor:
 		return model.ApiScopeMonitor, nil
-	case model.ApiScopeNodeSync:
+	case model.ApiScopeNodeSync, legacyNodeAdminScope:
 		return model.ApiScopeNodeSync, nil
-	case model.ApiScopeNodeAdmin:
-		return model.ApiScopeNodeAdmin, nil
 	default:
-		return "", common.NewError("scope must be 'admin', 'monitor', 'node-sync', or 'node-admin'")
+		return "", common.NewError("scope must be 'admin', 'monitor', or 'node-sync'")
 	}
 }
 

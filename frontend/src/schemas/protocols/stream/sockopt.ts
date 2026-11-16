@@ -15,7 +15,10 @@ export const SockoptDomainStrategySchema = z.enum([
 ]);
 export type SockoptDomainStrategy = z.infer<typeof SockoptDomainStrategySchema>;
 
-export const TcpCongestionSchema = z.enum(['bbr', 'cubic', 'reno']);
+export const TcpCongestionSchema = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+  z.enum(['bbr', 'cubic', 'reno']).optional(),
+);
 export type TcpCongestion = z.infer<typeof TcpCongestionSchema>;
 
 export const TproxyModeSchema = z.enum(['off', 'redirect', 'tproxy']);
@@ -66,7 +69,7 @@ export const SockoptStreamSettingsSchema = z.object({
   tcpKeepAliveInterval: z.number().int().min(0).default(0),
   tcpKeepAliveIdle: z.number().int().min(0).default(0),
   tcpUserTimeout: z.number().int().min(0).default(0),
-  tcpcongestion: TcpCongestionSchema.default('bbr'),
+  tcpcongestion: TcpCongestionSchema,
   V6Only: z.boolean().default(false),
   tcpWindowClamp: z.number().int().min(0).default(0),
   interface: z.string().default(''),

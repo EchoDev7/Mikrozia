@@ -7,7 +7,6 @@ import {
   ArrowUpOutlined,
   AreaChartOutlined,
   BarsOutlined,
-  CloudDownloadOutlined,
   CloudServerOutlined,
   ControlOutlined,
   FileTextOutlined,
@@ -16,7 +15,6 @@ import {
 } from '@ant-design/icons';
 
 import { formatPanelVersion } from '@/lib/panel-version';
-import { activateOnKey } from '@/utils/a11y';
 import type { Status } from '@/models/status';
 
 interface OverviewActionBarProps {
@@ -24,8 +22,6 @@ interface OverviewActionBarProps {
   isMobile: boolean;
   accessLogEnable: boolean;
   panelVersion: string;
-  latestVersion: string;
-  updateAvailable: boolean;
   onStopXray: () => void;
   onRestartXray: () => void;
   onOpenLogs: () => void;
@@ -35,8 +31,6 @@ interface OverviewActionBarProps {
   onOpenBackup: () => void;
   onOpenSystemHistory: () => void;
   onOpenXrayMetrics: () => void;
-  onOpenPanelUpdate: () => void;
-  onOpenVersionSwitch: () => void;
 }
 
 interface BarAction {
@@ -58,8 +52,6 @@ export default function OverviewActionBar({
   isMobile,
   accessLogEnable,
   panelVersion,
-  latestVersion,
-  updateAvailable,
   onStopXray,
   onRestartXray,
   onOpenLogs,
@@ -69,8 +61,6 @@ export default function OverviewActionBar({
   onOpenBackup,
   onOpenSystemHistory,
   onOpenXrayMetrics,
-  onOpenPanelUpdate,
-  onOpenVersionSwitch,
 }: OverviewActionBarProps) {
   const { t } = useTranslation();
   const stateText = t(XRAY_STATE_KEYS[status.xray.state] ?? 'pages.index.xrayStatusUnknown');
@@ -153,13 +143,7 @@ export default function OverviewActionBar({
     <span className="ov-state" data-state={status.xray.state}>
       <span className="ov-state-dot" style={{ color: status.xray.color }} />
       <span>{`${t('pages.index.xrayStatus')} · ${stateText}`}</span>
-      {hasVersion && (
-        <Tooltip title={t('pages.index.xraySwitch')}>
-          <button type="button" className="ov-state-version" onClick={onOpenVersionSwitch}>
-            {`v${status.xray.version}`}
-          </button>
-        </Tooltip>
-      )}
+      {hasVersion && <span className="ov-state-version">{`v${status.xray.version}`}</span>}
     </span>
   );
 
@@ -179,25 +163,7 @@ export default function OverviewActionBar({
         </Tooltip>
       ) : null}
 
-      {updateAvailable ? (
-        <Tag
-          className="ov-update-tag"
-          color="warning"
-          icon={<CloudDownloadOutlined aria-hidden />}
-          role="button"
-          tabIndex={0}
-          onClick={onOpenPanelUpdate}
-          onKeyDown={activateOnKey(onOpenPanelUpdate)}
-        >
-          {`${t('update')} ${formatPanelVersion(latestVersion)}`}
-        </Tag>
-      ) : (
-        <Tooltip title={t('pages.index.updatePanel')}>
-          <button type="button" className="ov-panel-version ov-mono" onClick={onOpenPanelUpdate}>
-            {formatPanelVersion(panelVersion)}
-          </button>
-        </Tooltip>
-      )}
+      <span className="ov-panel-version ov-mono">{formatPanelVersion(panelVersion)}</span>
 
       <div className="ov-bar-actions">
         {actionGroups.map((group, groupIndex) => (

@@ -1,6 +1,6 @@
 ---
 title: 安全加固
-description: 加固 3x-ui——面板认证与 2FA、Fail2ban IP 限制、防火墙规则、BBR，以及保持更新。
+description: 加固面板——认证与 2FA、由 RouterOS 管理的网络策略、内核边界，以及基于镜像的更新。
 icon: ShieldCheck
 ---
 
@@ -16,47 +16,40 @@ icon: ShieldCheck
 
 完整的检查清单请参见[首次登录](/docs/guide/first-login)。
 
-## Fail2ban 与 IP 限制
+## 客户端 IP 日志
 
-为每个客户端设置一个 **IP 限制**（参见[客户端](/docs/config/clients)），以限制同时使用的源
-IP 数量。限制的执行由 **Fail2ban** 负责，3x-ui 会为你安装并配置好它（脚本安装时默认启用，
-Docker 安装时通过 `XUI_ENABLE_FAIL2BAN=true` 启用）。
+面板通过 Xray 在线统计 API 记录它为每个客户端观察到的源 IP（参见[客户端](/docs/config/clients)）。
+这只是观察：RouterOS 容器无法安装或运行 Fail2ban、`iptables` 或 `nftables`，Mikrozia
+也绝不会创建或修改 RouterOS 防火墙规则。因此，限制每个客户端同时使用的源 IP 数量
+是 RouterOS 管理员的职责。
 
-可从 `x-ui` 菜单（**22 — IP Limit Management**）进行管理：安装/配置、修改封锁时长
-（默认 **30 分钟**）、封锁/解封某个 IP、查看封锁日志，以及检查状态。其底层机制如下：
+旧版本存储的 `limitIp` 值会原样保留。面板不会应用这些值，也不会在升级、迁移、
+备份或恢复过程中重置、清零或重新解释它们。
 
-- 该 jail 名为 **`3x-ipl`**；封锁日志位于 `/var/log/x-ui/3xipl.log` 与
-  `/var/log/x-ui/3xipl-banned.log`（也可通过 `x-ui banlog` 查看）。
-- 封锁覆盖所有 TCP/UDP，**但不包括**你的 SSH 端口和面板端口，因此封锁不会把你
-  锁在服务器或面板之外。
+## 网络策略
 
-<Callout type="warn">
-  在 Docker 上，Fail2ban 使用 `iptables` 进行封锁，这需要 `NET_ADMIN`（以及
-  `NET_RAW`）权能——`docker-compose.yml` 已授予这些权能。若使用裸的
-  `docker run`，请添加 `--cap-add=NET_ADMIN --cap-add=NET_RAW`，否则封锁只会被
-  记录但永远不会真正生效。
-</Callout>
-
-## 防火墙
-
-只开放你实际使用的端口：SSH、面板端口、订阅端口以及你的入站端口。`x-ui` 菜单
-（**23 — Firewall Management**）封装了 `ufw`，或者你也可以在此生成规则：
-
-<FirewallRulesGenerator />
+只开放你实际使用的端口：RouterOS 管理、面板端口、订阅端口以及你的入站端口。Mikrozia
+没有防火墙菜单，也不附带 `ufw`、`iptables` 或 `nftables`；所有过滤、NAT、端口转发、
+路由和访问控制策略均由 RouterOS 管理员配置。参见
+[端口与防火墙](/docs/reference/ports-firewall)。
 
 <Callout type="warn">
-  在启用默认拒绝（default-deny）的防火墙之前，请确保 SSH 始终处于放行状态，否则你
-  可能把自己锁在外面。请在保留第二个会话的情况下进行测试。
+  在应用限制性策略之前，请确保 RouterOS 管理访问仍然可用。请从第二个会话进行测试，
+  以免把自己锁在外面。
 </Callout>
 
-## 网络调优（BBR）
+## 宿主机内核边界（BBR）
 
-`x-ui` 菜单（**26 — Enable BBR**）用于切换 Google 的 BBR 拥塞控制算法
-（`net.ipv4.tcp_congestion_control = bbr`、`net.core.default_qdisc = fq`），它在拥塞链路
-上通常能提升吞吐量。
+Mikrozia 的 `x-ui` 菜单**不包含**宿主机内核 BBR 或 `sysctl` 开关：
+
+- RouterOS 拥有宿主机内核，容器无法安装内核模块，也无法修改宿主机内核 TCP 拥塞控制算法（`net.ipv4.tcp_congestion_control`、`net.core.default_qdisc`）。
+- 在容器内执行 `sysctl` 无法凭空提供内核缺失的功能，RouterOS 的 Queue 或 Firewall 规则也不能替代 Kernel BBR。
+- **TUIC**、**QUIC** 与 **FinalMask** 中的用户态 `bbr` 拥塞控制不依赖宿主机内核，已完整保留。
+- Xray sockopt 中的 `tcpcongestion=bbr` 属于内核相关选项，目前保留并等待后续独立兼容性审计。
 
 ## 保持更新
 
-定期更新 3x-ui 和 Xray-core——安全修复会随新版本发布。请关注
-[发布页面](https://github.com/MHSanaei/3x-ui/releases)，并参见
+面板、Xray、sidecar 组件和 Geo 数据都是不可变的镜像内容，容器内没有软件更新器。
+安全修复随新的版本化镜像发布：从 Docker Hub `majlot/mikrozia` 拉取新标签，使用相同的
+`/etc/x-ui` 与 `/root/cert` 挂载重新创建容器，并在验证新镜像之前保留旧镜像。参见
 [更新与卸载](/docs/guide/update-uninstall)。

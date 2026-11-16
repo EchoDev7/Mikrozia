@@ -21,6 +21,7 @@ x-ui/
 dist/
 release/
 node_modules/
+vendor/
 
 # Ignore compiled binaries
 main

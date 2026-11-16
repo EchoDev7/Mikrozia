@@ -25,3 +25,21 @@ func TestInitDBClosesThePoolItReplaces(t *testing.T) {
 		t.Fatalf("replaced pool Ping() = %v, want sql: database is closed", err)
 	}
 }
+
+// A closed pool must not remain the active dialect; IsPostgres and Dialect have
+// to fall back to configuration instead of reporting the stale driver name.
+func TestCloseDBDropsTheClosedHandle(t *testing.T) {
+	t.Setenv("XUI_DB_TYPE", "sqlite")
+	if err := InitDB(filepath.Join(t.TempDir(), "x-ui.db")); err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	if err := CloseDB(); err != nil {
+		t.Fatalf("CloseDB: %v", err)
+	}
+	if GetDB() != nil {
+		t.Fatal("CloseDB kept the closed pool as the active handle")
+	}
+	if got := Dialect(); got != "" {
+		t.Fatalf("Dialect() after CloseDB = %q, want empty", got)
+	}
+}

@@ -1,134 +1,225 @@
 ---
 title: Установка
-description: Установите 3x-ui с помощью официального скрипта (стабильная, фиксированная или dev-сборка), в автоматическом режиме / через cloud-init либо в Docker — и выберите SQLite или PostgreSQL.
+description: Установка Mikrozia в MikroTik RouterOS Container с использованием версионированного OCI-образа и постоянных монтирований.
 icon: Download
 ---
 
-3x-ui работает на широком спектре дистрибутивов Linux — Ubuntu, Debian, Armbian,
-Fedora, CentOS, RHEL, AlmaLinux, Rocky Linux, Oracle Linux, Amazon Linux,
-Virtuozzo, Arch, Manjaro, openSUSE (Tumbleweed/Leap), Alpine — а также в Windows,
-на архитектурах `amd64`, `386`, `arm64`, `armv7`, `armv6`, `armv5` и `s390x`.
+Mikrozia устанавливается **только как контейнер RouterOS**. Поддерживаемая
+платформа — MikroTik RouterOS `7.25+` с пакетом Container той же версии; CHR x86_64
+является эталонной средой для этого пути для начинающих. Mikrozia не
+устанавливается на VPS с Linux, через systemd, из tarball или архива релиза, в
+Windows или как production-стек Docker Compose.
 
 <Callout type="warn">
-  Запускайте установочный скрипт от имени **root** (или через `sudo`). Он
-  устанавливает службу, настраивает команду управления `x-ui` и включает
-  автозапуск панели при загрузке.
+  Mikrozia никогда не создаёт и не изменяет правила RouterOS для firewall, NAT,
+  port forwarding, routing, address list или access control. Эти решения
+  принимает администратор RouterOS. Mikrozia документирует только порты, которые
+  слушает внутри контейнера.
 </Callout>
 
-<Tabs items={['Script', 'Docker', 'Manual']}>
+## Требования
 
-<Tab value="Script">
+| Ресурс | Минимум | Рекомендуется |
+| ------ | ------: | ------------: |
+| RouterOS | `7.25.0` stable | последний stable |
+| Пакет Container | ровно версия RouterOS | ровно версия RouterOS |
+| RAM | 2 GiB | 4 GiB |
+| Свободное место | 2 GiB | 8 GiB и больше |
+| Архитектура | `linux/amd64` (CHR) | опубликованные `amd64`, `arm64/v8`, `arm/v7` |
 
-Официальный скрипт — рекомендуемый способ. В процессе установки он генерирует
-**случайные** имя пользователя, пароль и путь доступа (базовый веб-путь),
-настраивает службу и устанавливает команду управления `x-ui`.
+Проверьте текущее состояние перед началом:
 
-```bash title="latest stable"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+```text
+/system/resource/print
+/system/package/print
+/disk/print
 ```
 
-Чтобы установить **конкретную версию**, добавьте её тег:
+## Сначала сделайте резервную копию RouterOS
 
-```bash title="pinned version"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) v3.4.0
+```text
+/system/backup/save name=before-mikrozia password="strong-password"
+/export hide-sensitive file=before-mikrozia
 ```
 
-Чтобы установить скользящую **dev**-сборку (последний предварительный релиз по
-каждому коммиту из `main` — не стабильный релиз), передайте `dev-latest`:
+Скачайте оба файла через WinBox до любых изменений.
 
-```bash title="rolling dev build"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) dev-latest
+## Включите поддержку контейнеров
+
+1. Обновите RouterOS из канала `stable`.
+2. Скачайте **Extra packages** той же версии RouterOS и архитектуры x86 с сайта
+   MikroTik.
+3. Загрузите `container-<version>-x86.npk` через WinBox и перезагрузите устройство.
+4. Убедитесь, что пакет установлен и его версия точно совпадает с RouterOS:
+
+```text
+/system/package/print where name="container"
 ```
 
-По завершении запишите выведенные данные для входа и выполните `x-ui`, чтобы
-открыть [меню управления](/docs/guide/update-uninstall#the-x-ui-management-menu),
-а затем переходите к разделу [Первый вход](/docs/guide/first-login).
+5. Включите поддержку контейнеров в Device Mode:
 
-</Tab>
-
-<Tab value="Docker">
-
-В конфигурации Compose по умолчанию используется SQLite. Клонируйте репозиторий
-(или скопируйте его файлы `docker-compose.yml` и `Dockerfile`) и запустите:
-
-```bash
-docker compose up -d
+```text
+/system/device-mode/update container=yes
 ```
 
-Чтобы запустить со встроенной службой **PostgreSQL**, раскомментируйте две
-строки `XUI_DB_*` в `docker-compose.yml` и запустите с соответствующим профилем:
+На CHR полностью выключите и снова включите виртуальную машину из гипервизора
+(мягкая перезагрузка недостаточна). Проверьте:
 
-```bash
-docker compose --profile postgres up -d
+```text
+/system/device-mode/print
 ```
 
-Предпочитаете готовый образ? Он публикуется в GitHub Container Registry. Образ
-включает Fail2ban (для [ограничений по IP](/docs/operations/security)), который
-блокирует через `iptables` и поэтому требует `NET_ADMIN` (а для IPv6 — ещё и
-`NET_RAW`); в противном случае блокировки логируются, но никогда не применяются:
+`container` должен быть `yes`.
 
-```bash title="docker run"
-docker run -d \
-  --cap-add=NET_ADMIN \
-  --cap-add=NET_RAW \
-  -e XUI_ENABLE_FAIL2BAN=true \
-  -v $PWD/db/:/etc/x-ui/ \
-  -v $PWD/cert/:/root/cert/ \
-  --network=host \
-  --restart=unless-stopped \
-  --name 3x-ui \
-  ghcr.io/mhsanaei/3x-ui:latest
+## Проверьте конфликты адресов
+
+Базовый путь использует `172.16.10.0/24`:
+
+```text
+172.16.10.1  мост RouterOS
+172.16.10.2  контейнер Mikrozia
 ```
 
-Том `db/` хранит базу данных SQLite (`/etc/x-ui/x-ui.db`), а `cert/` — TLS-сертификаты,
-поэтому ваши данные сохраняются при обновлениях.
+Если эта подсеть, имя моста или имя VETH уже заняты, не используйте их повторно.
+Выберите свободные значения и применяйте их согласованно во всех командах ниже.
 
-</Tab>
-
-<Tab value="Manual">
-
-Опытные пользователи могут скачать архив релиза для своей архитектуры со
-[страницы релизов](https://github.com/MHSanaei/3x-ui/releases), распаковать его и
-запустить бинарный файл как службу systemd. Установочный скрипт автоматизирует
-ровно эти шаги, поэтому он предпочтительнее, если только у вас нет особой причины
-устанавливать вручную.
-
-</Tab>
-
-</Tabs>
-
-## Сформируйте команду установки
-
-Подстройте команду под свою конфигурацию:
-
-<InstallCommandBuilder />
-
-## Выберите базу данных
-
-Хранилище выбирается на этапе установки:
-
-- **SQLite** (по умолчанию) — единственный файл по пути `/etc/x-ui/x-ui.db`. Без
-  какой-либо настройки.
-- **PostgreSQL** — для большого числа клиентов или конфигураций с несколькими
-  узлами. Установщик может развернуть её локально либо использовать
-  предоставленный вами DSN.
-
-Подробности и миграцию SQLite→PostgreSQL см. в разделе [База данных](/docs/reference/database).
-
-## Автоматическая установка / cloud-init
-
-Установщик также работает **в неинтерактивном режиме** для автоматизации.
-Задайте `XUI_NONINTERACTIVE=1` (или запустите без TTY), и он выполнит установку
-от начала до конца без единого запроса, сгенерировав случайные учётные данные и
-записав их в `/etc/x-ui/install-result.env`:
-
-```bash
-XUI_NONINTERACTIVE=1 bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+```text
+/ip/address/print
+/ip/route/print
+/interface/bridge/print
+/interface/veth/print
 ```
 
-В каталоге [`deploy/`](https://github.com/MHSanaei/3x-ui/tree/main/deploy)
-репозитория есть готовые **cloud-init** user-data для автоматической установки в
-любом облаке (Hetzner, AWS, DigitalOcean, Vultr, GCP, Azure, Oracle).
+## Установите версионированный образ
+
+Mikrozia публикуется как мультиархитектурный OCI-образ в Docker Hub. Для
+production используйте версионированный тег; `latest` — только удобный псевдоним:
+
+```text
+majlot/mikrozia:v1-mikrozia
+```
+
+<Callout type="warn">
+  Эти инструкции соответствуют текущему контракту контейнеров RouterOS `7.25`.
+  Приёмка на чистом CHR для P1-CHR-01 ещё не завершена, поэтому проверьте весь
+  путь на одноразовом CHR до production. Реальная приёмка на CHR здесь не
+  заявляется.
+</Callout>
+
+Выполняйте команды по порядку в терминале RouterOS или WinBox. Они создают
+только объекты, принадлежащие Mikrozia, с меткой `[Mikrozia:container]`.
+
+### 1. Создайте постоянные каталоги
+
+`data` монтируется в `/etc/x-ui`, `cert` — в `/root/cert`, а `tmp` используется
+для временного пространства распаковки. Каталог версии RootFS создаёт RouterOS во
+время распаковки. Если каталог уже существует, пропустите его строку
+`/file/add`.
+
+```text
+/file/add name=containers type=directory
+/file/add name=containers/mikrozia type=directory
+/file/add name=containers/mikrozia/data type=directory
+/file/add name=containers/mikrozia/cert type=directory
+/file/add name=containers/mikrozia/tmp type=directory
+```
+
+### 2. Создайте мост и VETH
+
+```text
+/interface/bridge/add name=br-mikrozia comment="[Mikrozia:container] Bridge"
+/ip/address/add address=172.16.10.1/24 interface=br-mikrozia comment="[Mikrozia:container] Gateway"
+/interface/veth/add name=veth-mikrozia address=172.16.10.2/24 gateway=172.16.10.1 comment="[Mikrozia:container] VETH"
+/interface/bridge/port/add bridge=br-mikrozia interface=veth-mikrozia comment="[Mikrozia:container] Bridge Port"
+```
+
+### 3. Добавьте монтирования и переменные окружения
+
+```text
+/container/mounts/add list=MIKROZIA_DATA src=containers/mikrozia/data dst="/etc/x-ui" comment="[Mikrozia:container] Data Mount"
+/container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
+/container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+```
+
+### 4. Настройте registry и добавьте контейнер
+
+`/container/config/set` изменяет только registry и каталог распаковки.
+Версионированный тег закреплён в `/container/add`; `memory-high`, `memory-max` и
+`start-on-boot` соответствуют контракту runtime.
+
+```text
+/container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
+/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+```
+
+Эти команды не добавляют правила firewall, NAT, masquerade, port forwarding или
+routing. Исходящий доступ и доступ к панели остаются решениями администратора
+RouterOS.
+
+## Дождитесь распаковки и запустите
+
+```text
+/container/print detail
+/log/print follow-only where topics~"container"
+```
+
+Распаковка может занять несколько минут. Не удаляйте контейнер и не выключайте CHR
+до её завершения. Затем запустите:
+
+```text
+/container/start [find where comment="[Mikrozia:container] Container"]
+/container/print detail where comment="[Mikrozia:container] Container"
+```
+
+Состояние должно быть `running`.
+
+## Доступ к панели
+
+Панель слушает `2053/TCP` **внутри** контейнера (`172.16.10.2`). То, как этот порт
+становится доступным из вашей сети управления, — часть вашего дизайна сети
+RouterOS; Mikrozia не публикует и не перенаправляет его за вас. См.
+[Порты и firewall](/docs/reference/ports-firewall).
+
+## Первоначальные учётные данные
+
+При первой загрузке панель генерирует случайные имя пользователя и пароль и один
+раз выводит их в лог контейнера:
+
+```text
+/log/print where topics~"container"
+```
+
+Ищите `Username:` и `Password:`. Если лог утерян, откройте оболочку контейнера и
+сбросьте их:
+
+```text
+/container/shell [find where comment="[Mikrozia:container] Container"]
+```
+
+```sh
+/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
+exit
+```
+
+Затем переходите к разделу [Первый вход](/docs/guide/first-login).
+
+## База данных
+
+SQLite используется по умолчанию и хранит один файл в `/etc/x-ui/x-ui.db` на
+постоянном монтировании. Внешний PostgreSQL необязателен и настраивается через
+RouterOS `/container/envs` (`XUI_DB_TYPE=postgres` и `XUI_DB_DSN`); Mikrozia
+никогда не устанавливает сервер базы данных внутри контейнера. См.
+[База данных](/docs/reference/database).
+
+## Настройка значений
+
+Если имена, подсеть или путь хранения по умолчанию конфликтуют с вашей
+настройкой RouterOS, измените их согласованно во всех командах выше: мост, VETH,
+IP-адреса, каталоги, источники монтирований и `mountlists`. Сохраняйте метки
+`[Mikrozia:container]`, чтобы команды lifecycle и удаления находили принадлежащие
+Mikrozia объекты. Не используйте конфликтующую подсеть и не переименовывайте
+существующий объект RouterOS.
 
 ## Дальнейшие шаги
 
@@ -141,11 +232,11 @@ XUI_NONINTERACTIVE=1 bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/
   <Card
     title="Обновление и удаление"
     href="/docs/guide/update-uninstall"
-    description="Меню x-ui, обновления и удаление."
+    description="Замените образ и сохраните монтирования."
   />
   <Card
-    title="REALITY"
-    href="/docs/config/reality"
-    description="Настройте своё первое скрытное входящее подключение."
+    title="TLS-сертификаты"
+    href="/docs/config/ssl-certificates"
+    description="Сертификаты управляются пользователем и монтируются по пути."
   />
 </Cards>
