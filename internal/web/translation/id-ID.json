@@ -1394,6 +1394,9 @@
       "telegramBotLanguage": "Bahasa Bot Telegram",
       "security": {
         "admin": "Kredensial admin",
+        "adminCredentialManagedTitle": "Akun administrator dikelola oleh lingkungan kontainer",
+        "adminCredentialManagedDescription": "Akun administrator berasal dari environment kontainer RouterOS, sehingga panel tidak dapat mengubahnya di sini. Atur MIKROZIA_ADMIN_USERNAME dan MIKROZIA_ADMIN_PASSWORD di RouterOS lalu mulai ulang kontainer.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD di /container/envs, lalu mulai ulang kontainer",
         "twoFactor": "Autentikasi dua faktor",
         "twoFactorEnable": "Aktifkan 2FA",
         "twoFactorEnableDesc": "Menambahkan lapisan autentikasi tambahan untuk keamanan lebih.",
@@ -1430,6 +1433,7 @@
         "modifySettings": "Parameter telah diubah.",
         "getSettings": "Terjadi kesalahan saat mengambil parameter.",
         "modifyUserError": "Terjadi kesalahan saat mengubah kredensial administrator.",
+        "adminCredentialManagedByEnvironment": "Kredensial administrator dikelola oleh nilai lingkungan kontainer MIKROZIA_ADMIN_USERNAME dan MIKROZIA_ADMIN_PASSWORD. Perbarui di RouterOS lalu mulai ulang kontainer.",
         "modifyUser": "Anda telah berhasil mengubah kredensial administrator.",
         "originalUserPassIncorrect": "Username atau password saat ini tidak valid",
         "userPassMustBeNotEmpty": "Username dan password baru tidak boleh kosong",

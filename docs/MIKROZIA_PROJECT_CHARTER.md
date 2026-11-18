@@ -270,6 +270,42 @@ These decisions are already accepted and must not be reversed accidentally:
   and host `syslog` backend fallback/API controls, reads only `"${log_folder}/3xui.log"`
   in `x-ui.sh` Alpine mode, and documents RouterOS `logging=yes` /
   `/log/print follow-only where topics~"container"` as read-only user guidance.
+- The panel administrator account is owned by the RouterOS Container
+  Environment: `MIKROZIA_ADMIN_USERNAME` and `MIKROZIA_ADMIN_PASSWORD` are the
+  only authoritative source for it. There is no default `admin/admin` account and
+  no generated random first-login credential printed to logs. A supplied pair is
+  reconciled onto the stored administrator account at every container start; a
+  half-supplied pair fails closed; an existing account on a database without the
+  variables is preserved unchanged; and a first install without the variables
+  refuses to start instead of creating an unknown account. Password or username
+  mutation from the panel UI or the legacy shell/CLI path is retired in
+  RouterOS mode and refuses with a truthful message pointing at the Environment
+  values. Plaintext credentials never reach logs, API responses, diagnostics,
+  documentation examples, image layers, or tests. RouterOS Environment is
+  configuration rather than a secret store and is documented as such.
+- Certificate issuance and renewal are supported product features again, with
+  exactly two official methods: HTTP-01 with a temporary, operator-owned
+  RouterOS port-80 reachability and explicitly manual renewal, and Cloudflare
+  DNS-01 with a least-privilege API token and automatic renewal. Mikrozia
+  creates, changes, and removes no RouterOS firewall, NAT, port-forward,
+  routing, address-list, or access-control rule in either method, and never
+  exports a RouterOS certificate private key into the container.
+- ACME artifacts live persistently under `/root/cert`: the account and renewal
+  state in `/root/cert/.acme.sh/`, and an issued certificate at
+  `/root/cert/<domain>/fullchain.pem` and `/root/cert/<domain>/privkey.pem`.
+  After a validated issuance or renewal the panel and subscription TLS paths
+  are updated automatically and only the listeners that actually changed are
+  reloaded; a failure preserves the previous certificate and settings. The
+  manual Public/Private Key Path fields are retained. The RouterOS
+  reverse-proxy / RouterOS-owned-certificate workflow is retired from current
+  product guidance, while live installations stay untouched until a
+  successful issuance with the replacement image.
+- Any bundled ACME tool is a pinned, checksum-verified image build input, like
+  the bundled Xray, sidecar, and Geo artifacts. Dynamic `curl | sh` installers,
+  runtime package installation, unpinned downloads, transient RootFS state,
+  and unmanaged cron daemons are not reintroduced; automatic DNS-01 renewal
+  runs from the panel's own scheduler and reuses only the persistent mounts.
+  The full contract is `docs/MIKROZIA_AUTH_ACME_SPEC.md`.
 
 New decisions should be added here only after acceptance, not while they are
 still proposals or unfinished experiments.

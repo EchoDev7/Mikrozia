@@ -7,7 +7,7 @@ LC_ALL=C
 export LC_ALL
 
 canonical_file="MIKROZIA_VERSION"
-pattern='^v([0-9]+\.[0-9]+\.[0-9]+-mikrozia\.[0-9]+|[0-9]+-mikrozia)$'
+pattern='^v([0-9]+\.[0-9]+\.[0-9]+-mikrozia(\.[0-9]+)?|[0-9]+-mikrozia)$'
 build_arg_hint='--build-arg MIKROZIA_VERSION="$(cat MIKROZIA_VERSION)"'
 
 read_canonical() {
@@ -69,7 +69,7 @@ if [ -z "$version" ]; then
 fi
 reject_whitespace "MIKROZIA_VERSION" "$version"
 if ! printf '%s\n' "$version" | grep -qxE "$pattern"; then
-    echo "ERROR: invalid MIKROZIA_VERSION '$version' (expected vMAJOR-mikrozia or vUPSTREAM.MAJOR.PATCH-mikrozia.REVISION with no whitespace)" >&2
+        echo "ERROR: invalid MIKROZIA_VERSION '$version' (expected vMAJOR-mikrozia or vMAJOR.MINOR.PATCH-mikrozia[.REVISION] with no whitespace)" >&2
     exit 1
 fi
 if [ "$version" != "$canonical" ]; then

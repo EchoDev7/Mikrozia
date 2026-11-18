@@ -35,7 +35,13 @@ class TestContainerFixes(unittest.TestCase):
         self.assertEqual(p2.returncode, 0, f"x-ui.sh syntax error: {p2.stderr}")
 
     def test_02_dockerfile_alpine_hardening(self):
-        """Verifies Dockerfile hardening and the absence of firewall or certificate-issuer tooling."""
+        """Verifies Dockerfile hardening and the absence of firewall tooling.
+
+        The image does bundle a certificate-issuer runtime: the pinned ACME
+        client and the ``socat`` helper its HTTP-01 standalone mode requires.
+        Both are build-time, version-pinned inputs, so their presence is
+        asserted instead of forbidden.
+        """
         with open(self.dockerfile_path, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -43,7 +49,9 @@ class TestContainerFixes(unittest.TestCase):
         self.assertIn("coreutils", content)
         self.assertIn("ca-certificates", content)
         self.assertIn("openssl", content)
-        self.assertNotIn("socat", content)
+        self.assertIn("socat=1.8.1.3-r0", content)
+        self.assertIn("COPY --from=builder /app/acme /usr/local/share/acme.sh", content)
+        self.assertIn("COPY --from=builder /app/ACME_SOURCES /app/ACME_SOURCES", content)
         self.assertNotIn("fail2ban", content.lower())
         self.assertNotIn("iptables", content.lower())
         self.assertNotIn("nftables", content.lower())
@@ -59,7 +67,7 @@ class TestContainerFixes(unittest.TestCase):
         self.assertIn('if [[ -f "${app_log}" ]]; then', content)
 
     def test_15_subscription_and_panel_tls_certificate_paths_consistency(self):
-        """Verifies certificate path examples use .pem files and path configuration remains the only cert UI action."""
+        """Verifies certificate path examples use .pem files and path configuration stays available."""
         overview_path = os.path.join(self.repo_root, "docs", "DOCKER_HUB_OVERVIEW.md")
         readme_path = os.path.join(self.repo_root, "README.md")
 
@@ -84,12 +92,12 @@ class TestContainerFixes(unittest.TestCase):
         self.assertIn("/root/cert/vpn.yourdomain.com/fullchain.pem", overview_content)
         self.assertIn("/root/cert/vpn.yourdomain.com/privkey.pem", overview_content)
 
-        # 3. The menu only records user-supplied paths; it never issues or renews
-        self.assertIn("TLS Certificate Paths", xui_content)
-        self.assertIn('x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"', xui_content)
+        # 3. Manual import of a user-supplied certificate stays available
+        self.assertIn("TLS Certificates", xui_content)
+        self.assertIn('"${xui_folder}/x-ui" cert -webCert "$webCertFile" -webCertKey "$webKeyFile"', xui_content)
         self.assertIn('local webCertFile="/root/cert/${domain}/fullchain.pem"', xui_content)
         self.assertIn('local webKeyFile="/root/cert/${domain}/privkey.pem"', xui_content)
-        self.assertIn("Mikrozia does not issue or renew TLS certificates", xui_content)
+        # The shell never fetches or installs an ACME client itself.
         self.assertNotIn("acme.sh", xui_content)
         self.assertNotIn("--installcert", xui_content)
 
@@ -104,7 +112,7 @@ class TestContainerFixes(unittest.TestCase):
             "MIKROZIA_VERSION must contain no whitespace",
         )
         self.assertIsNotNone(
-            re.fullmatch(r"v(?:\d+\.\d+\.\d+-mikrozia\.\d+|\d+-mikrozia)", version_expected),
+            re.fullmatch(r"v(?:\d+\.\d+\.\d+-mikrozia(?:\.\d+)?|\d+-mikrozia)", version_expected),
             "MIKROZIA_VERSION must hold a valid release tag",
         )
 
@@ -487,7 +495,9 @@ class TestContainerFixes(unittest.TestCase):
         final_stage = dockerfile.split("FROM alpine:", 1)[-1]
         self.assertIn("bash", final_stage)
         self.assertIn("ENV HOME=/root", final_stage)
-        self.assertNotIn("socat", final_stage)
+        # socat is a build-time pinned dependency of the bundled ACME client's
+        # HTTP-01 standalone mode; it is not a network-policy tool.
+        self.assertIn("socat=1.8.1.3-r0", final_stage)
 
         docker_wf_path = os.path.join(self.repo_root, ".github", "workflows", "docker.yml")
         with open(docker_wf_path, "r", encoding="utf-8") as f:
@@ -790,7 +800,7 @@ class TestContainerFixes(unittest.TestCase):
             self.assertNotIn(forbidden, xui_content, f"x-ui.sh must not contain {forbidden!r}")
 
         # C. Contiguous 0-16 menu and case dispatch.
-        self.assertIn("14.${plain} TLS Certificate Paths", xui_content)
+        self.assertIn("14.${plain} TLS Certificates", xui_content)
         self.assertIn("15.${plain} RouterOS Network Policy Notice", xui_content)
         self.assertIn("16.${plain} Database Tools", xui_content)
         self.assertIn("Please enter your selection [0-16]:", xui_content)
@@ -821,7 +831,7 @@ class TestContainerFixes(unittest.TestCase):
             self.assertNotIn("Update Geo Files", plain_out)
             self.assertNotIn("Speedtest", plain_out)
             self.assertNotIn("Cloudflare", plain_out)
-            self.assertIn("14. TLS Certificate Paths", plain_out)
+            self.assertIn("14. TLS Certificates", plain_out)
             self.assertIn("16. Database Tools", plain_out)
 
             # Invalid choice 17 must report [0-16]
@@ -847,7 +857,7 @@ class TestContainerFixes(unittest.TestCase):
             self.assertNotIn("0`–`18", upd_doc, f"{upd_path} must use the 0-16 menu range")
             self.assertNotIn("0` تا `18", upd_doc, f"{upd_path} must use the 0-16 menu range")
             self.assertIn("16", upd_doc)
-            self.assertIn("TLS Certificate Paths", upd_doc)
+            self.assertIn("TLS Certificates", upd_doc)
 
             sec_path = os.path.join(self.repo_root, "docs", "content", "docs", lang, "operations", "security.mdx")
             with open(sec_path, "r", encoding="utf-8") as f:

@@ -139,7 +139,24 @@ extraction. If a directory already exists, skip its `/file/add` line.
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+<Callout type="warn">
+  **The RouterOS Container Environment is a configuration store, not a secret
+  store.** Every value in `/container/envs` is visible to anyone who can read or
+  export the router configuration. Pick a strong administrator password, keep
+  access to the router itself restricted, and rotate the password if the
+  configuration ever left your control. Mikrozia never prints these values to
+  logs and never returns them through an API.
+</Callout>
+
+The two `MIKROZIA_ADMIN_*` values are the authoritative source of the panel
+administrator account: they must be set **together**, and the panel refuses to
+start when only one of them is present. See
+[Environment variables](/docs/reference/env-vars#administrator-credentials) for
+the full contract.
 
 ### 4. Configure the registry and add the container
 
@@ -182,23 +199,29 @@ network design; Mikrozia does not publish or forward it for you. See
 
 ## Initial credentials
 
-On first boot the panel generates a random username and password and prints them
-once to the container log:
+There is no fixed default account and no generated first-login password. The
+container environment owns the administrator account:
+
+- `MIKROZIA_ADMIN_USERNAME` and `MIKROZIA_ADMIN_PASSWORD` set → on every start
+  the stored administrator account is reconciled with those values. A changed
+  password invalidates the sessions issued with the old one.
+- Only one of them set → the panel refuses to start and names the missing
+  value. Nothing is changed.
+- Neither set, but an account already exists → the stored account is preserved
+  unchanged and the panel logs that it is managed elsewhere.
+- Neither set and no account exists → the panel refuses to start and asks for
+  both values.
+
+When the environment owns the account, the panel's password-change form is
+replaced by a notice, and `x-ui setting -username … -password …` refuses the
+change with a truthful message instead of creating a second source of truth.
+
+To change the credential later, update the two environment values and restart
+the container:
 
 ```text
-/log/print where topics~"container"
-```
-
-Look for `Username:` and `Password:`. If the log is gone, open a container
-shell and reset them:
-
-```text
-/container/shell [find where comment="[Mikrozia:container] Container"]
-```
-
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
 Then continue to [First login](/docs/guide/first-login).
@@ -236,6 +259,6 @@ RouterOS object.
   <Card
     title="TLS certificates"
     href="/docs/config/ssl-certificates"
-    description="Certificates are user-managed and mounted by path."
+    description="Issue or renew certificates with the bundled ACME client."
   />
 </Cards>

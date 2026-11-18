@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -13,11 +14,13 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 	_ "unsafe"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/crypto/nodetoken"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
+	"github.com/mhsanaei/3x-ui/v3/internal/lifecycle"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/sub"
 	"github.com/mhsanaei/3x-ui/v3/internal/tunnelmonitor"
@@ -115,14 +118,23 @@ func runWebServer() {
 	if err != nil {
 		log.Fatalf("Error initializing database: %v", err)
 	}
-	// Created here, not in InitDB: a CLI call's output is often piped away, and
-	// this log is the one place an operator reads the first login from.
-	username, password, err := database.EnsureFirstUser()
+	// The container environment owns the administrator account; a stored account
+	// is reconciled here and a missing one is never invented.
+	adminState, err := (&panel.UserService{}).ReconcileAdminAccount()
 	if err != nil {
-		log.Fatalf("Error creating the first panel user: %v", err)
+		log.Fatalf("Error reconciling the administrator account: %v", err)
 	}
-	if password != "" {
-		log.Printf("No panel user existed, so one was generated. Username: %s  Password: %s  (shown once; change it in Panel Settings)", username, password)
+	switch adminState.Source {
+	case panel.AdminCredentialMissing:
+		log.Fatalf("No administrator account exists and %s/%s are not set. Set both values in the RouterOS Container Environment and start the container again.",
+			config.AdminUsernameEnv, config.AdminPasswordEnv)
+	case panel.AdminCredentialLegacyDefault:
+		log.Fatalf("The stored administrator account still holds the legacy default credential. Set %s and %s in the RouterOS Container Environment and start the container again; the stored account is kept and is reconciled to those values.",
+			config.AdminUsernameEnv, config.AdminPasswordEnv)
+	case panel.AdminCredentialPreserved:
+		logger.Info("The administrator account is managed outside the container environment and was left unchanged.")
+	default:
+		logger.Info("The administrator account was reconciled from the container environment.")
 	}
 
 	server := web.NewServer(sub.NewLinkProvider())
@@ -141,8 +153,20 @@ func runWebServer() {
 	}
 
 	sigCh := make(chan os.Signal, 8)
+	coordinator := lifecycle.NewCoordinator()
+	global.SetCertificateReloadHook(func() error {
+		return coordinator.ReloadCertificates(func() (lifecycle.Panel, lifecycle.Subscription) { return server, subServer })
+	})
+	if os.Getenv("XUI_IN_DOCKER") == "true" {
+		closeReload, err := global.ServeCertificateReload()
+		if err != nil {
+			log.Fatal("Cannot start local certificate reload service")
+		}
+		defer closeReload()
+	}
 	// Trap shutdown signals
 	signal.Notify(sigCh, syscall.SIGHUP, syscall.SIGTERM, sys.SIGUSR1, os.Interrupt)
+	defer signal.Stop(sigCh)
 	global.SetRestartHook(func() {
 		select {
 		case sigCh <- syscall.SIGHUP:
@@ -162,7 +186,7 @@ func runWebServer() {
 
 		monitor, err := tunnelmonitor.New(monitorCfg, func(_ context.Context) error {
 			logger.Warning("Tunnel health monitor threshold reached, restarting xray-core")
-			return server.RestartXray()
+			return coordinator.Run("tunnel monitor Xray restart", func() error { return server.RestartXray() })
 		})
 		if err != nil {
 			logger.Warning("Tunnel health monitor disabled: ", err)
@@ -175,53 +199,72 @@ func runWebServer() {
 
 		switch sig {
 		case syscall.SIGHUP:
-			logger.Info("Received SIGHUP signal. Restarting servers...")
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			err := coordinator.Wait(ctx, "SIGHUP panel/subscription restart", func() error {
+				logger.Info("Received SIGHUP signal. Restarting servers...")
 
-			err := server.StopPanelOnly()
-			if err != nil {
-				logger.Debug("Error stopping web server:", err)
-			}
-			err = subServer.Stop()
-			if err != nil {
-				logger.Debug("Error stopping sub server:", err)
-			}
+				err := server.StopPanelOnly()
+				if err != nil {
+					logger.Debug("Error stopping web server:", err)
+				}
+				err = subServer.Stop()
+				if err != nil {
+					logger.Debug("Error stopping sub server:", err)
+				}
 
-			server = web.NewServer(sub.NewLinkProvider())
-			global.SetWebServer(server)
-			err = server.StartPanelOnly()
-			if err != nil {
-				log.Fatalf("Error restarting web server: %v", err)
-			}
-			log.Println("Web server restarted successfully.")
+				server = web.NewServer(sub.NewLinkProvider())
+				err = server.StartPanelOnly()
+				if err != nil {
+					log.Fatalf("Error restarting web server: %v", err)
+				}
+				global.SetWebServer(server)
+				log.Println("Web server restarted successfully.")
 
-			sub.SetDistFS(web.EmbeddedDist())
-			subServer = sub.NewServer()
-			global.SetSubServer(subServer)
-			err = subServer.Start()
+				sub.SetDistFS(web.EmbeddedDist())
+				subServer = sub.NewServer()
+				err = subServer.Start()
+				if err != nil {
+					log.Fatalf("Error restarting sub server: %v", err)
+				}
+				global.SetSubServer(subServer)
+				log.Println("Sub server restarted successfully.")
+				return nil
+			})
+			cancel()
 			if err != nil {
-				log.Fatalf("Error restarting sub server: %v", err)
+				logger.Error("Panel/subscription restart failed:", err)
 			}
-			log.Println("Sub server restarted successfully.")
 		case sys.SIGUSR1:
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			logger.Info("Received USR1 signal, restarting xray-core...")
-			err := server.RestartXray()
+			err := coordinator.Wait(ctx, "SIGUSR1 Xray restart", func() error { return server.RestartXray() })
+			cancel()
 			if err != nil {
 				logger.Error("Failed to restart xray-core:", err)
 			}
 
 		default:
-			if stopTunnelHealthMonitor != nil {
-				stopTunnelHealthMonitor()
-			}
+			global.SetCertificateReloadHook(nil)
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			err := coordinator.Shutdown(ctx, func() error {
+				if stopTunnelHealthMonitor != nil {
+					stopTunnelHealthMonitor()
+				}
 
-			// --- FIX FOR TELEGRAM BOT CONFLICT (409) on full shutdown ---
-			tgbot.StopBot()
-			// ------------------------------------------------------------
+				// --- FIX FOR TELEGRAM BOT CONFLICT (409) on full shutdown ---
+				tgbot.StopBot()
+				// ------------------------------------------------------------
 
-			if err := server.Stop(); err != nil {
-				logger.Error("Server shutdown failed:", err)
+				if err := server.Stop(); err != nil {
+					logger.Error("Server shutdown failed:", err)
+				}
+				_ = subServer.Stop()
+				return nil
+			})
+			cancel()
+			if err != nil {
+				logger.Error("Lifecycle shutdown failed:", err)
 			}
-			_ = subServer.Stop()
 			log.Println("Shutting down servers.")
 			return
 		}
@@ -377,6 +420,10 @@ func encryptNodeTokens() {
 
 // updateSetting updates various panel settings including port, credentials, base path, listen IP, and two-factor authentication.
 func updateSetting(port int, username string, password string, webBasePath string, listenIP string, resetTwoFactor bool) error {
+	if (username != "" || password != "") && config.AdminCredentialMutationForbidden() {
+		fmt.Printf("Refusing to change the administrator credential: %s and %s in the container environment own it. Update those values in RouterOS and restart the container.\n", config.AdminUsernameEnv, config.AdminPasswordEnv)
+		return errors.New("administrator credential mutation is disabled in container mode")
+	}
 	if err := database.RecoverPendingSQLiteRestore(config.GetDBPath()); err != nil {
 		log.Fatalf("Error recovering pending SQLite restore: %v", err)
 	}
@@ -400,6 +447,8 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	}
 
 	if username != "" || password != "" {
+		// The container environment owns the administrator account; a CLI write
+		// would be a competing source of truth that the next start overwrites.
 		err := userService.UpdateFirstUser(username, password)
 		if err != nil {
 			fmt.Println("Failed to update username and password:", err)
@@ -789,6 +838,8 @@ func main() {
 		} else {
 			updateCert(webCertFile, webKeyFile)
 		}
+	case "acme":
+		runAcmeCommand(os.Args[2:])
 	default:
 		fmt.Println("Invalid subcommands")
 		fmt.Println()
@@ -807,5 +858,7 @@ Commands:
     migrate-db     SQLite <-> .dump (--dump/--restore) or copy into PostgreSQL (--dsn)
     encrypt-tokens encrypt node bearer tokens with the configured active key
     setting        set settings
+    cert           set the panel and subscription certificate paths
+    acme           issue, renew, and inspect certificates (acme status|check|issue|renew|cloudflare setup)
 `
 }

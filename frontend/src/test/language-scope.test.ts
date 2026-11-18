@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/i18n/AntdRootConfig', () => ({ loadAntdLocale: vi.fn() }));
+
 describe('subscription language scope', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -25,6 +27,8 @@ describe('subscription language scope', () => {
     expect(getLanguage).not.toHaveBeenCalled();
 
     await readyI18n('subscription');
+    const { loadAntdLocale } = await import('@/i18n/AntdRootConfig');
+    expect(loadAntdLocale).toHaveBeenCalledWith('en-US');
     expect(cookies.get('subLang')).toBe('en-US');
 
     utils.LanguageManager.setLanguage('fa-IR', 'subscription');

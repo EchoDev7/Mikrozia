@@ -4,8 +4,14 @@ description: 在独立代理主机上通过 Nginx 或 Caddy 提供 Mikrozia 面�
 icon: Waypoints
 ---
 
-反向代理让你能够在一个简洁的域名上提供面板和订阅服务，并自动启用 HTTPS，同时将真实端口隐藏在 80/443 端口之后。代理运行在容器之外，通常位于另一台主机。面板本身也可以使用你挂载到 `/root/cert` 的证书直接终结 TLS——参见
-[TLS 证书](/docs/config/ssl-certificates)。
+反向代理让你能够在一个简洁的域名上提供面板和订阅服务，并自动启用 HTTPS，同时将真实端口隐藏在 80/443 端口之后。代理运行在容器之外，通常位于另一台主机。
+
+<Callout type="info">
+  面板现在可以自己获取证书：镜像内置了版本锁定的 ACME 客户端，因此可以用 HTTP-01
+  或 Cloudflare DNS-01 签发证书，由面板自身提供 HTTPS。参见
+  [TLS 证书](/docs/config/ssl-certificates)。代理主机是可选的——当面板必须保留在
+  私有地址上，或你希望在面板前再加一层缓存与日志时才需要它。
+</Callout>
 
 代理必须通过容器地址（初学者布局中为 `172.16.10.2:2053`）访问面板。建立这条路径——包括任何端口转发或路由——属于由你配置的 RouterOS 策略，Mikrozia 不会创建它。参见
 [端口与防火墙](/docs/reference/ports-firewall)。
@@ -48,3 +54,14 @@ panel.example.com {
 - 即使在代理之后，也请保留面板的 **Web 基础路径**；这是纵深防御。
 - 如果你在代理处终结 TLS，可能需要在面板上设置 `XUI_SKIP_HSTS=true`——参见[环境变量参考](/docs/reference/env-vars)。
 - 也请代理[订阅](/docs/config/subscription)服务器，使其内容通过 HTTPS 提供。
+
+## 已废弃：归属于 RouterOS 的 Reverse Proxy 证书流程
+
+此前的指引要求你在 RouterOS 本身用归属于 RouterOS 的证书（或在路由器上运行证书
+签发工具）来终结 TLS，并把该证书导入容器。该流程已从当前文档中移除：证书由
+内置 ACME 客户端签发并保存在 `/root/cert` 下，Mikrozia 绝不会把 RouterOS 的私钥
+导入容器。
+
+仍在使用旧流程的安装不会受到影响——镜像更新不会删除或改写任何内容。如果你想
+迁移到受支持的路径，请用内置客户端签发证书（或导入你自己的证书）并让面板指向
+它。

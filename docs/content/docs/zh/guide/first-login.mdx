@@ -20,27 +20,20 @@ http://172.16.10.2:2053/<web-base-path>
 
 ### 找到你的登录凭据
 
-首次启动时，面板会生成随机用户名和密码，并仅向容器日志打印一次：
+管理员凭据就是你在容器环境中设置的那些 —— 没有生成的首次登录密码：
 
 ```text
-/log/print where topics~"container"
+/container/envs/print where list=MIKROZIA_ENV
 ```
 
-如果日志已丢失，请打开容器 Shell 并重置凭据：
-
-```text
-/container/shell [find where comment="[Mikrozia:container] Container"]
-```
-
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
-```
-
-在容器内，`x-ui settings` 会显示当前设置。
+请使用[安装](/docs/guide/installation)时设置的 `MIKROZIA_ADMIN_USERNAME` 与
+`MIKROZIA_ADMIN_PASSWORD`。面板每次启动都会用这两个值对齐已保存的账号，因此它们
+是唯一的可信来源。在容器内，`x-ui settings` 会显示当前设置。
 
 <Callout type="warn">
-  如果你的面板仍在使用默认的 `admin` / `admin`（面板会就此发出警告），请立即修改——在创建任何入站之前。
+  RouterOS 的容器环境是配置存储，而不是机密存储：`/container/envs` 中的每个值
+  对任何能读取或导出路由器配置的人都可见。请使用强而唯一的管理员密码，并在该
+  配置可能泄露时在环境中修改它并重启容器。
 </Callout>
 
 ## 修改凭据、端口和路径
@@ -52,6 +45,13 @@ exit
 - **4 — Change Port**
 
 修改用户名或密码会**注销所有现有会话**；如果当时启用了双因素认证，还会将其禁用。
+
+<Callout type="info">
+  当容器环境拥有管理员账号时，无法在面板中或通过 `x-ui setting -username … -password …`
+  修改用户名和密码：面板会直接说明原因，而不是接受一个下次启动就会被覆盖的值。
+  请改为在 RouterOS 中修改 `MIKROZIA_ADMIN_USERNAME` 与
+  `MIKROZIA_ADMIN_PASSWORD`，然后重启容器。
+</Callout>
 
 ## 双因素认证（2FA）
 
@@ -71,7 +71,8 @@ exit
 <Step>
 ### 设置高强度且唯一的凭据
 
-将生成的（或 `admin/admin`）用户名和密码替换为高强度的值。
+在首次启动前，于容器环境中为管理员选择高强度且唯一的密码，并避免它出现在共享
+的配置导出中。
 </Step>
 
 <Step>
@@ -89,9 +90,10 @@ exit
 <Step>
 ### 将面板置于 TLS 之后
 
-Mikrozia 不签发证书。请在容器外获取证书，将其放在 `/root/cert` 挂载上，并在面板中
-配置路径（菜单 `14` 或 `x-ui cert`），或在[反向代理](/docs/operations/reverse-proxy)
-处终止 TLS。
+使用镜像内置的 ACME 客户端签发证书（菜单 `14 — TLS Certificates`，或
+`x-ui acme issue --http …` / `x-ui acme issue --dns …`）—— 证书会安装在
+`/root/cert` 挂载上，面板路径也会自动更新 —— 或用 `x-ui cert` 导入已有证书。
+也可以在[反向代理](/docs/operations/reverse-proxy)处终止 TLS。
 </Step>
 
 <Step>

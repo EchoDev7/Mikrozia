@@ -3,8 +3,12 @@
 
 The production image may download and install software only at build time
 (DockerInit.sh). No panel, management-script or container-start path may
-download, install, upgrade or replace software, issue certificates, or run a
-renewal scheduler. Certificates are user-supplied and configured by path.
+download, install, upgrade or replace software at runtime.
+
+Certificates are issued by the ACME client that is bundled into the image at
+build time from a pinned, checksum-verified archive. The runtime may therefore
+invoke that bundled client, but it must never fetch an installer, never install
+a package, and never schedule unmanaged work outside the panel process.
 """
 
 import os
@@ -47,7 +51,7 @@ class TestRuntimeImmutability(unittest.TestCase):
         self.assertNotIn("install.sh", final_stage)
         self.assertNotIn("DockerInit.sh", final_stage)
 
-    def test_02_xui_has_no_software_install_or_certificate_issuer(self):
+    def test_02_xui_never_installs_software_and_only_calls_the_bundled_acme_client(self):
         xui = self._read("x-ui.sh")
         for forbidden in (
             "get.acme.sh",
@@ -76,6 +80,13 @@ class TestRuntimeImmutability(unittest.TestCase):
             "x-ui.sh must not pipe downloaded content into a shell",
         )
 
+        # The certificate workflow is allowed only through the client that is
+        # bundled into the image; the shell must never fetch an installer.
+        self.assertIn('"${xui_folder}/x-ui" acme status', xui)
+        self.assertIn('"${xui_folder}/x-ui" acme issue --http', xui)
+        self.assertIn('"${xui_folder}/x-ui" acme issue --dns', xui)
+        self.assertIn('"${xui_folder}/x-ui" acme cloudflare setup', xui)
+
     def test_03_removed_menu_controls_are_absent_and_range_is_contiguous(self):
         xui = self._read("x-ui.sh")
         for removed in (
@@ -86,7 +97,7 @@ class TestRuntimeImmutability(unittest.TestCase):
             "run_speedtest",
         ):
             self.assertNotIn(removed, xui)
-        self.assertIn("14.${plain} TLS Certificate Paths", xui)
+        self.assertIn("14.${plain} TLS Certificates", xui)
         self.assertIn("15.${plain} RouterOS Network Policy Notice", xui)
         self.assertIn("16.${plain} Database Tools", xui)
         self.assertIn("Please enter your selection [0-16]:", xui)
@@ -97,7 +108,7 @@ class TestRuntimeImmutability(unittest.TestCase):
     def test_04_certificate_path_configuration_is_retained_and_local(self):
         xui = self._read("x-ui.sh")
         self.assertIn("tls_cert_path_menu()", xui)
-        self.assertIn('x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"', xui)
+        self.assertIn('"${xui_folder}/x-ui" cert -webCert "$webCertFile" -webCertKey "$webKeyFile"', xui)
         self.assertIn("local webCertFile=\"/root/cert/${domain}/fullchain.pem\"", xui)
         self.assertIn("local webKeyFile=\"/root/cert/${domain}/privkey.pem\"", xui)
         self.assertIn("x-ui restart", xui)
@@ -124,10 +135,12 @@ class TestRuntimeImmutability(unittest.TestCase):
         self.assertNotIn("/root/cert", entrypoint)
         self.assertNotIn(".acme.sh", entrypoint)
 
-    def test_06_current_docs_do_not_advertise_container_issuance_or_speedtest(self):
+    def test_06_current_docs_document_the_bundled_acme_client_and_no_stale_advice(self):
         for lang in ("en", "fa", "ru", "zh"):
             guide = self._read("docs", "content", "docs", lang, "config", "ssl-certificates.mdx")
-            for forbidden in ("acme.sh", "get.acme.sh", "Cloudflare DNS-01", "Speedtest", "certbot renew"):
+            for required in ("HTTP-01", "DNS-01", "x-ui acme", "/root/cert"):
+                self.assertIn(required, guide, f"{lang} certificate guide must contain {required!r}")
+            for forbidden in ("Speedtest", "certbot renew"):
                 self.assertNotIn(forbidden, guide, f"{lang} certificate guide must not contain {forbidden!r}")
             self.assertIn("fullchain.pem", guide)
             self.assertIn("privkey.pem", guide)
@@ -136,19 +149,24 @@ class TestRuntimeImmutability(unittest.TestCase):
             menu = self._read("docs", "content", "docs", lang, "guide", "update-uninstall.mdx")
             for forbidden in ("Speedtest", "Cloudflare SSL Certificate", "SSL Certificate Management", "0`–`18", "0` تا `18"):
                 self.assertNotIn(forbidden, menu, f"{lang} menu guide must not contain {forbidden!r}")
-            self.assertIn("TLS Certificate Paths", menu)
+            self.assertIn("TLS Certificates", menu)
 
         overview = self._read("docs", "DOCKER_HUB_OVERVIEW.md")
-        for forbidden in ("Automated SSL / ACME", "acme.sh", "Cloudflare DNS API", "issue/renew ACME"):
+        for required in ("HTTP-01", "DNS-01", "MIKROZIA_ADMIN_USERNAME", "MIKROZIA_ADMIN_PASSWORD"):
+            self.assertIn(required, overview)
+        for forbidden in ("does not issue, renew, or install certificates", "Username: <random-username>"):
             self.assertNotIn(forbidden, overview)
-        self.assertIn("does not issue, renew, or install certificates", overview)
 
         readme = self._read("README.md")
-        self.assertNotIn("ACME state", readme)
+        self.assertIn("MIKROZIA_ADMIN_USERNAME", readme)
+        self.assertIn("MIKROZIA_ADMIN_PASSWORD", readme)
+        self.assertNotIn("ACMME state", readme)
         self.assertNotIn("Cron تمدید", readme)
 
         install_fa = self._read("docs", "MIKROZIA_CHR_INSTALL_FA.md")
-        for forbidden in ("acme.sh", "MIKROZIA-ACME", "--install-cronjob", "get.acme.sh"):
+        for required in ("HTTP-01", "DNS-01", "MIKROZIA_ADMIN_USERNAME", "MIKROZIA_ADMIN_PASSWORD"):
+            self.assertIn(required, install_fa)
+        for forbidden in ("MIKROZIA-ACME", "--install-cronjob", "get.acme.sh"):
             self.assertNotIn(forbidden, install_fa)
         self.assertIn("/root/cert", install_fa)
 

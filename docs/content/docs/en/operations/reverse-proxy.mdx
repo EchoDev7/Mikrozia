@@ -6,9 +6,16 @@ icon: Waypoints
 
 A reverse proxy lets you serve the panel and subscription on a clean domain with
 automatic HTTPS, and hide the real ports behind ports 80/443. The proxy runs
-outside the container, typically on another host. The panel itself can also
-terminate TLS directly with certificates you mounted on `/root/cert` — see
-[TLS certificates](/docs/config/ssl-certificates).
+outside the container, typically on another host.
+
+<Callout type="info">
+  The panel can now obtain its own certificate: the image ships a pinned ACME
+  client, so you can issue a certificate with HTTP-01 or Cloudflare DNS-01 and
+  the panel serves HTTPS by itself. See
+  [TLS certificates](/docs/config/ssl-certificates). A proxy host is optional —
+  it is useful when the panel must stay on a private address, or when a second
+  layer of caching and logging is wanted in front of it.
+</Callout>
 
 The proxy must reach the panel at its container address (`172.16.10.2:2053` in
 the beginner layout). Making that path work — including any port-forwarding or
@@ -27,8 +34,10 @@ See [Ports & firewall](/docs/reference/ports-firewall).
 
 ## Nginx + certificate
 
-With Nginx, obtain a certificate on the proxy host (outside the Mikrozia
-container) with `certbot` (or `acme.sh`) and reference it in the server block:
+With Nginx, the proxy host needs a certificate for the public domain. Obtain it
+with the CA's own tooling on the proxy host (outside the Mikrozia container) —
+`certbot` (or `acme.sh`) is the usual choice — and reference it in the server
+block:
 
 ```bash title="certbot"
 certbot certonly --nginx -d panel.example.com
@@ -57,3 +66,17 @@ panel.example.com {
   panel — see the [environment variables reference](/docs/reference/env-vars).
 - Proxy the [subscription](/docs/config/subscription) server too, so its contents
   are served over HTTPS.
+
+## Superseded: the RouterOS-owned reverse-proxy certificate flow
+
+Earlier guidance asked you to terminate TLS on RouterOS itself with a
+RouterOS-owned certificate, or to run a certificate issuer on the router, and to
+import that certificate into the container. That flow is retired from the
+current documentation: certificates are issued by the bundled ACME client and
+stored under `/root/cert`, and Mikrozia never imports a RouterOS private key
+into the container.
+
+Existing installations that still use the old flow keep working untouched — an
+image update deletes and rewrites nothing. If you want to move to the supported
+path, issue a certificate with the bundled client (or import your own) and
+point the panel at it.

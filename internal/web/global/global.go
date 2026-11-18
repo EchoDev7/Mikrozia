@@ -15,6 +15,7 @@ var (
 
 	restartHookMu sync.RWMutex
 	restartHook   func()
+	serverMu      sync.RWMutex
 )
 
 // WebServer interface defines methods for accessing the web server instance.
@@ -31,21 +32,29 @@ type SubServer interface {
 
 // SetWebServer sets the global web server instance.
 func SetWebServer(s WebServer) {
+	serverMu.Lock()
+	defer serverMu.Unlock()
 	webServer = s
 }
 
 // GetWebServer returns the global web server instance.
 func GetWebServer() WebServer {
+	serverMu.RLock()
+	defer serverMu.RUnlock()
 	return webServer
 }
 
 // SetSubServer sets the global subscription server instance.
 func SetSubServer(s SubServer) {
+	serverMu.Lock()
+	defer serverMu.Unlock()
 	subServer = s
 }
 
 // GetSubServer returns the global subscription server instance.
 func GetSubServer() SubServer {
+	serverMu.RLock()
+	defer serverMu.RUnlock()
 	return subServer
 }
 

@@ -1,31 +1,24 @@
 #!/usr/bin/env python3
 """
-Unit and Integration Tests for Mikrozia First Login and Credential Recovery (Task 05).
+Integration Tests for the Mikrozia Environment-Authoritative Administrator Contract.
 
-Verifies:
-1. Fresh Installation:
-   - 3x-ui generates random 10-char username and 16-char password on initial boot.
-   - Credentials are saved as bcrypt hashes ($2a$10$...) in /etc/x-ui/x-ui.db.
-   - Initial credentials are NOT 'admin'/'admin'; hasDefaultCredential is false.
-   - RouterOS-visible logs print: 'No panel user existed, so one was generated...'
-2. Credential Inspection via CLI:
-   - '/app/x-ui setting -show' outputs port, webBasePath, SSL status, and hasDefaultCredential.
-   - Does NOT output plaintext passwords.
-3. Credential Reset / Direct Configuration:
-   - '/app/x-ui setting -username <user> -password <pass>' updates the administrator account.
-   - Hashes password with bcrypt and increments login_epoch.
-4. Database Preservation:
-   - Setting credentials strictly affects the users table.
-   - Inbounds, client traffics, settings, and other tables remain completely intact.
-5. Two-Factor Authentication Reset:
-   - '-resetTwoFactor=true' resets 2FA flags without corrupting configuration.
-6. Setting Reset Behavior:
-   - '/app/x-ui setting -reset' resets panel configurations but does NOT delete or alter user credentials.
-7. Wrapper Script CLI Forwarding:
-   - 'x-ui.sh' forwards 'setting' and 'cert' subcommands directly to '/app/x-ui',
-     allowing 'x-ui setting ...' and '/app/x-ui setting ...' to work interchangeably.
-8. Persistent Mount Retention:
-   - Container recreate retains updated credentials when /etc/x-ui is mounted.
+The RouterOS Container Environment owns the panel administrator account:
+
+1. Environment-owned account:
+   - MIKROZIA_ADMIN_USERNAME and MIKROZIA_ADMIN_PASSWORD must be set together.
+   - Both set -> the stored account is reconciled to exactly those values on
+     every start; the password is stored as a bcrypt hash.
+   - Only one set -> the panel refuses to start and names the incomplete pair.
+   - Neither set and no account -> the panel refuses to start and asks for both.
+   - Neither set and an account exists -> the account is preserved unchanged.
+   - Neither set and a legacy admin/admin account -> the account is kept but
+     the panel refuses to start until the environment provides a replacement.
+2. No random first-login credential is ever generated or printed, and there is
+   no fixed admin/admin default.
+3. While the environment owns the account, a CLI or panel-side credential
+   change is refused so that two sources of truth cannot compete.
+4. Credential work never touches inbounds, client traffic, settings, or any
+   other user data.
 """
 
 import os
@@ -37,12 +30,15 @@ import time
 import unittest
 
 
-class TestFirstLoginAndCredentials(unittest.TestCase):
+ADMIN_USERNAME_ENV = "MIKROZIA_ADMIN_USERNAME"
+ADMIN_PASSWORD_ENV = "MIKROZIA_ADMIN_PASSWORD"
+
+
+class TestEnvironmentAuthoritativeCredentials(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         cls.xui_sh_path = os.path.join(cls.repo_root, "x-ui.sh")
-        cls.entrypoint_path = os.path.join(cls.repo_root, "DockerEntrypoint.sh")
 
         # Check docker availability
         try:
@@ -58,7 +54,7 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
         )
         if cls.docker_available:
             images = subprocess.run(["docker", "images", "-q", cls.test_image], capture_output=True, text=True).stdout.strip()
-            if not images:
+            if not images and not os.environ.get("MIKROZIA_TEST_IMAGE"):
                 # Fallback to whatever mikrozia or 3x-ui image exists
                 for fallback in ["ghcr.io/mhsanaei/3x-ui:v3.11.0", "majlot/mikrozia:0.1.0-alpha.7"]:
                     chk = subprocess.run(["docker", "images", "-q", fallback], capture_output=True, text=True).stdout.strip()
@@ -106,177 +102,357 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
                 pass
         return sqlite3.connect(db_path)
 
-    def test_01_first_boot_random_credentials_generation(self):
-        """Item 1: On fresh boot, random credentials are generated, logged once, and stored as bcrypt."""
+    # --- helpers -----------------------------------------------------------
+
+    def _run_container(self, name, data_dir, cert_dir=None, env=None, detach=True):
+        cmd = ["docker", "run"]
+        if detach:
+            cmd.append("-d")
+        cmd += ["--name", name, "-v", f"{data_dir}:/etc/x-ui"]
+        if cert_dir:
+            cmd += ["-v", f"{cert_dir}:/root/cert"]
+        for key, value in (env or {}).items():
+            cmd += ["-e", f"{key}={value}"]
+        cmd.append(self.test_image)
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+    def _logs(self, name):
+        res = subprocess.run(["docker", "logs", name], capture_output=True, text=True)
+        return res.stdout + res.stderr
+
+    def _exit_code(self, name):
+        res = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.ExitCode}}", name],
+            capture_output=True,
+            text=True,
+        )
+        return res.stdout.strip()
+
+    def _wait_for_log(self, name, needle, attempts=25):
+        logs = ""
+        for _ in range(attempts):
+            logs = self._logs(name)
+            if needle in logs:
+                return True, logs
+            time.sleep(1)
+        return False, logs
+
+    def _user_row(self, data_dir):
+        db_path = os.path.join(data_dir, "x-ui.db")
+        if not os.path.exists(db_path):
+            return None
+        con = self._connect_db(data_dir)
+        try:
+            return con.cursor().execute(
+                "SELECT username, password, login_epoch FROM users ORDER BY id LIMIT 1"
+            ).fetchone()
+        finally:
+            con.close()
+
+    def _remove(self, *names):
+        for name in names:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+
+    # --- tests -------------------------------------------------------------
+
+    def test_01_environment_credentials_create_the_admin_account(self):
+        """Both environment values create the account exactly, hashed, with no credential printed."""
         if not self.docker_available:
             self.skipTest("Docker not available")
 
         data_dir = self.make_temp_dir()
         cert_dir = self.make_temp_dir()
-        container_name = f"test_first_login_{int(time.time())}"
+        container_name = f"test_env_bootstrap_{int(time.time())}"
+        username = "env_admin"
+        password = "EnvOwnedPassword!2026"
 
         try:
-            # Run container briefly to let it initialize first-time user
-            run_cmd = [
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                "-v", f"{cert_dir}:/root/cert",
-                self.test_image
-            ]
-            run_res = subprocess.run(run_cmd, capture_output=True, text=True, timeout=20)
+            run_res = self._run_container(
+                container_name,
+                data_dir,
+                cert_dir,
+                env={ADMIN_USERNAME_ENV: username, ADMIN_PASSWORD_ENV: password},
+            )
             self.assertEqual(run_res.returncode, 0, f"Container failed to start: {run_res.stderr}")
 
-            # Wait up to 10 seconds for initialization
-            found_log = False
-            logs = ""
-            for _ in range(10):
-                log_res = subprocess.run(["docker", "logs", container_name], capture_output=True, text=True)
-                logs = log_res.stdout + log_res.stderr
-                if "No panel user existed, so one was generated" in logs:
-                    found_log = True
-                    break
-                time.sleep(1)
+            found, logs = self._wait_for_log(
+                container_name, "reconciled from the container environment"
+            )
+            self.assertTrue(found, f"Expected the reconciliation notice in:\n{logs}")
 
-            self.assertTrue(found_log, f"Expected initial user generation log not found in:\n{logs}")
-            self.assertIn("Username:", logs)
-            self.assertIn("Password:", logs)
-            self.assertIn("shown once; change it in Panel Settings", logs)
+            # No random first-login credential may be generated or printed.
+            self.assertNotIn("No panel user existed", logs)
+            self.assertNotIn("Username:", logs)
+            self.assertNotIn("Password:", logs)
+            self.assertNotIn(password, logs)
 
-            # Check that credentials are NOT admin/admin
-            self.assertNotIn("Username: admin", logs)
-
-            # Inspect created SQLite database
-            db_path = os.path.join(data_dir, "x-ui.db")
-            self.assertTrue(os.path.exists(db_path), f"Database not found at {db_path}")
-
-            con = self._connect_db(data_dir)
-            cur = con.cursor()
-            user_row = cur.execute("SELECT id, username, password, login_epoch FROM users").fetchone()
-            con.close()
-
-            self.assertIsNotNone(user_row, "No user record found in SQLite database")
-            uid, username, pwd_hash, login_epoch = user_row
-
-            # Username is 10 chars (random.Seq(10))
-            self.assertEqual(len(username), 10, f"Expected 10-char username, got: {username}")
-            self.assertNotEqual(username, "admin")
-
-            # Password is a 60-character bcrypt hash ($2a$10$...)
-            self.assertEqual(len(pwd_hash), 60, f"Expected 60-char bcrypt hash, got length {len(pwd_hash)}")
-            self.assertTrue(pwd_hash.startswith("$2a$10$"), f"Expected bcrypt prefix $2a$10$, got: {pwd_hash[:7]}")
-
+            row = self._user_row(data_dir)
+            self.assertIsNotNone(row, "The environment-owned account was not created")
+            stored_user, stored_hash, _login_epoch = row
+            self.assertEqual(stored_user, username)
+            self.assertNotEqual(stored_user, "admin")
+            self.assertTrue(
+                stored_hash.startswith("$2a$10$"),
+                f"Expected a bcrypt hash, got: {stored_hash[:7]}",
+            )
+            self.assertEqual(len(stored_hash), 60)
+            self.assertNotIn(password, stored_hash)
         finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
+            self._remove(container_name)
 
-    def test_02_show_setting_cli_behavior(self):
-        """Item 2: /app/x-ui setting -show displays panel settings but never plaintext passwords."""
+    def test_02_missing_environment_without_account_refuses_to_start(self):
+        """Without environment values and without an account the panel refuses to start."""
         if not self.docker_available:
             self.skipTest("Docker not available")
 
-        container_name = f"test_show_setting_{int(time.time())}"
+        data_dir = self.make_temp_dir()
+        container_name = f"test_env_missing_{int(time.time())}"
+
+        try:
+            run_res = self._run_container(container_name, data_dir)
+            self.assertEqual(run_res.returncode, 0, f"Container failed to start: {run_res.stderr}")
+
+            found, logs = self._wait_for_log(container_name, ADMIN_USERNAME_ENV)
+            self.assertTrue(found, f"Expected the missing-credential message in:\n{logs}")
+            self.assertIn(ADMIN_PASSWORD_ENV, logs)
+
+            # The refusal must not invent a credential.
+            self.assertNotIn("Username:", logs)
+            self.assertNotIn("Password:", logs)
+            self.assertNotEqual(self._exit_code(container_name), "0")
+
+            self.assertIsNone(self._user_row(data_dir))
+        finally:
+            self._remove(container_name)
+
+    def test_03_half_configured_environment_refuses_to_start(self):
+        """A half-configured environment pair stops the panel and names the incomplete pair."""
+        if not self.docker_available:
+            self.skipTest("Docker not available")
+
+        for missing in (ADMIN_PASSWORD_ENV, ADMIN_USERNAME_ENV):
+            with self.subTest(missing=missing):
+                data_dir = self.make_temp_dir()
+                container_name = f"test_env_half_{int(time.time())}"
+                env = {ADMIN_USERNAME_ENV: "half_admin"}
+                if missing == ADMIN_USERNAME_ENV:
+                    env = {ADMIN_PASSWORD_ENV: "HalfOnlyPassword!2026"}
+                try:
+                    run_res = self._run_container(container_name, data_dir, env=env)
+                    self.assertEqual(run_res.returncode, 0, run_res.stderr)
+
+                    found, logs = self._wait_for_log(container_name, "must be set in the container environment")
+                    self.assertTrue(found, f"Expected the incomplete-pair message in:\n{logs}")
+                    self.assertIn(ADMIN_USERNAME_ENV, logs)
+                    self.assertIn(ADMIN_PASSWORD_ENV, logs)
+                    self.assertNotEqual(self._exit_code(container_name), "0")
+
+                    self.assertIsNone(self._user_row(data_dir))
+                finally:
+                    self._remove(container_name)
+
+    def test_04_existing_account_is_preserved_without_environment(self):
+        """An existing account survives a start without environment values and is not reset."""
+        if not self.docker_available:
+            self.skipTest("Docker not available")
+
+        data_dir = self.make_temp_dir()
+        first = f"test_env_seed_{int(time.time())}"
+        second = f"test_env_keep_{int(time.time())}"
+
+        try:
+            self._run_container(
+                first,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "kept_admin", ADMIN_PASSWORD_ENV: "KeptPassword!2026"},
+            )
+            found, logs = self._wait_for_log(first, "reconciled from the container environment")
+            self.assertTrue(found, logs)
+            subprocess.run(["docker", "stop", first], capture_output=True, timeout=30)
+
+            run_res = self._run_container(second, data_dir)
+            self.assertEqual(run_res.returncode, 0, run_res.stderr)
+            found, logs = self._wait_for_log(second, "was left unchanged")
+            self.assertTrue(found, f"Expected the preservation notice in:\n{logs}")
+
+            row = self._user_row(data_dir)
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], "kept_admin")
+        finally:
+            self._remove(first, second)
+
+    def test_05_legacy_default_account_is_kept_but_blocks_start(self):
+        """A stored admin/admin account is preserved but never left usable."""
+        if not self.docker_available:
+            self.skipTest("Docker not available")
+
+        data_dir = self.make_temp_dir()
+        first = f"test_env_legacy_{int(time.time())}"
+        second = f"test_env_legacy_restart_{int(time.time())}"
+
+        try:
+            self._run_container(
+                first,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "admin", ADMIN_PASSWORD_ENV: "admin"},
+            )
+            found, logs = self._wait_for_log(first, "reconciled from the container environment")
+            self.assertTrue(found, logs)
+            subprocess.run(["docker", "stop", first], capture_output=True, timeout=30)
+
+            run_res = self._run_container(second, data_dir)
+            self.assertEqual(run_res.returncode, 0, run_res.stderr)
+            found, logs = self._wait_for_log(second, "legacy default credential")
+            self.assertTrue(found, f"Expected the legacy-default refusal in:\n{logs}")
+            self.assertIn(ADMIN_USERNAME_ENV, logs)
+            self.assertIn(ADMIN_PASSWORD_ENV, logs)
+            self.assertNotEqual(self._exit_code(second), "0")
+
+            # The account is kept, never deleted or silently rewritten.
+            row = self._user_row(data_dir)
+            self.assertIsNotNone(row, "The legacy account was deleted")
+            self.assertEqual(row[0], "admin")
+        finally:
+            self._remove(first, second)
+
+    def test_06_environment_reconciles_on_every_start(self):
+        """Changing the environment values updates the stored account on the next start."""
+        if not self.docker_available:
+            self.skipTest("Docker not available")
+
+        data_dir = self.make_temp_dir()
+        first = f"test_env_reconcile_a_{int(time.time())}"
+        second = f"test_env_reconcile_b_{int(time.time())}"
+
+        try:
+            self._run_container(
+                first,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "first_admin", ADMIN_PASSWORD_ENV: "FirstPassword!2026"},
+            )
+            found, logs = self._wait_for_log(first, "reconciled from the container environment")
+            self.assertTrue(found, logs)
+            subprocess.run(["docker", "stop", first], capture_output=True, timeout=30)
+
+            before = self._user_row(data_dir)
+            self.assertIsNotNone(before)
+
+            self._run_container(
+                second,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "second_admin", ADMIN_PASSWORD_ENV: "SecondPassword!2026"},
+            )
+            found, logs = self._wait_for_log(second, "reconciled from the container environment")
+            self.assertTrue(found, logs)
+            subprocess.run(["docker", "stop", second], capture_output=True, timeout=30)
+
+            after = self._user_row(data_dir)
+            self.assertIsNotNone(after)
+            self.assertEqual(after[0], "second_admin")
+            self.assertNotEqual(after[1], before[1])
+            self.assertTrue(after[1].startswith("$2a$10$"))
+            self.assertGreater(after[2], before[2], "login_epoch must advance on a password change")
+        finally:
+            self._remove(first, second)
+
+    def test_07_cli_credential_change_is_refused_while_environment_owns_the_account(self):
+        """The CLI refuses to write a competing credential and leaves the account untouched."""
+        if not self.docker_available:
+            self.skipTest("Docker not available")
+
+        data_dir = self.make_temp_dir()
+        container_name = f"test_env_refuse_{int(time.time())}"
+
+        try:
+            self._run_container(
+                container_name,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "env_owner", ADMIN_PASSWORD_ENV: "EnvOwnedPassword!2026"},
+            )
+            found, logs = self._wait_for_log(container_name, "reconciled from the container environment")
+            self.assertTrue(found, logs)
+
+            before = self._user_row(data_dir)
+            self.assertIsNotNone(before)
+
+            upd_res = subprocess.run(
+                [
+                    "docker", "exec", container_name,
+                    "/app/x-ui", "setting",
+                    "-username", "cli_admin",
+                    "-password", "CliPassword!2026",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            combined = upd_res.stdout + upd_res.stderr
+            self.assertIn("Refusing to change the administrator credential", combined)
+            self.assertIn(ADMIN_USERNAME_ENV, combined)
+            self.assertIn(ADMIN_PASSWORD_ENV, combined)
+            self.assertNotIn("Username and password updated successfully", combined)
+
+            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=30)
+            after = self._user_row(data_dir)
+            self.assertEqual(after[0], before[0])
+            self.assertEqual(after[1], before[1])
+        finally:
+            self._remove(container_name)
+
+    def test_08_setting_show_never_prints_plaintext(self):
+        """`setting -show` reports the panel settings without any plaintext credential."""
+        if not self.docker_available:
+            self.skipTest("Docker not available")
+
+        container_name = f"test_env_show_{int(time.time())}"
         data_dir = self.make_temp_dir()
 
         try:
-            run_cmd = [
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ]
-            subprocess.run(run_cmd, capture_output=True, text=True, timeout=20)
-            time.sleep(3)
+            self._run_container(
+                container_name,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "env_owner", ADMIN_PASSWORD_ENV: "EnvOwnedPassword!2026"},
+            )
+            found, logs = self._wait_for_log(container_name, "reconciled from the container environment")
+            self.assertTrue(found, logs)
 
-            # Run /app/x-ui setting -show
             show_res = subprocess.run(
                 ["docker", "exec", container_name, "/app/x-ui", "setting", "-show"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=30,
             )
             self.assertEqual(show_res.returncode, 0, f"setting -show failed: {show_res.stderr}")
-            output = show_res.stdout
+            output = show_res.stdout + show_res.stderr
 
             self.assertIn("current panel settings as follows:", output)
             self.assertIn("port:", output)
             self.assertIn("webBasePath:", output)
             self.assertIn("hasDefaultCredential: false", output)
-            # Plaintext password must NOT be in output
             self.assertNotIn("Password:", output)
-            self.assertNotIn("password:", output)
-
+            self.assertNotIn("EnvOwnedPassword!2026", output)
         finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
+            self._remove(container_name)
 
-    def test_03_credential_reset_updates_user(self):
-        """Item 3: /app/x-ui setting -username ... -password ... updates user and increments login_epoch."""
+    def test_09_reconciliation_preserves_inbounds_and_settings(self):
+        """Reconciling the credential never touches inbounds, client data, or settings."""
         if not self.docker_available:
             self.skipTest("Docker not available")
 
-        container_name = f"test_cred_reset_{int(time.time())}"
         data_dir = self.make_temp_dir()
+        container_name = f"test_env_preserve_{int(time.time())}"
 
         try:
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
+            self._run_container(
+                container_name,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "env_owner", ADMIN_PASSWORD_ENV: "EnvOwnedPassword!2026"},
+            )
+            found, logs = self._wait_for_log(container_name, "reconciled from the container environment")
+            self.assertTrue(found, logs)
 
-            # Set custom credentials via CLI
-            new_user = "mikrozia_admin"
-            new_pass = "P@ssw0rdSecure!2026"
-            upd_res = subprocess.run([
-                "docker", "exec", container_name,
-                "/app/x-ui", "setting",
-                "-username", new_user,
-                "-password", new_pass
-            ], capture_output=True, text=True, timeout=10)
-
-            self.assertEqual(upd_res.returncode, 0, f"Failed to update credentials: {upd_res.stderr}")
-            self.assertIn("Username and password updated successfully", upd_res.stdout)
-
-            # Stop container before host reads SQLite to guarantee clean WAL flush and avoid virtiofs lock collisions
-            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
-
-            # Verify database
-            db_path = os.path.join(data_dir, "x-ui.db")
-            con = self._connect_db(data_dir)
-            cur = con.cursor()
-            after_row = cur.execute("SELECT username, password, login_epoch FROM users").fetchone()
-            con.close()
-
-            self.assertIsNotNone(after_row)
-            updated_user, updated_hash, updated_epoch = after_row
-            self.assertEqual(updated_user, new_user)
-            self.assertTrue(updated_hash.startswith("$2a$10$"))
-            self.assertEqual(len(updated_hash), 60)
-            self.assertGreaterEqual(updated_epoch, 1)
-
-        finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
-
-    def test_04_database_tables_preservation(self):
-        """Item 4: Credential updates preserve all inbounds, client data, and general settings."""
-        if not self.docker_available:
-            self.skipTest("Docker not available")
-
-        container_name = f"test_preservation_{int(time.time())}"
-        data_dir = self.make_temp_dir()
-
-        try:
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
-
-            # Stop container to safely insert mock data without virtiofs locking conflicts
-            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
+            # Stop the container to safely insert mock data without virtiofs locking conflicts
+            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=30)
 
             db_path = os.path.join(data_dir, "x-ui.db")
             con = self._connect_db(data_dir)
@@ -289,256 +465,94 @@ class TestFirstLoginAndCredentials(unittest.TestCase):
                 INSERT INTO inbounds (user_id, up, down, total, remark, enable, expiry_time, listen, port, protocol, settings, stream_settings, tag, sniffing)
                 VALUES (1, 500, 600, 1100, 'Shadowsocks Inbound', 1, 0, '0.0.0.0', 8388, 'shadowsocks', '{}', '{}', 'inbound-8388', '{}')
             """)
+            cur.execute("INSERT INTO settings (key, value) VALUES ('webPort', '2053')")
             con.commit()
             con.close()
 
-            # Restart container
-            subprocess.run(["docker", "start", container_name], capture_output=True, timeout=10)
-            time.sleep(2)
+            # Restart with a changed environment value
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
+            second = f"{container_name}_b"
+            self._run_container(
+                second,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "env_owner", ADMIN_PASSWORD_ENV: "RotatedPassword!2026"},
+            )
+            found, logs = self._wait_for_log(second, "reconciled from the container environment")
+            self.assertTrue(found, logs)
+            subprocess.run(["docker", "stop", second], capture_output=True, timeout=30)
 
-            # Execute credential update via CLI
-            upd_res = subprocess.run([
-                "docker", "exec", container_name,
-                "/app/x-ui", "setting",
-                "-username", "operator_secure",
-                "-password", "CorrectHorseBatteryStaple!"
-            ], capture_output=True, text=True, timeout=10)
-            self.assertEqual(upd_res.returncode, 0)
-            self.assertIn("Username and password updated successfully", upd_res.stdout)
-
-            # Stop container for inspection
-            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
-
-            # Query database and verify all inbounds and settings survived
             con = self._connect_db(data_dir)
             cur = con.cursor()
             inbounds = cur.execute("SELECT remark, port, protocol FROM inbounds ORDER BY port").fetchall()
-            user_info = cur.execute("SELECT username FROM users").fetchall()
+            users = cur.execute("SELECT username FROM users").fetchall()
+            port = cur.execute("SELECT value FROM settings WHERE key='webPort'").fetchone()
             con.close()
 
-            self.assertEqual(len(user_info), 1)
-            self.assertEqual(user_info[0][0], "operator_secure")
-
-            self.assertEqual(len(inbounds), 2)
-            self.assertEqual(inbounds[0], ("Production VLESS REALITY", 443, "vless"))
-            self.assertEqual(inbounds[1], ("Shadowsocks Inbound", 8388, "shadowsocks"))
-
+            self.assertEqual(len(users), 1)
+            self.assertEqual(users[0][0], "env_owner")
+            self.assertEqual(
+                inbounds,
+                [
+                    ("Production VLESS REALITY", 443, "vless"),
+                    ("Shadowsocks Inbound", 8388, "shadowsocks"),
+                ],
+            )
+            self.assertEqual(port[0], "2053")
+            self._remove(second)
         finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
+            self._remove(container_name)
 
-    def test_05_two_factor_auth_reset(self):
-        """Item 5: -resetTwoFactor=true disables 2FA in settings table when recovering credentials."""
+    def test_10_xui_sh_forwards_setting_and_cert_without_a_menu(self):
+        """x-ui.sh forwards `setting` and `cert` to the Go binary without an interactive menu."""
         if not self.docker_available:
             self.skipTest("Docker not available")
 
-        container_name = f"test_2fa_reset_{int(time.time())}"
+        container_name = f"test_env_forward_{int(time.time())}"
         data_dir = self.make_temp_dir()
 
         try:
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
+            self._run_container(
+                container_name,
+                data_dir,
+                env={ADMIN_USERNAME_ENV: "env_owner", ADMIN_PASSWORD_ENV: "EnvOwnedPassword!2026"},
+            )
+            found, logs = self._wait_for_log(container_name, "reconciled from the container environment")
+            self.assertTrue(found, logs)
 
-            # Stop container to safely populate 2FA settings
-            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
-
-            db_path = os.path.join(data_dir, "x-ui.db")
-            con = self._connect_db(data_dir)
-            cur = con.cursor()
-            cur.execute("DELETE FROM settings WHERE key IN ('twoFactorEnable', 'twoFactorToken')")
-            cur.execute("INSERT INTO settings (key, value) VALUES ('twoFactorEnable', 'true')")
-            cur.execute("INSERT INTO settings (key, value) VALUES ('twoFactorToken', 'MYSECRETTOKEN123')")
-            con.commit()
-            con.close()
-
-            # Restart container
-            subprocess.run(["docker", "start", container_name], capture_output=True, timeout=10)
-            time.sleep(2)
-
-            # Execute resetTwoFactor command
-            res = subprocess.run([
-                "docker", "exec", container_name,
-                "/app/x-ui", "setting",
-                "-username", "recovered_user",
-                "-password", "NewPass999!",
-                "-resetTwoFactor=true"
-            ], capture_output=True, text=True, timeout=10)
-            self.assertEqual(res.returncode, 0)
-            self.assertIn("Two-factor authentication reset successfully", res.stdout)
-
-            # Stop container for inspection
-            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=10)
-
-            # Verify in settings table
-            con = self._connect_db(data_dir)
-            cur = con.cursor()
-            enable_val = cur.execute("SELECT value FROM settings WHERE key='twoFactorEnable'").fetchone()
-            token_val = cur.execute("SELECT value FROM settings WHERE key='twoFactorToken'").fetchone()
-            con.close()
-
-            self.assertEqual(enable_val[0], "false")
-            self.assertEqual(token_val[0], "")
-
-        finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
-
-    def test_06_setting_reset_preserves_user(self):
-        """Item 6: /app/x-ui setting -reset resets panel config without wiping user credentials."""
-        if not self.docker_available:
-            self.skipTest("Docker not available")
-
-        container_name = f"test_setting_reset_{int(time.time())}"
-        data_dir = self.make_temp_dir()
-
-        try:
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
-
-            # Set custom credentials first
-            subprocess.run([
-                "docker", "exec", container_name,
-                "/app/x-ui", "setting",
-                "-username", "custom_admin",
-                "-password", "SuperSecretPass!"
-            ], capture_output=True, text=True, timeout=10)
-
-            # Now execute setting -reset
-            reset_res = subprocess.run([
-                "docker", "exec", container_name,
-                "/app/x-ui", "setting",
-                "-reset"
-            ], capture_output=True, text=True, timeout=10)
-            self.assertEqual(reset_res.returncode, 0)
-
-            # Verify user record was NOT wiped or changed back to admin
-            db_path = os.path.join(data_dir, "x-ui.db")
-            con = self._connect_db(data_dir)
-            cur = con.cursor()
-            user_row = cur.execute("SELECT username, password FROM users").fetchone()
-            con.close()
-
-            self.assertIsNotNone(user_row)
-            self.assertEqual(user_row[0], "custom_admin")
-            self.assertTrue(user_row[1].startswith("$2a$10$"))
-
-        finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
-
-    def test_07_xui_sh_cli_forwarding(self):
-        """Item 7: x-ui.sh forwards 'setting' and 'cert' to /app/x-ui without interactive menus."""
-        if not self.docker_available:
-            self.skipTest("Docker not available")
-
-        container_name = f"test_cli_forwarding_{int(time.time())}"
-        data_dir = self.make_temp_dir()
-
-        try:
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
-
-            # Copy latest x-ui.sh into container
-            cp_res = subprocess.run([
-                "docker", "cp", self.xui_sh_path, f"{container_name}:/usr/bin/x-ui"
-            ], capture_output=True, text=True)
-            self.assertEqual(cp_res.returncode, 0)
+            cp_res = subprocess.run(
+                ["docker", "cp", self.xui_sh_path, f"{container_name}:/usr/bin/x-ui"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(cp_res.returncode, 0, cp_res.stderr)
             subprocess.run(["docker", "exec", container_name, "chmod", "+x", "/usr/bin/x-ui"], check=True)
 
-            # Test x-ui setting -show
-            show_res = subprocess.run([
-                "docker", "exec", container_name,
-                "x-ui", "setting", "-show"
-            ], capture_output=True, text=True, timeout=10)
-            self.assertEqual(show_res.returncode, 0)
+            show_res = subprocess.run(
+                ["docker", "exec", container_name, "x-ui", "setting", "-show"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(show_res.returncode, 0, f"x-ui setting -show failed: {show_res.stderr}")
             self.assertIn("current panel settings as follows:", show_res.stdout)
-            self.assertNotIn("3X-UI Panel Management Script", show_res.stdout)  # No interactive menu
+            self.assertNotIn("3X-UI Panel Management Script", show_res.stdout)
 
-            # Test x-ui setting -username ... -password ...
-            upd_res = subprocess.run([
-                "docker", "exec", container_name,
-                "x-ui", "setting",
-                "-username", "forwarded_user",
-                "-password", "ForwardedPass123!"
-            ], capture_output=True, text=True, timeout=10)
-            self.assertEqual(upd_res.returncode, 0)
-            self.assertIn("Username and password updated successfully", upd_res.stdout)
-
-            # Verify in DB
-            db_path = os.path.join(data_dir, "x-ui.db")
-            con = self._connect_db(data_dir)
-            user_row = con.cursor().execute("SELECT username FROM users").fetchone()
-            con.close()
-            self.assertEqual(user_row[0], "forwarded_user")
-
+            # The forwarded CLI still refuses a competing credential write.
+            upd_res = subprocess.run(
+                [
+                    "docker", "exec", container_name,
+                    "x-ui", "setting",
+                    "-username", "forwarded_user",
+                    "-password", "ForwardedPass123!",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            combined = upd_res.stdout + upd_res.stderr
+            self.assertIn("Refusing to change the administrator credential", combined)
         finally:
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
-
-    def test_08_container_restart_preserves_updated_credentials(self):
-        """Item 8: Container recreate preserves updated credentials when /etc/x-ui is mounted."""
-        if not self.docker_available:
-            self.skipTest("Docker not available")
-
-        container_name_1 = f"test_persist_1_{int(time.time())}"
-        container_name_2 = f"test_persist_2_{int(time.time())}"
-        data_dir = self.make_temp_dir()
-
-        try:
-            # 1. Start first container and set credentials
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name_1,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
-
-            subprocess.run([
-                "docker", "exec", container_name_1,
-                "/app/x-ui", "setting",
-                "-username", "persistent_admin",
-                "-password", "KeepThisSafePassword!"
-            ], capture_output=True, text=True, timeout=10)
-
-            # Stop and remove first container (simulating upgrade or router reboot)
-            subprocess.run(["docker", "rm", "-f", container_name_1], capture_output=True)
-
-            # 2. Start second container with same mounted volume
-            subprocess.run([
-                "docker", "run", "-d",
-                "--name", container_name_2,
-                "-v", f"{data_dir}:/etc/x-ui",
-                self.test_image
-            ], capture_output=True, text=True, timeout=20)
-            time.sleep(3)
-
-            # Check logs of second container - should NOT say "No panel user existed"
-            log_res = subprocess.run(["docker", "logs", container_name_2], capture_output=True, text=True)
-            self.assertNotIn("No panel user existed, so one was generated", log_res.stdout + log_res.stderr)
-
-            # Verify credentials in database are still persistent_admin
-            db_path = os.path.join(data_dir, "x-ui.db")
-            con = self._connect_db(data_dir)
-            user_row = con.cursor().execute("SELECT username FROM users").fetchone()
-            con.close()
-
-            self.assertEqual(user_row[0], "persistent_admin")
-
-        finally:
-            subprocess.run(["docker", "rm", "-f", container_name_1], capture_output=True)
-            subprocess.run(["docker", "rm", "-f", container_name_2], capture_output=True)
+            self._remove(container_name)
 
 
 if __name__ == "__main__":

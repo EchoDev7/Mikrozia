@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
@@ -72,6 +73,7 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g.POST("/update", a.updateSetting)
 	g.POST("/validateRegex", a.validateRegex)
 	g.POST("/updateUser", a.updateUser)
+	g.POST("/adminCredentialState", a.adminCredentialState)
 	g.POST("/restartPanel", a.restartPanel)
 	g.GET("/getDefaultJsonConfig", a.getDefaultXrayConfig)
 	g.GET("/apiTokens", a.listApiTokens)
@@ -192,8 +194,35 @@ func (a *SettingController) updateSetting(c *gin.Context) {
 	jsonMsg(c, I18nWeb(c, "pages.settings.toasts.modifySettings"), err)
 }
 
+// AdminCredentialView is the browser-safe state of the administrator account.
+// It never carries the username or the password.
+type AdminCredentialView struct {
+	// Source names where the credential comes from: environment, preserved,
+	// legacy-default, or missing.
+	Source string `json:"source" example:"environment"`
+	// Managed reports that the container environment owns the credential.
+	Managed bool `json:"managed" example:"true"`
+}
+
+// adminCredentialState reports where the administrator credential comes from,
+// so the panel can show the truth instead of offering a competing change.
+func (a *SettingController) adminCredentialState(c *gin.Context) {
+	state, err := a.userService.InspectAdminAccount()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.settings.toasts.getSettings"), err)
+		return
+	}
+	jsonObj(c, AdminCredentialView{Source: string(state.Source), Managed: config.AdminCredentialMutationForbidden()}, nil)
+}
+
 // updateUser updates the current user's username and password.
 func (a *SettingController) updateUser(c *gin.Context) {
+	// The container environment owns the administrator account, so a panel-side
+	// change would be overwritten on the next start.
+	if config.AdminCredentialMutationForbidden() {
+		jsonMsg(c, I18nWeb(c, "pages.settings.toasts.modifyUserError"), errors.New(I18nWeb(c, "pages.settings.toasts.adminCredentialManagedByEnvironment")))
+		return
+	}
 	form := &updateUserForm{}
 	err := c.ShouldBind(form)
 	if err != nil {

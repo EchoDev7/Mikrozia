@@ -1,7 +1,7 @@
 # MIKROZIA — CHR FIELD TESTING LESSONS & REAL-WORLD ACCEPTANCE (v1.0)
 
 **Document Status:** HISTORICAL FIELD RECORD — SUPERSEDED FOR INSTALLATION
-**Current Policy:** Firewall/NAT examples in this record are not part of Mikrozia installation. Use `MIKROZIA_CHR_INSTALL_FA.md`; network policy is operator-owned. Container-side ACME installation and automatic certificate renewal described below were retired; certificates are user-managed and configured by path only.
+**Current Policy:** Firewall/NAT examples in this record are not part of Mikrozia installation. Use `MIKROZIA_CHR_INSTALL_FA.md`; network policy is operator-owned. Current certificates are issued by the bundled ACME client through manual HTTP-01 or automatically renewed Cloudflare DNS-01 and stored under `/root/cert`; the older field-test workflow below is preserved only as history.
 **Test Date:** November 1, 2026
 **Test Platform:** MikroTik Cloud Hosted Router (CHR) x86_64 / AMD64
 **RouterOS Version:** 7.23.2

@@ -26,6 +26,26 @@
       }
     },
     "schemas": {
+      "AdminCredentialView": {
+        "description": "AdminCredentialView is the browser-safe state of the administrator account.\nIt never carries the username or the password.",
+        "properties": {
+          "managed": {
+            "description": "Managed reports that the container environment owns the credential.",
+            "example": true,
+            "type": "boolean"
+          },
+          "source": {
+            "description": "Source names where the credential comes from: environment, preserved,\nlegacy-default, or missing.",
+            "example": "environment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "managed",
+          "source"
+        ],
+        "type": "object"
+      },
       "AllSetting": {
         "properties": {
           "datepicker": {
@@ -12899,7 +12919,7 @@
         "tags": [
           "Settings"
         ],
-        "summary": "Change the panel admin username and password. Requires the current credentials for verification. The session is refreshed with the new values on success.",
+        "summary": "Change the panel admin username and password. Requires the current credentials for verification. The session is refreshed with the new values on success. Refused while the container environment owns the administrator account.",
         "operationId": "post_panel_api_setting_updateUser",
         "requestBody": {
           "required": true,
@@ -12933,10 +12953,10 @@
                 ]
               },
               "example": {
-                "oldUsername": "admin",
-                "oldPassword": "admin",
-                "newUsername": "newadmin",
-                "newPassword": "newpass"
+                "oldUsername": "<current-username>",
+                "oldPassword": "<current-password>",
+                "newUsername": "<new-username>",
+                "newPassword": "<new-password>"
               }
             }
           }
@@ -12956,6 +12976,43 @@
                       "type": "string"
                     },
                     "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/adminCredentialState": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Report where the administrator credential comes from: \"environment\" when the container environment owns it, \"preserved\" for a stored account the environment does not configure, \"legacy-default\" for the retired default pair, and \"missing\" when no account exists. Never returns the username or the password.",
+        "operationId": "post_panel_api_setting_adminCredentialState",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "source": "environment",
+                    "managed": true
                   }
                 }
               }

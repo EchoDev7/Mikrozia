@@ -44,9 +44,17 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 /container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
+
+> **敏感值提示：** RouterOS Container Environment 是配置存储，而不是密钥存储。
+> `/container/envs` 中的任何值，对任何可以读取或导出路由器配置的人都是可见的。
+> `MIKROZIA_ADMIN_USERNAME` 与 `MIKROZIA_ADMIN_PASSWORD` 是管理员账号的唯一来源，
+> 必须**同时**设置；若只存在其中一个，面板将拒绝启动。Mikrozia 不会把这些值写入日志，
+> 也不会通过 API 返回。
 
 如果目录已存在，请跳过对应的 `/file/add` 行。查看解压进度：
 
@@ -68,7 +76,7 @@ majlot/mikrozia:v1-mikrozia
 
 - 面板在容器内监听 `http://172.16.10.2:2053/`。
 - 数据库与设置位于持久化挂载 `/etc/x-ui`，用户证书位于 `/root/cert`。
-- 请在容器外获取并续期 TLS 证书，并在面板中配置其路径；Mikrozia 不签发或续期证书。
+- 镜像内置版本锁定的 ACME 客户端，可在容器内签发证书：HTTP-01（手动续期）或 Cloudflare DNS-01（自动续期）。证书与账户状态持久化在 `/root/cert`。Mikrozia 绝不创建或修改 RouterOS 防火墙、NAT 或端口转发规则。
 - 防火墙、NAT、端口转发、路由和访问控制策略完全由 RouterOS 管理员负责；Mikrozia
   从不创建或修改任何网络规则。
 

@@ -114,32 +114,35 @@ xui_env_file_path() {
     esac
 }
 
-reset_user() {
-    confirm "Are you sure to reset the username and password of the panel?" "n"
-    if [[ $? != 0 ]]; then
-        if [[ $# == 0 ]]; then
-            show_menu
-        fi
-        return 0
-    fi
-
-    read -rp "Please set the login username [default is a random username]: " config_account
-    [[ -z $config_account ]] && config_account=$(gen_random_string 10)
-    read -rp "Please set the login password [default is a random password]: " config_password
-    [[ -z $config_password ]] && config_password=$(gen_random_string 18)
-
-    read -rp "Do you want to disable currently configured two-factor authentication? (y/n): " twoFactorConfirm
-    if [[ $twoFactorConfirm != "y" && $twoFactorConfirm != "Y" ]]; then
-        ${xui_folder}/x-ui setting -username "${config_account}" -password "${config_password}" > /dev/null 2>&1
+admin_credential_menu() {
+    echo -e "${yellow}The panel administrator account belongs to the RouterOS Container Environment.${plain}"
+    echo -e "${yellow}Mikrozia never prints a credential and never generates one.${plain}"
+    echo ""
+    if [[ -n "${MIKROZIA_ADMIN_USERNAME:-}" && -n "${MIKROZIA_ADMIN_PASSWORD:-}" ]]; then
+        echo -e "${green}Status:${plain} the administrator account is managed by the container environment."
+        echo -e "        Changing the environment values and restarting the container reconciles the stored account."
+    elif [[ -n "${MIKROZIA_ADMIN_USERNAME:-}" || -n "${MIKROZIA_ADMIN_PASSWORD:-}" ]]; then
+        echo -e "${red}Status:${plain} only one of the two environment values is set."
+        echo -e "        The panel refuses to start until both MIKROZIA_ADMIN_USERNAME and MIKROZIA_ADMIN_PASSWORD are set."
     else
-        ${xui_folder}/x-ui setting -username "${config_account}" -password "${config_password}" -resetTwoFactor=true > /dev/null 2>&1
-        echo -e "Two factor authentication has been disabled."
+        echo -e "${yellow}Status:${plain} the environment does not configure an administrator account."
+        echo -e "        The stored account is preserved unchanged so you keep access to the panel."
     fi
-
-    echo -e "Panel login username has been reset to: ${green} ${config_account} ${plain}"
-    echo -e "Panel login password has been reset to: ${green} ${config_password} ${plain}"
-    echo -e "${green} Please use the new login username and password to access the X-UI panel. Also remember them! ${plain}"
-    confirm_restart
+    echo ""
+    echo -e "${blue}Set the administrator account in RouterOS (Terminal or WinBox):${plain}"
+    echo -e "  ${green}/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value=\"YOUR_ADMIN_NAME\" comment=\"[Mikrozia:container] Environment\"${plain}"
+    echo -e "  ${green}/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value=\"YOUR_STRONG_PASSWORD\" comment=\"[Mikrozia:container] Environment\"${plain}"
+    echo ""
+    echo -e "${blue}Change it later with:${plain}"
+    echo -e "  ${green}/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_USERNAME] value=\"YOUR_ADMIN_NAME\"${plain}"
+    echo -e "  ${green}/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value=\"YOUR_STRONG_PASSWORD\"${plain}"
+    echo ""
+    echo -e "${yellow}After the change, restart the container so the new environment reaches the panel:${plain}"
+    echo -e "  ${green}/container/restart [find where comment=\"[Mikrozia:container] Container\"]${plain}"
+    echo ""
+    echo -e "${yellow}The RouterOS Environment is a configuration store, not a secret store. Anyone who can read the${plain}"
+    echo -e "${yellow}RouterOS configuration can read the administrator password.${plain}"
+    before_show_menu
 }
 
 gen_random_string() {
@@ -259,7 +262,7 @@ check_config() {
         fi
     else
         echo -e "${red}⚠ WARNING: No TLS certificate configured for the panel!${plain}"
-        echo -e "${yellow}Place a certificate and key under /root/cert, then select option 14 (TLS Certificate Paths).${plain}"
+        echo -e "${yellow}Place a certificate and key under /root/cert, then select option 14 (TLS Certificates).${plain}"
         echo -e "${yellow}Access URL: http://${server_ip}:${existing_port}${existing_webBasePath}${plain}"
     fi
 }
@@ -726,10 +729,12 @@ show_mtproto_status() {
 }
 
 tls_cert_path_menu() {
-    echo -e "${yellow}Mikrozia does not issue or renew TLS certificates.${plain}"
-    echo -e "${yellow}Obtain and renew certificates outside the container, then reference the mounted files here.${plain}"
-    echo -e "${green}\t1.${plain} Show existing certificates under /root/cert"
-    echo -e "${green}\t2.${plain} Set certificate paths for the panel"
+    echo -e "${yellow}Certificates are issued by the ACME client bundled in the image and stored on /root/cert.${plain}"
+    echo -e "${green}\t1.${plain} Show certificate status (panel, subscription, expiry, renewal mode)"
+    echo -e "${green}\t2.${plain} Set certificate paths for the panel (manual import)"
+    echo -e "${green}\t3.${plain} Issue or renew a certificate with HTTP-01 (manual)"
+    echo -e "${green}\t4.${plain} Cloudflare DNS-01 setup and automatic renewal"
+    echo -e "${green}\t5.${plain} Show existing certificates under /root/cert"
     echo -e "${green}\t0.${plain} Back to Main Menu"
 
     read -rp "Choose an option: " choice
@@ -738,7 +743,109 @@ tls_cert_path_menu() {
             show_menu
             ;;
         1)
-            local domains=$(find /root/cert/ -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2> /dev/null)
+            "${xui_folder}/x-ui" acme status
+            echo ""
+            echo -e "${blue}Panel and subscription certificate paths:${plain}"
+            "${xui_folder}/x-ui" setting -getCert true
+            tls_cert_path_menu
+            ;;
+        2)
+            echo -e "${green}\t1.${plain} Use a certificate from /root/cert"
+            echo -e "${green}\t2.${plain} Enter custom certificate file paths"
+            read -rp "Choose an option: " pathChoice
+            if [[ "$pathChoice" == "2" ]]; then
+                read -rp "Certificate file path (fullchain): " webCertFile
+                read -rp "Private key file path: " webKeyFile
+                if [[ -f "${webCertFile}" && -f "${webKeyFile}" ]]; then
+                    "${xui_folder}/x-ui" cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+                    echo "Panel certificate paths set:"
+                    echo "  - Certificate File: $webCertFile"
+                    echo "  - Private Key File: $webKeyFile"
+                    restart
+                    return
+                else
+                    echo "Certificate or private key file not found."
+                fi
+                tls_cert_path_menu
+                return
+            fi
+            local domains
+            domains=$(find /root/cert/ -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2> /dev/null)
+            if [ -z "$domains" ]; then
+                echo "No certificates found."
+            else
+                echo "Available domains:"
+                echo "$domains"
+                read -rp "Please choose a domain to set the panel paths: " domain
+
+                if echo "$domains" | grep -qw "$domain"; then
+                    local webCertFile="/root/cert/${domain}/fullchain.pem"
+                    local webKeyFile="/root/cert/${domain}/privkey.pem"
+
+                    if [[ -f "${webCertFile}" && -f "${webKeyFile}" ]]; then
+                        "${xui_folder}/x-ui" cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+                        echo "Panel paths set for domain: $domain"
+                        echo "  - Certificate File: $webCertFile"
+                        echo "  - Private Key File: $webKeyFile"
+                        restart
+                        return
+                    else
+                        echo "Certificate or private key not found for domain: $domain."
+                    fi
+                else
+                    echo "Invalid domain entered."
+                fi
+            fi
+            tls_cert_path_menu
+            ;;
+        3)
+            read -rp "Domain for the certificate (for example panel.example.com): " acme_domain
+            if [[ -z "${acme_domain}" ]]; then
+                echo "No domain entered."
+                tls_cert_path_menu
+                return
+            fi
+            echo -e "${yellow}Mikrozia cannot verify public HTTP-01 reachability from inside the container.${plain}"
+            echo -e "${yellow}The RouterOS operator must temporarily make TCP 80 reachable from the public Internet.${plain}"
+            echo -e "${yellow}Mikrozia never inspects or changes RouterOS firewall, NAT, or port-forward rules.${plain}"
+            "${xui_folder}/x-ui" acme check --http --domain "${acme_domain}"
+            read -rp "Start the issuance now? (y/n): " acme_confirm
+            if [[ "$acme_confirm" == "y" || "$acme_confirm" == "Y" ]]; then
+                "${xui_folder}/x-ui" acme issue --http --domain "${acme_domain}"
+                return
+            fi
+            tls_cert_path_menu
+            ;;
+        4)
+            read -rp "Domain for the certificate (for example panel.example.com): " acme_domain
+            if [[ -z "${acme_domain}" ]]; then
+                echo "No domain entered."
+                tls_cert_path_menu
+                return
+            fi
+            echo -e "${yellow}Use a Cloudflare API Token with Zone:Read and DNS:Edit for this zone only.${plain}"
+            echo -e "${yellow}The token is never printed, logged, or returned by the panel API.${plain}"
+            echo -e "${yellow}RouterOS Environment values are visible to anyone who can read or export RouterOS configuration.${plain}"
+            read -rs -p "Paste the Cloudflare API token (the input stays hidden): " acme_token
+            echo ""
+            if [[ -z "${acme_token}" ]]; then
+                echo "No token entered."
+                tls_cert_path_menu
+                return
+            fi
+            printf '%s' "${acme_token}" | "${xui_folder}/x-ui" acme cloudflare setup --domain "${acme_domain}" --stdin
+            unset acme_token
+            "${xui_folder}/x-ui" acme check --dns --domain "${acme_domain}"
+            read -rp "Start the issuance now? (y/n): " acme_confirm
+            if [[ "$acme_confirm" == "y" || "$acme_confirm" == "Y" ]]; then
+                "${xui_folder}/x-ui" acme issue --dns --domain "${acme_domain}"
+                return
+            fi
+            tls_cert_path_menu
+            ;;
+        5)
+            local domains
+            domains=$(find /root/cert/ -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2> /dev/null)
             if [ -z "$domains" ]; then
                 echo "No certificates found under /root/cert."
             else
@@ -757,59 +864,15 @@ tls_cert_path_menu() {
             fi
             # The panel's configured certificate may live outside /root/cert
             # (e.g. a certificate mounted from RouterOS) — show it too (#5070).
-            local panel_cert=$(${xui_folder}/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+            local panel_cert
+            panel_cert=$("${xui_folder}/x-ui" setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
             if [[ -n "${panel_cert}" && "${panel_cert}" != /root/cert/* ]]; then
                 echo -e "Panel certificate (custom path): ${panel_cert}"
                 if [[ -f "${panel_cert}" ]] && command -v openssl > /dev/null 2>&1; then
-                    local panel_sans=$(openssl x509 -in "${panel_cert}" -noout -ext subjectAltName 2> /dev/null \
+                    local panel_sans
+                    panel_sans=$(openssl x509 -in "${panel_cert}" -noout -ext subjectAltName 2> /dev/null \
                         | grep -Eo 'DNS:[^,[:space:]]+' | cut -d: -f2 | tr '\n' ' ')
                     [[ -n "${panel_sans}" ]] && echo -e "\tCovers: ${panel_sans}"
-                fi
-            fi
-            tls_cert_path_menu
-            ;;
-        2)
-            echo -e "${green}\t1.${plain} Use a certificate from /root/cert"
-            echo -e "${green}\t2.${plain} Enter custom certificate file paths"
-            read -rp "Choose an option: " pathChoice
-            if [[ "$pathChoice" == "2" ]]; then
-                read -rp "Certificate file path (fullchain): " webCertFile
-                read -rp "Private key file path: " webKeyFile
-                if [[ -f "${webCertFile}" && -f "${webKeyFile}" ]]; then
-                    ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
-                    echo "Panel certificate paths set:"
-                    echo "  - Certificate File: $webCertFile"
-                    echo "  - Private Key File: $webKeyFile"
-                    restart
-                else
-                    echo "Certificate or private key file not found."
-                fi
-                tls_cert_path_menu
-                return
-            fi
-            local domains=$(find /root/cert/ -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2> /dev/null)
-            if [ -z "$domains" ]; then
-                echo "No certificates found."
-            else
-                echo "Available domains:"
-                echo "$domains"
-                read -rp "Please choose a domain to set the panel paths: " domain
-
-                if echo "$domains" | grep -qw "$domain"; then
-                    local webCertFile="/root/cert/${domain}/fullchain.pem"
-                    local webKeyFile="/root/cert/${domain}/privkey.pem"
-
-                    if [[ -f "${webCertFile}" && -f "${webKeyFile}" ]]; then
-                        ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
-                        echo "Panel paths set for domain: $domain"
-                        echo "  - Certificate File: $webCertFile"
-                        echo "  - Private Key File: $webKeyFile"
-                        restart
-                    else
-                        echo "Certificate or private key not found for domain: $domain."
-                    fi
-                else
-                    echo "Invalid domain entered."
                 fi
             fi
             tls_cert_path_menu
@@ -1014,6 +1077,7 @@ show_usage() {
 │  ${blue}x-ui disable${plain}               - Show RouterOS Disable Autostart  │
 │  ${blue}x-ui log${plain}                   - Check logs                       │
 │  ${blue}x-ui cert [flags]${plain}          - Configure certificate file paths  │
+│  ${blue}x-ui acme <command>${plain}          - Issue, renew, inspect certs      │
 │  ${blue}x-ui migrateDB [file]${plain}      - Convert .db <-> .dump (SQLite)   │
 └────────────────────────────────────────────────────────────────┘"
 }
@@ -1024,7 +1088,7 @@ show_menu() {
 │  ${green}Mikrozia Panel Management Script${plain}             │
 │  ${green}0.${plain} Exit Script                               │
 │────────────────────────────────────────────────│
-│  ${green}1.${plain} Reset Username & Password                 │
+│  ${green}1.${plain} Environment-Managed Admin Credentials          │
 │  ${green}2.${plain} Reset Web Base Path                       │
 │  ${green}3.${plain} Reset Settings                            │
 │  ${green}4.${plain} Change Port                              │
@@ -1040,7 +1104,7 @@ show_menu() {
 │  ${green}12.${plain} Show RouterOS Enable Autostart Command    │
 │  ${green}13.${plain} Show RouterOS Disable Autostart Command   │
 │────────────────────────────────────────────────│
-│  ${green}14.${plain} TLS Certificate Paths                      │
+│  ${green}14.${plain} TLS Certificates                              │
 │  ${green}15.${plain} RouterOS Network Policy Notice            │
 │  ${green}16.${plain} Database Tools                            │
 ╚────────────────────────────────────────────────╝
@@ -1053,7 +1117,7 @@ show_menu() {
             exit 0
             ;;
         1)
-            check_install && reset_user
+            check_install && admin_credential_menu
             ;;
         2)
             check_install && reset_webbasepath
@@ -1129,7 +1193,7 @@ if [[ $# -gt 0 ]]; then
         "settings")
             check_install 0 && check_config 0
             ;;
-        "setting" | "cert")
+        "setting" | "cert" | "acme")
             exec "${xui_folder}/x-ui" "$@"
             ;;
         "enable")

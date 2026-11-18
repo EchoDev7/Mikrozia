@@ -42,7 +42,7 @@ func InitDB(t testing.TB, path string) {
 	}
 	t.Cleanup(func() { _ = database.CloseDB() })
 	// A serving panel always has its first user; a copied template already does.
-	if _, _, err := database.EnsureFirstUser(); err != nil {
+	if err := database.EnsureFirstUser("test-admin", "test-admin-password-not-a-secret"); err != nil {
 		t.Fatalf("EnsureFirstUser: %v", err)
 	}
 }
@@ -60,7 +60,7 @@ func migratedTemplate() ([]byte, error) {
 			migrated.err = err
 			return
 		}
-		if _, _, err := database.EnsureFirstUser(); err != nil {
+		if err := database.EnsureFirstUser("test-admin", "test-admin-password-not-a-secret"); err != nil {
 			migrated.err = err
 			return
 		}

@@ -119,10 +119,11 @@ func run(root, outDir string) error {
 		{
 			Path:        resolveRel(root, "internal/web/service/panel"),
 			StructAllow: setOf("ApiTokenView", "PanelUpdateInfo", "Sponsor", "SponsorList"),
+			AliasAllow:  setOf("AdminCredentialSource"),
 		},
 		{
 			Path:        resolveRel(root, "internal/web/controller"),
-			StructAllow: setOf("TgBotCapabilities"),
+			StructAllow: setOf("TgBotCapabilities", "AdminCredentialView"),
 		},
 		{
 			Path:        resolveRel(root, "internal/amneziawg"),

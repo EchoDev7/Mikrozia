@@ -7,7 +7,7 @@
 
 **Mikrozia** is a production-hardened, multi-architecture distribution of **3x-ui** (powered by **Xray-core**) engineered specifically to run inside the **MikroTik RouterOS Container** subsystem (CHR, x86_64, and ARM RouterBOARDs).
 
-Standard Docker images cannot run reliably on RouterOS due to non-systemd init, ephemeral root filesystems, absent iptables/fail2ban kernel modules, and missing persistent mounts. Mikrozia solves these hurdles by providing a lightweight Alpine base, zero container-level firewall pollution, persistent volume mounts, user-managed TLS certificate paths, and a seamless RouterOS runtime contract.
+Standard Docker images cannot run reliably on RouterOS due to non-systemd init, ephemeral root filesystems, absent iptables/fail2ban kernel modules, and missing persistent mounts. Mikrozia solves these hurdles by providing a lightweight Alpine base, zero container-level firewall pollution, persistent volume mounts, a pinned in-image ACME client with persistent TLS certificate storage, and a seamless RouterOS runtime contract.
 
 ---
 
@@ -40,16 +40,16 @@ The versioned OCI image is the only release artifact. Mikrozia does not publish 
 
 Mikrozia enforces strict isolation between application code and persistent user state:
 
-| Property                        | Value                      | Description                                            |
-| ------------------------------- | -------------------------- | ------------------------------------------------------ |
-| **Entrypoint**                  | `/app/DockerEntrypoint.sh` | Hardened Alpine init without systemd                   |
-| **Working Directory**           | `/app`                     | 3x-ui binary and management scripts                    |
-| **Persistent Database**         | `/etc/x-ui`                | Stores `x-ui.db` (clients, inbounds, settings)         |
-| **Persistent TLS Certificates** | `/root/cert`               | User-supplied certificates; survives image replacement |
-| **User Home**                   | `/root`                    | Preserves SSH/environment consistency                  |
-| **Internal Panel Port**         | `2053/TCP`                 | Default 3x-ui web admin UI                             |
-| **Internal Sub Port**           | `2096/TCP`                 | Default subscription service endpoint                  |
-| **Container Firewall**          | _None_                     | All firewall/NAT is handled exclusively by RouterOS    |
+| Property                        | Value                      | Description                                                                  |
+| ------------------------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| **Entrypoint**                  | `/app/DockerEntrypoint.sh` | Hardened Alpine init without systemd                                         |
+| **Working Directory**           | `/app`                     | 3x-ui binary and management scripts                                          |
+| **Persistent Database**         | `/etc/x-ui`                | Stores `x-ui.db` (clients, inbounds, settings)                               |
+| **Persistent TLS Certificates** | `/root/cert`               | Issued and imported certificates plus ACME state; survives image replacement |
+| **User Home**                   | `/root`                    | Preserves SSH/environment consistency                                        |
+| **Internal Panel Port**         | `2053/TCP`                 | Default 3x-ui web admin UI                                                   |
+| **Internal Sub Port**           | `2096/TCP`                 | Default subscription service endpoint                                        |
+| **Container Firewall**          | _None_                     | All firewall/NAT is handled exclusively by RouterOS                          |
 
 ### Production TLS Certificate Paths
 
@@ -134,7 +134,22 @@ Define the persistent mounts so your database and certificates survive container
 # Environment Variables
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+> **Sensitive values**: the RouterOS Container Environment is a configuration
+> store, not a secret store. Every value in `/container/envs` is visible to
+> anyone who can read or export the router configuration. Choose a strong
+> administrator password, protect access to the router and its backups, and
+> rotate the password if that configuration ever left your control. Mikrozia
+> never prints these values to logs, never returns them through an API, and
+> never writes them into the image.
+
+`MIKROZIA_ADMIN_USERNAME` and `MIKROZIA_ADMIN_PASSWORD` are the authoritative
+source of the panel administrator account: they must be set **together**, and the
+panel refuses to start when only one of them is present. An existing account is
+reconciled with them on every start and is never silently deleted or reset.
 
 ### Step 4: Configure Docker Hub Registry and Add Container
 
@@ -205,63 +220,89 @@ inputs above against your own requirements before exposing any port.
 
 ## First Login & Credential Management
 
-### Finding Initial Credentials
+### The Environment Is the Source of Truth
 
-On the very first launch, 3x-ui generates a secure, randomized administrator username and password. Inspect them in the RouterOS log:
+The panel administrator account is owned by the RouterOS Container Environment.
+`MIKROZIA_ADMIN_USERNAME` and `MIKROZIA_ADMIN_PASSWORD` must be set **together**;
+on every start they are reconciled onto the stored account.
+
+| Environment state                      | Behaviour                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| Both values set                        | The stored account is reconciled to exactly these values on every start.   |
+| Only one value set                     | The panel refuses to start and names the incomplete variable.              |
+| Neither set, an account already exists | The existing account is preserved unchanged; the panel only logs a notice. |
+| Neither set, no account exists         | The panel refuses to start and asks for both variables.                    |
+
+There is **no random one-time credential printed to the log** and no fixed
+`admin/admin` default. A stored account that still holds the legacy default
+credential is kept, but the panel refuses to start until the environment
+provides a replacement.
+
+### Reading the Current Values
 
 ```routeros
-/log/print where topics~"container"
+/container/envs/print where list=MIKROZIA_ENV
 ```
 
-Look for lines indicating:
+> **Sensitive values**: the RouterOS Container Environment is a configuration
+> store, not a secret store. Every value in `/container/envs` is visible to
+> anyone who can read or export the router configuration. Choose a strong
+> administrator password, protect access to the router and its backups, and
+> rotate the password if that configuration ever left your control. Mikrozia
+> never prints these values to logs, never returns them through an API, and
+> never writes them into the image.
 
-```text
-Username: <random-username>
-Password: <random-password>
-```
+### Changing the Administrator Password
 
-### Resetting Administrator Credentials
-
-If the initial log was rotated or you forgot your password, open the container shell and inspect or reset credentials at any time:
+Change the environment value and restart the container:
 
 ```routeros
-# Access the container shell
-/container/shell [find where comment="[Mikrozia:container] Container"]
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
-Inside the container shell:
+While the environment owns the account, a password change from the panel UI or
+from the legacy shell command is refused so that two sources of truth cannot
+compete:
 
 ```sh
-# Display current credentials, port, and web path:
-/app/x-ui setting -show
-
-# Or reset username and password:
 /app/x-ui setting -username admin -password 'YourNewSecurePassword!'
-# Reload panel web service and restart Xray inside the running container:
-x-ui restart
-exit
-```
-
-Or restart the full container from RouterOS Terminal/WinBox:
-
-```routeros
-/container/restart [find where comment="[Mikrozia:container] Container"]
+# Refusing to change the administrator credential: MIKROZIA_ADMIN_USERNAME and
+# MIKROZIA_ADMIN_PASSWORD in the container environment own it.
 ```
 
 > **RouterOS Container Lifecycle Note**: Inside the container, `x-ui restart` reloads the panel web service (`SIGHUP`) and restarts Xray (`SIGUSR1`) without restarting the container itself; `x-ui restart-xray` restarts only Xray. Commands such as `x-ui start`, `x-ui stop`, `x-ui enable`, and `x-ui disable` print the corresponding RouterOS `/container/...` commands (including `start-on-boot=yes|no restart-policy=always|no`) because full container lifecycle is managed by RouterOS.
 
 ---
 
-## TLS Certificates (User-Managed)
+## TLS Certificates
 
-Mikrozia does not issue, renew, or install certificates inside the container. There is no ACME client, renewal cron job, or certificate tooling in the image.
+The image ships a pinned, checksum-verified ACME client, so certificates can be issued and renewed inside the container without installing anything at runtime. Two methods are supported:
 
-1. **Acquire and renew** certificates with the procedure provided by your certificate authority, outside the container.
-2. **Store** the files on the persistent `/root/cert` mount.
-3. **Configure paths** for the panel via menu `14` (TLS Certificate Paths), `x-ui cert`, or Panel Settings:
-   - Public Certificate: `/root/cert/vpn.yourdomain.com/fullchain.pem`
-   - Private Key: `/root/cert/vpn.yourdomain.com/privkey.pem`
-4. **Reload** with `x-ui restart` after replacing renewed files.
+1. **HTTP-01 (manual)** — needs public TCP/80 to reach the container while the issuance runs. You own that reachability: Mikrozia never creates, changes, or removes RouterOS firewall, NAT, port-forwarding, or routing rules. Mikrozia cannot verify public reachability from inside the container; local diagnostics are not proof that public TCP/80 works. Renewal is manual.
+2. **Cloudflare DNS-01 (automatic)** — needs no public port. A least-privilege Cloudflare API token (`Zone → DNS → Edit`, `Zone → Zone → Read`, one zone only) is read from a hidden prompt or deliberately from the `MIKROZIA_CF_API_TOKEN` environment variable, and is stored with mode `0600` on the persistent mount. RouterOS Environment values are visible in the router configuration. The panel checks its DNS-01 domains twice a day.
+
+Both methods store everything on the persistent `/root/cert` mount:
+
+- `/root/cert/<domain>/fullchain.pem`
+- `/root/cert/<domain>/privkey.pem`
+- `/root/cert/.acme.sh/` (opaque ACME account and renewal state)
+
+Use the shell menu `14` (TLS Certificates) or the CLI:
+
+```bash
+x-ui acme status
+x-ui acme check --http --domain panel.example.com
+x-ui acme issue --http --domain panel.example.com
+x-ui acme cloudflare setup --domain panel.example.com
+x-ui acme issue --dns --domain panel.example.com
+```
+
+For deliberate noninteractive token input, use `MIKROZIA_CF_API_TOKEN` or one token line with explicit `--stdin`; generic inherited standard input is rejected. The token is never a command-line argument.
+
+A changed, validated certificate pair updates the panel and subscription TLS paths and reloads the panel, subscription listener, and Xray exactly once. If installation, validation, settings update, or reload fails, the previous pair and all four previous paths are restored and the error is reported. An unchanged renewal changes nothing.
+
+An existing certificate can still be imported by path with `x-ui cert -webCert … -webCertKey …`, and the panel TLS paths stay editable in Panel Settings. For a manual file replacement outside the ACME flow, run `x-ui restart` to load it.
 
 Mikrozia never creates RouterOS firewall or NAT rules for certificate validation; configure any required port access yourself.
 

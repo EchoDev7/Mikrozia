@@ -5,6 +5,7 @@ package sub
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"io/fs"
 	"net"
@@ -486,4 +487,23 @@ func (s *Server) Stop() error {
 // GetCtx returns the server's context for cancellation and deadline management.
 func (s *Server) GetCtx() context.Context {
 	return s.ctx
+}
+
+// ReloadTLS keeps subscription state alive while replacing the TLS listener.
+func (s *Server) ReloadTLS() error {
+	if s.listener == nil {
+		return nil
+	}
+	cert, err := s.settingService.GetSubCertFile()
+	if err != nil {
+		return err
+	}
+	key, err := s.settingService.GetSubKeyFile()
+	if err != nil {
+		return err
+	}
+	if s.httpServer == nil {
+		return errors.New("subscription listener is not initialized")
+	}
+	return network.ReloadHTTP(&s.httpServer, &s.listener, s.httpServer.Handler, nil, cert, key)
 }

@@ -1,56 +1,178 @@
 ---
 title: TLS Certificates
-description: Supply and rotate TLS certificates for the Mikrozia panel and inbounds. Mikrozia does not issue or renew certificates inside the container.
+description: Issue, install, and renew TLS certificates for the Mikrozia panel and inbounds with the ACME client bundled in the image — HTTP-01 manually or Cloudflare DNS-01 automatically.
 icon: ShieldCheck
 ---
 
 A TLS certificate lets you serve the **panel** over HTTPS (so your login and API
 traffic are encrypted) and terminate TLS on **inbounds** (VLESS-TLS, Trojan,
-Shadowsocks-TLS, and friends). Mikrozia only **reads** certificate files that you
-provide. It does not run an ACME client, certbot, or any other certificate
-issuer inside the container.
+Shadowsocks-TLS, and friends). Mikrozia ships a pinned ACME client inside the
+image, so you can issue and renew certificates without installing anything on
+the router and without running a certificate issuer on RouterOS itself.
+
+Two issuance methods are supported:
+
+| Method                    | Public port 80 | Renewal    | Best for                                     |
+| ------------------------- | ------------- | ---------- | -------------------------------------------- |
+| **HTTP-01** (manual)      | Required      | Manual     | One-off domains, no DNS provider API access. |
+| **Cloudflare DNS-01**     | Not required  | Automatic  | Domains behind Cloudflare DNS.               |
 
 <Callout type="warn">
-  Certificate acquisition and renewal are **user-managed**. Mikrozia never
-  downloads or installs certificate tooling at runtime, and never creates or
-  changes RouterOS firewall, NAT, or port-forwarding rules. If your validation
-  method needs a public port, configure that access yourself in RouterOS.
+  Certificate **reachability** is yours to create. Mikrozia never creates,
+  changes, removes, enables, or disables RouterOS firewall, NAT,
+  port-forwarding, routing, address-list, or cloud-security rules — not from the
+  panel, not from the shell menu, not from this documentation. The Cloudflare
+  token is never logged, never returned in plaintext by an API, never embedded
+  in generated configuration, and never written to the immutable image root.
 </Callout>
 
-## Obtain the certificate outside the container
+## Where certificates live
 
-Use the issuance and renewal procedure provided by your certificate authority
-on a host you control, then copy the resulting files to the router's persistent
-certificate storage. Do not install packages or run certificate installers
-inside the Mikrozia container.
-
-A certificate and its private key are usually two files:
-
-- `fullchain.pem` — the certificate plus intermediate chain.
-- `privkey.pem` — the private key. Keep it private and never place it in an
-  image, a support bundle, or a log.
-
-## Store it on the persistent certificate mount
-
-Create one directory per certificate under `/root/cert` (the container path for
-the RouterOS certificate mount):
+Everything ACME-related lives on the persistent certificate mount, so it
+survives an image replacement and a rollback:
 
 ```text
-/root/cert/vpn.example.com/fullchain.pem
-/root/cert/vpn.example.com/privkey.pem
+/root/cert/vpn.example.com/fullchain.pem   # issued certificate + chain
+/root/cert/vpn.example.com/privkey.pem      # private key (0600)
+/root/cert/.acme.sh/                         # ACME account, per-domain state, renewal state
 ```
 
-Both files must exist at their final paths before you configure the panel. This
-directory is a persistent mount, so certificates survive container image
-replacement and rollback.
+The panel and the subscription server are pointed at
+`/root/cert/<domain>/fullchain.pem` and `/root/cert/<domain>/privkey.pem`
+automatically after a successful issuance. The **Public Key Path** and
+**Private Key Path** fields in
+[Panel Settings](/docs/config/panel#tls) stay editable, so a certificate that
+lives somewhere else can still be used.
 
-## Point the panel at the files
+## Issue a certificate: HTTP-01 (manual)
 
-Choose one of these equivalent methods:
+HTTP-01 validation needs TCP port 80 to reach this container from the public
+internet, **only while the issuance runs**.
 
-- Run `x-ui`, select **`14` — TLS Certificate Paths**, then **`2` — Set
-  certificate paths for the panel**.
-- Run the CLI directly:
+<Steps>
+
+### Make port 80 reach the container
+
+Forward public TCP/80 to the container's port 80 with a rule you own. The
+Mikrozia panel never writes that rule for you. Close it again once the
+certificate is issued — the renewal is manual, so you reopen it when you renew.
+
+### Check the prerequisites
+
+```bash
+x-ui acme check --http --domain panel.example.com
+```
+
+The output reports the bundled client, the ACME account home, and local DNS
+resolution. Mikrozia cannot verify public HTTP-01 reachability from inside the
+container. The RouterOS operator must temporarily make TCP 80 reachable from
+the public Internet. The command never inspects RouterOS policy as proof of
+public reachability and never changes a router rule.
+
+### Issue the certificate
+
+```bash
+x-ui acme issue --http --domain panel.example.com
+```
+
+or use the shell menu: run `x-ui`, choose **`14 — TLS Certificates`**, then
+**`3 — Issue or renew a certificate with HTTP-01 (manual)`**.
+
+The client registers the ACME account on first use (add `--email` to receive
+expiry notices), validates the domain, and installs the pair on the persistent
+mount. The panel and subscription TLS paths are updated only after the new
+certificate pair has been validated; if anything fails, the previous
+certificate and the previous settings stay in place.
+
+For a changed, valid pair, the same transaction updates all four panel and
+subscription TLS settings and reloads the panel, subscription listener, and
+Xray exactly once. No separate restart is needed. A reload failure is reported
+and restores the previous pair and settings.
+
+</Steps>
+
+<Callout type="info">
+  HTTP-01 certificates are **renewed manually**. The panel never schedules an
+  HTTP-01 renewal, because it would need the port-80 reachability that only you
+  can provide. When the certificate is close to expiry, repeat the steps above
+  with the reachability open.
+</Callout>
+
+## Issue a certificate: Cloudflare DNS-01 (automatic)
+
+DNS-01 validation needs no public port. The panel adds and removes the
+`_acme-challenge` TXT record through the Cloudflare API, so no traffic ever
+reaches the router for validation.
+
+### Create a least-privilege API token
+
+In the Cloudflare dashboard create an API token with:
+
+- **Permissions:** `Zone → DNS → Edit` and `Zone → Zone → Read`.
+- **Zone Resources:** `Include → Specific zone → your domain only`.
+
+A token that can edit DNS in every zone is unnecessary and should not be used.
+
+### Store the token
+
+Run `x-ui`, choose **`14 — TLS Certificates`**, then
+**`4 — Cloudflare DNS-01 setup and automatic renewal`**. The token is read from
+a hidden prompt and never echoed.
+
+The same hidden-input flow from the shell:
+
+```bash
+x-ui acme cloudflare setup --domain panel.example.com
+```
+
+For deliberate noninteractive input, use `MIKROZIA_CF_API_TOKEN` or provide one
+line on standard input with explicit `--stdin`. Generic inherited standard
+input is not treated as hidden input.
+
+The token is never accepted as a command-line argument, so it never lands in
+the shell history or in the process list. It is stored with mode `0600` inside
+`/root/cert/.acme.sh/` and handed to the ACME client through the child process
+environment only.
+
+### Issue the certificate
+
+```bash
+x-ui acme issue --dns --domain panel.example.com
+```
+
+After a successful issuance the panel keeps the domain in DNS-01 mode, which
+means the scheduled renewal applies to it.
+
+### Renewal and reload
+
+The panel checks its DNS-01 domains twice a day. The bundled client only
+re-issues a certificate that is close to expiry, so the cadence is the check
+frequency, not the issuance frequency. When the installed files actually
+change, the panel updates the certificate paths and reloads its listeners; when
+nothing changed, nothing is reloaded and no traffic is interrupted.
+
+### Rotate the token
+
+Create a new token in Cloudflare, then store it again with the same command.
+The new token replaces the old one; the old token can be revoked in Cloudflare
+right afterwards.
+
+<Callout type="info">
+  The Cloudflare API token can also be supplied as the container environment
+  variable `MIKROZIA_CF_API_TOKEN`. RouterOS Environment values are visible to
+  anyone who can read or export the RouterOS configuration; this is a
+  configuration store, not a secret store. Read the
+  [sensitivity warning](/docs/reference/env-vars#mikrozia-cf-api-token) before
+  using it.
+</Callout>
+
+## Use a certificate you already own
+
+Importing an existing certificate is fully supported and needs no ACME account:
+
+- Run `x-ui`, choose **`14 — TLS Certificates`**, then
+  **`2 — Set certificate paths for the panel (manual import)`**.
+- Or use the CLI:
 
   ```bash
   x-ui cert -webCert /root/cert/vpn.example.com/fullchain.pem \
@@ -58,7 +180,7 @@ Choose one of these equivalent methods:
   x-ui restart
   ```
 
-- Set `webCertFile` and `webKeyFile` in
+- Or set `webCertFile` and `webKeyFile` in
   [Panel Settings](/docs/config/panel#tls).
 
 The panel switches to HTTPS only when **both** paths are set and both files are
@@ -72,28 +194,48 @@ When you enable TLS on an inbound, reference the same certificate and key paths
 [REALITY](/docs/config/reality) inbounds need **no** certificate at all; they
 borrow a real site's TLS.
 
-## Renew and rotate
+## CLI reference
 
-Renewal happens outside the container, on the schedule you manage. When the CA
-issues a new certificate, overwrite the same `fullchain.pem` and `privkey.pem`
-files so the panel's stored paths stay valid, then reload the panel:
-
-```bash
-x-ui restart
+```text title="x-ui acme"
+x-ui acme status                       # domain, validation mode, expiry, renewal mode
+x-ui acme check --http --domain <d>   # HTTP-01 prerequisites (read-only)
+x-ui acme check --dns  --domain <d>    # DNS-01 prerequisites (read-only)
+x-ui acme issue --http --domain <d>   # issue and install over HTTP-01
+x-ui acme issue --dns  --domain <d>   # issue and install over DNS-01
+x-ui acme renew --domain <d>          # renew and install when the files changed
+x-ui acme cloudflare setup --domain <d> --stdin
 ```
 
-`x-ui restart` reloads the panel web and subscription services and restarts
-Xray inside the running container. There is no renewal daemon or cron job in the
-container, and no certificate is ever fetched automatically.
+`--email <address>` adds an ACME account contact, and `--staging` uses the ACME
+staging directory (untrusted certificates that never count against the issuance
+quota — useful for a first test).
 
-If you move a certificate to a different path, update the panel settings again
-with menu `14` or `x-ui cert`.
+## Troubleshooting
 
-<Callout type="info">
-  Certificates expire. Monitor expiry with your external issuance tooling and
-  replace the mounted files before they lapse; the panel keeps reading the files
-  at their configured paths.
-</Callout>
+- **HTTP-01 fails to validate.** Port 80 was not reachable from the internet
+  while the issuance ran, or another service already answered on port 80. Run
+  `x-ui acme check --http --domain <d>` from inside the container.
+- **DNS-01 fails to validate.** The token lacks `Zone → DNS → Edit` for that
+  zone, or the record has not propagated yet. The zone must be active in
+  Cloudflare.
+- **The certificate did not become active.** Read the issuance or renewal
+  error. A failed apply/reload restores the previous pair and all four previous
+  TLS paths; after correcting the cause, repeat the ACME command. Check the
+  resulting state with `x-ui acme status`.
+- **Expiry.** Certificates expire. Monitor expiry with your own tooling and
+  renew before the certificate lapses; the panel keeps reading the files at
+  their configured paths.
+
+## Superseded: the RouterOS reverse-proxy certificate flow
+
+Earlier guidance asked you to terminate TLS with a certificate owned by
+RouterOS (or a `certbot` workflow on the router). That flow is retired from the
+current documentation: certificates are issued by the bundled ACME client and
+stored under `/root/cert`, and Mikrozia never imports a RouterOS private key
+into the container. Installations that still use the old flow keep working
+untouched — nothing is deleted or rewritten by an image update. Serving the
+panel through a separate reverse proxy host is still supported; see
+[Reverse proxy](/docs/operations/reverse-proxy).
 
 ## Next steps
 
@@ -104,9 +246,14 @@ with menu `14` or `x-ui cert`.
     description="webCertFile / webKeyFile and the rest of the web-server settings."
   />
   <Card
+    title="Environment variables"
+    href="/docs/reference/env-vars"
+    description="MIKROZIA_ADMIN_USERNAME, MIKROZIA_ADMIN_PASSWORD and the ACME token."
+  />
+  <Card
     title="Reverse proxy"
     href="/docs/operations/reverse-proxy"
-    description="Terminate TLS outside the container instead."
+    description="Serve the panel through a proxy host instead."
   />
   <Card
     title="REALITY"

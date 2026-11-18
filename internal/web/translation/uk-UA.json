@@ -1394,6 +1394,9 @@
       "telegramBotLanguage": "Мова Telegram-бота",
       "security": {
         "admin": "Облікові дані адміністратора",
+        "adminCredentialManagedTitle": "Обліковий запис адміністратора керується середовищем",
+        "adminCredentialManagedDescription": "Обліковий запис адміністратора походить зі середовища контейнера RouterOS, тому панель не може змінити його тут. Задайте MIKROZIA_ADMIN_USERNAME і MIKROZIA_ADMIN_PASSWORD у RouterOS і перезапустіть контейнер.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD у /container/envs, потім перезапустіть контейнер",
         "twoFactor": "Двофакторна аутентифікація",
         "twoFactorEnable": "Увімкнути 2FA",
         "twoFactorEnableDesc": "Додає додатковий рівень аутентифікації для підвищення безпеки.",
@@ -1430,6 +1433,7 @@
         "modifySettings": "Параметри було змінено.",
         "getSettings": "Виникла помилка під час отримання параметрів.",
         "modifyUserError": "Виникла помилка під час зміни облікових даних адміністратора.",
+        "adminCredentialManagedByEnvironment": "Облікові дані адміністратора керуються значеннями оточення контейнера MIKROZIA_ADMIN_USERNAME і MIKROZIA_ADMIN_PASSWORD. Оновіть їх у RouterOS і перезапустіть контейнер.",
         "modifyUser": "Ви успішно змінили облікові дані адміністратора.",
         "originalUserPassIncorrect": "Поточне ім'я користувача або пароль недійсні",
         "userPassMustBeNotEmpty": "Нове ім'я користувача та пароль порожні",

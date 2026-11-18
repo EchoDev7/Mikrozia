@@ -134,7 +134,20 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+<Callout type="warn">
+  **RouterOS 的容器环境是配置存储，而不是机密存储。** `/container/envs` 中的每个
+  值对任何能读取或导出路由器配置的人都可见。请为管理员选择强密码，限制对路由器
+  本身及其备份的访问，并在该配置曾脱离你掌控时轮换密码。Mikrozia 绝不会把这些
+  值打印到日志，也绝不会通过 API 返回。
+</Callout>
+
+`MIKROZIA_ADMIN_*` 这两个值是面板管理员账号的权威来源：必须**同时**设置，只存在
+其中一个时面板拒绝启动。完整约定见
+[环境变量](/docs/reference/env-vars#管理员凭据)。
 
 ### 4. 配置 Registry 并添加容器
 
@@ -174,21 +187,23 @@ majlot/mikrozia:v1-mikrozia
 
 ## 初始凭据
 
-首次启动时，面板会生成随机用户名和密码，并在容器日志中打印一次：
+没有固定的默认账号，也没有生成的首次登录密码。容器环境拥有管理员账号：
+
+- 设置了 `MIKROZIA_ADMIN_USERNAME` 与 `MIKROZIA_ADMIN_PASSWORD` 时，每次启动都会
+  用这两个值对齐已保存的管理员账号；密码变更后使用旧密码签发的会话随即失效。
+- 只设置了其中一个时，面板拒绝启动并指出缺少的值。任何内容都不会被更改。
+- 两者都未设置但已存在账号时，已保存的账号原样保留，面板在日志中说明该账号由
+  别处管理。
+- 两者都未设置且没有账号时，面板拒绝启动并要求提供这两个值。
+
+当环境拥有该账号时，面板中的改密表单会被提示取代，`x-ui setting -username … -password …`
+也会以明确的信息拒绝修改，以免出现两个互相竞争的可信来源。
+
+若要事后更改，请在环境中更新这两个值并重启容器：
 
 ```text
-/log/print where topics~"container"
-```
-
-查找 `Username:` 和 `Password:`。如果日志已丢失，打开容器 shell 重置：
-
-```text
-/container/shell [find where comment="[Mikrozia:container] Container"]
-```
-
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
 然后继续阅读[首次登录](/docs/guide/first-login)。
@@ -223,6 +238,6 @@ exit
   <Card
     title="TLS 证书"
     href="/docs/config/ssl-certificates"
-    description="证书由用户管理并按路径挂载。"
+    description="使用镜像内置的 ACME 客户端签发或续期证书。"
   />
 </Cards>

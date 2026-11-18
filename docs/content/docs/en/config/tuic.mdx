@@ -20,7 +20,7 @@ unstable networks.
 | Field | Description |
 | --- | --- |
 | **Port** | UDP port for incoming client QUIC connections. |
-| **Certificate & Key** | Full TLS certificate chain and private key. QUIC mandates TLS encryption; publicly trusted certificates obtained outside the container or self-signed certificates are supported. |
+| **Certificate & Key** | Full TLS certificate chain and private key. QUIC mandates TLS encryption; use a publicly trusted certificate issued by the bundled ACME client, an imported public certificate, or a self-signed certificate. |
 | **SNI** | Client-profile Server Name Indication. Set it to the domain covered by the server certificate; this field does not configure the listener certificate. |
 | **Congestion Control** | QUIC congestion control algorithm used in the server setting and exported client profile: `bbr`, `cubic`, or `new_reno`. The server runs BBR or New Reno; when CUBIC is selected, the client profile keeps CUBIC while this server currently falls back to New Reno. |
 | **ALPN** | Application-Layer Protocol Negotiation tokens (default: `h3`). |

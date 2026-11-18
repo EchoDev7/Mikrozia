@@ -84,7 +84,13 @@ Drop the xray binary (`xray-windows-amd64.exe` on Windows, `xray-linux-amd64` on
 go run .
 ```
 
-Open [http://localhost:2053](http://localhost:2053) and log in with the username and password the first start prints to the terminal (`No panel user existed, so one was generated…`). Lost them? Set new ones with `go run . setting -username <user> -password <pass>`.
+Open [http://localhost:2053](http://localhost:2053) and log in with the administrator account. The container environment owns that account when both `MIKROZIA_ADMIN_USERNAME` and `MIKROZIA_ADMIN_PASSWORD` are set; the panel then creates or reconciles the account from them on every start and never prints a generated credential:
+
+```bash
+MIKROZIA_ADMIN_USERNAME=admin MIKROZIA_ADMIN_PASSWORD=<password> go run .
+```
+
+Leave both variables unset only when an account already exists in the database. In that case you can set a new credential with `go run . setting -username <user> -password <pass>` — the command is refused while the environment configures the pair, so the two sources of truth cannot compete.
 
 ### Inside VS Code
 

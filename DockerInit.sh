@@ -191,4 +191,63 @@ for geo_file in geoip.dat geosite.dat geoip_IR.dat geosite_IR.dat geoip_RU.dat g
         exit 1
     fi
 done
+# The ACME client is image build-time content as well: download only the exact
+# commit-pinned URL recorded in ACME_SOURCES and fail closed unless the archive
+# matches its recorded SHA-256. The runtime invokes the copy baked into the
+# image; it never downloads, installs, or updates the client itself.
+ACME_MANIFEST="${SCRIPT_DIR}/ACME_SOURCES"
+ACME_VERIFY_HELPER="${SCRIPT_DIR}/scripts/build/verify-acme-checksum.sh"
+if [ ! -f "${ACME_MANIFEST}" ]; then
+    echo "DockerInit: missing ACME manifest: ${ACME_MANIFEST}" >&2
+    exit 1
+fi
+if [ ! -f "${ACME_VERIFY_HELPER}" ]; then
+    echo "DockerInit: missing ACME checksum helper: ${ACME_VERIFY_HELPER}" >&2
+    exit 1
+fi
+while read -r acme_file acme_url acme_sha; do
+    case "${acme_file}" in
+        '' | '#'*) continue ;;
+    esac
+    case "${acme_file}" in
+        acme.sh.tar.gz) ;;
+        *)
+            echo "DockerInit: unexpected ACME artifact '${acme_file}' in ${ACME_MANIFEST}" >&2
+            exit 1
+            ;;
+    esac
+    if [ -z "${acme_url}" ] || [ -z "${acme_sha}" ]; then
+        echo "DockerInit: malformed ACME manifest entry for '${acme_file}'" >&2
+        exit 1
+    fi
+    case "${acme_url}" in
+        https://github.com/*/archive/*) ;;
+        *)
+            echo "DockerInit: ACME artifact '${acme_file}' must come from a commit-pinned GitHub archive, got '${acme_url}'" >&2
+            exit 1
+            ;;
+    esac
+    if ! printf '%s\n' "${acme_sha}" | grep -Eq '^[0-9a-fA-F]{64}$'; then
+        echo "DockerInit: invalid SHA-256 for '${acme_file}' in ${ACME_MANIFEST}" >&2
+        exit 1
+    fi
+
+    dl -o "${acme_file}" "${acme_url}" || { rm -f "${acme_file}"; exit 1; }
+    if ! sh "${ACME_VERIFY_HELPER}" "${acme_file}" "${acme_sha}"; then
+        rm -f "${acme_file}"
+        exit 1
+    fi
+done < "${ACME_MANIFEST}"
+if [ ! -s "acme.sh.tar.gz" ]; then
+    echo "DockerInit: the ACME client was not produced from ${ACME_MANIFEST}" >&2
+    exit 1
+fi
+mkdir -p "${SCRIPT_DIR}/acme"
+tar -xzf acme.sh.tar.gz -C "${SCRIPT_DIR}/acme" --strip-components=1 || { rm -rf "${SCRIPT_DIR}/acme"; exit 1; }
+rm -f acme.sh.tar.gz
+if [ ! -s "${SCRIPT_DIR}/acme/acme.sh" ]; then
+    echo "DockerInit: the extracted ACME client is missing acme.sh" >&2
+    exit 1
+fi
+chmod +x "${SCRIPT_DIR}/acme/acme.sh"
 cd ../../

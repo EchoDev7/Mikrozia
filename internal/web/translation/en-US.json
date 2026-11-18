@@ -1519,6 +1519,9 @@
       "telegramBotLanguage": "Telegram Bot Language",
       "security": {
         "admin": "Admin credentials",
+        "adminCredentialManagedTitle": "Administrator account managed by the environment",
+        "adminCredentialManagedDescription": "The administrator account comes from the RouterOS Container Environment, so this panel cannot change it. Set MIKROZIA_ADMIN_USERNAME and MIKROZIA_ADMIN_PASSWORD in RouterOS and restart the container to change the credential.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD in /container/envs, then restart the container",
         "twoFactor": "Two-factor authentication",
         "twoFactorEnable": "Enable 2FA",
         "twoFactorEnableDesc": "Adds an additional layer of authentication to provide more security.",
@@ -1555,6 +1558,7 @@
         "modifySettings": "The parameters have been changed.",
         "getSettings": "An error occurred while retrieving parameters.",
         "modifyUserError": "An error occurred while changing administrator credentials.",
+        "adminCredentialManagedByEnvironment": "The administrator credential is managed by the MIKROZIA_ADMIN_USERNAME and MIKROZIA_ADMIN_PASSWORD container environment values. Update them in RouterOS and restart the container.",
         "modifyUser": "You have successfully changed the credentials of the administrator.",
         "originalUserPassIncorrect": "The current username or password is invalid",
         "userPassMustBeNotEmpty": "The new username and password are empty",

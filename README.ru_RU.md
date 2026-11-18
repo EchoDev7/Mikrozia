@@ -46,9 +46,18 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 /container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
+
+> **Чувствительные значения:** Environment контейнера RouterOS — это хранилище
+> конфигурации, а не секретов. Любое значение в `/container/envs` видно тому, кто может
+> прочитать или выгрузить конфигурацию роутера. `MIKROZIA_ADMIN_USERNAME` и
+> `MIKROZIA_ADMIN_PASSWORD` — единственный источник учётной записи администратора,
+> их нужно задавать **вместе**; если задан только один, панель не запустится. Mikrozia
+> не пишет эти значения в логи и не возвращает их через API.
 
 Если каталог уже существует, пропустите его строку `/file/add`. Для контроля
 распаковки:
@@ -72,8 +81,10 @@ majlot/mikrozia:v1-mikrozia
 - Панель слушает внутри контейнера на `http://172.16.10.2:2053/`.
 - База данных и настройки находятся на постоянном монтировании `/etc/x-ui`,
   сертификаты пользователя — на `/root/cert`.
-- Получайте и продлевайте сертификат TLS вне контейнера и указывайте его путь в
-  панели; Mikrozia не выпускает и не продлевает сертификаты.
+- В образ встроен закреплённый ACME-клиент: выпускайте сертификат внутри контейнера
+  по HTTP-01 (ручное продление) или Cloudflare DNS-01 (автоматическое продление).
+  Сертификат и состояние аккаунта сохраняются на `/root/cert`. Mikrozia никогда не
+  создаёт и не изменяет правила RouterOS для firewall, NAT или проброса портов.
 - Политика брандмауэра, NAT, проброса портов, маршрутизации и контроля доступа
   полностью принадлежит администратору RouterOS; Mikrozia не создаёт и не меняет
   сетевые правила.

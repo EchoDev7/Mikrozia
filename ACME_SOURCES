@@ -1,0 +1,16 @@
+# Bundled ACME client for the Mikrozia container image.
+#
+# Format: <local-archive> <source-url> <sha256>
+#
+# The ACME client is an immutable image build input: the build downloads
+# exactly this URL and fails closed unless the SHA-256 of the downloaded bytes
+# matches. The URL is pinned to an upstream commit, so it can never change
+# under Mikrozia, and no mutable release channel (`releases/latest`, a moving
+# tag) is allowed here. The runtime invokes only the copy baked into the image;
+# it never downloads, installs, or updates the client itself.
+#
+# Updating: pick a new upstream commit, download the archive, record its
+# SHA-256 here, and re-verify the image build.
+#
+# acmesh-official/acme.sh — ACME client used for HTTP-01 and DNS-01 issuance.
+acme.sh.tar.gz https://github.com/acmesh-official/acme.sh/archive/807da6498377ee5e0cf43a78091f46f12dc59a89.tar.gz ddbe1bcbd1a44a2623a2af167ebdc678669e6e2eb396742f2d1d28e02dc14220

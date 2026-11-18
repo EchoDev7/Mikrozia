@@ -28,10 +28,12 @@ launch with [`XUI_INIT_WEB_BASE_PATH`](/docs/reference/env-vars).
 
 ### TLS
 
-Serving the panel over HTTPS protects your credentials in transit. Set
-`webCertFile` + `webKeyFile` to files you obtained and mounted on
-`/root/cert` yourself (see [TLS certificates](/docs/config/ssl-certificates) —
-Mikrozia does not issue or renew certificates), or terminate TLS at a
+Serving the panel over HTTPS protects your credentials in transit. Point
+`webCertFile` + `webKeyFile` at the certificate and key on the persistent
+`/root/cert` mount (see [TLS certificates](/docs/config/ssl-certificates)).
+Issue them with the bundled ACME client — HTTP-01 for a manual issuance, or
+Cloudflare DNS-01 for an automatic renewal — or import a certificate you
+obtained yourself. You can also terminate TLS at a
 [reverse proxy](/docs/operations/reverse-proxy).
 
 <Callout type="warn">

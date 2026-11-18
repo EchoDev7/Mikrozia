@@ -100,9 +100,11 @@ majlot/mikrozia:v1-mikrozia
 ```
 
 <Callout type="warn">
-  این دستورها با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا هستند.
-  پذیرش روی CHR تمیز برای P1-CHR-01 هنوز کامل نشده است؛ کل مسیر را پیش از
-  Production روی یک CHR موقت آزمایش کنید. این مستند ادعای پذیرش واقعی CHR ندارد.
+  پذیرش P1-CHR-01 برای این مسیر روی CHR x86_64 با RouterOS `7.25.1` و Image
+  `majlot/mikrozia:v1-mikrozia` به‌صورت واقعی آزموده شده است: دریافت Image،
+  شروع و Restart، شبکهٔ داخلی، Mountهای پایدار و SQLite dump/restore جداگانه
+  موفق بوده‌اند. آزمون بازگشت میان **دو Tag سازگار متفاوت** هنوز با انتشار Tag
+  بعدی انجام می‌شود؛ پیش از ارتقای نسخهٔ اصلی، Backup بگیرید.
 </Callout>
 
 این دستورها را به ترتیب در Terminal RouterOS یا WinBox اجرا کنید. فقط اشیای
@@ -112,12 +114,12 @@ majlot/mikrozia:v1-mikrozia
 
 پوشهٔ `data` به `/etc/x-ui`، پوشهٔ `cert` به `/root/cert` و پوشهٔ `tmp` برای
 فضای موقت Extract متصل می‌شوند. پوشهٔ Root نسخه‌دار را RouterOS هنگام Extract
-می‌سازد. اگر پوشه‌ای از قبل وجود دارد، خط `/file/add` مربوط به آن را اجرا نکنید.
+می‌سازد. این چهار دستور فقط برای نصب تمیز هستند؛ اگر یکی از آن‌ها از قبل وجود
+دارد، نصب را تکراری Paste نکنید و ابتدا بخش عیب‌یابی/به‌روزرسانی را بررسی کنید.
 
 ```text
 /file/add name=containers type=directory
 /file/add name=containers/mikrozia type=directory
-/file/add name=containers/mikrozia/data type=directory
 /file/add name=containers/mikrozia/cert type=directory
 /file/add name=containers/mikrozia/tmp type=directory
 ```
@@ -138,7 +140,22 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+<Callout type="warn">
+  **Environment کانتینر RouterOS یک انبار پیکربندی است، نه انبار اسرار.** هر
+  مقدار در `/container/envs` برای هر کسی که بتواند پیکربندی روتر را بخواند یا
+  خروجی بگیرد قابل مشاهده است. برای مدیر یک رمز عبور قوی انتخاب کنید، دسترسی
+  به خود روتر و پشتیبان‌هایش را محدود نگه دارید و اگر پیکربندی از کنترل شما
+  خارج شد رمز را چرخش دهید. Mikrozia هرگز این مقادیر را در Log چاپ نمی‌کند و
+  هرگز از طریق API برنمی‌گرداند.
+</Callout>
+
+دو مقدار `MIKROZIA_ADMIN_*` مرجع اصلی حساب مدیر پنل هستند: باید **با هم** تنظیم
+شوند و اگر فقط یکی از آن‌ها موجود باشد، پنل اجرا نمی‌شود. قرارداد کامل در
+[متغیرهای محیطی](/docs/reference/env-vars#اطلاعات-ورود-مدیر) آمده است.
 
 ### ۴. تنظیم Registry و افزودن Container
 
@@ -178,25 +195,35 @@ Extract ممکن است چند دقیقه طول بکشد. تا پایان آن 
 آن را Publish یا Forward نمی‌کند. به [پورت‌ها و فایروال](/docs/reference/ports-firewall)
 مراجعه کنید.
 
+برای یک نمونهٔ دستی و آزموده‌شده که پنل را فقط برای IP مدیر باز و Subscription
+را Publish می‌کند، به [پورت‌ها و فایروال](/docs/reference/ports-firewall) بروید.
+آن دستورها اختیاری‌اند و Mikrozia آن‌ها را خودکار اجرا نمی‌کند.
+
 ## مشخصات ورود اولیه
 
-در اولین Boot، پنل یک نام کاربری و رمز تصادفی می‌سازد و آن‌ها را یک بار در Log
-کانتینر چاپ می‌کند:
+هیچ حساب پیش‌فرض ثابت و هیچ رمز «ورود اول» تصادفی وجود ندارد. محیط کانتینر
+مالک حساب مدیر است:
+
+- اگر `MIKROZIA_ADMIN_USERNAME` و `MIKROZIA_ADMIN_PASSWORD` تنظیم شده باشند، در هر
+  بار اجرا حساب مدیر ذخیره‌شده با همان مقادیر هم‌راستا می‌شود؛ با تغییر رمز،
+  نشست‌هایی که با رمز قبلی ساخته شده‌اند بی‌اعتبار می‌شوند.
+- اگر فقط یکی از آن‌ها تنظیم شده باشد، پنل اجرا نمی‌شود و مقدار ناقص را نام
+  می‌برد. هیچ چیز تغییر نمی‌کند.
+- اگر هیچ‌کدام تنظیم نشده باشند ولی حسابی موجود باشد، حساب ذخیره‌شده بدون تغییر
+  حفظ می‌شود و پنل Log می‌کند که مدیریت آن جای دیگری است.
+- اگر هیچ‌کدام تنظیم نشده باشند و هیچ حسابی هم نباشد، پنل اجرا نمی‌شود و هر دو
+  مقدار را طلب می‌کند.
+
+وقتی محیط مالک حساب باشد، فرم تغییر رمز در پنل با یک اعلان جایگزین می‌شود و
+دستور `x-ui setting -username … -password …` هم تغییر را با پیامی صادقانه رد
+می‌کند تا دو منبع حقیقت رقیب به وجود نیاید.
+
+برای تغییر بعدی، دو مقدار Environment را به‌روزرسانی و کانتینر را ری‌استارت
+کنید:
 
 ```text
-/log/print where topics~"container"
-```
-
-به دنبال `Username:` و `Password:` بگردید. اگر Log از دست رفته است، Shell کانتینر
-را باز کنید و آن‌ها را بازنشانی کنید:
-
-```text
-/container/shell [find where comment="[Mikrozia:container] Container"]
-```
-
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
 سپس به [نخستین ورود](/docs/guide/first-login) ادامه دهید.
@@ -232,6 +259,6 @@ SQLite پیش‌فرض است و یک فایل واحد در `/etc/x-ui/x-ui.db`
   <Card
     title="گواهی‌های TLS"
     href="/docs/config/ssl-certificates"
-    description="گواهی‌ها بر عهدهٔ کاربر و بر اساس مسیر Mount می‌شوند."
+    description="گواهی را با کلاینت ACME پیوست‌شده صادر یا تمدید کنید."
   />
 </Cards>

@@ -47,8 +47,10 @@ that run entirely on your device — no data ever leaves the page.
   (`/etc/x-ui` and `/root/cert`).
 - RouterOS firewall, NAT, port-forwarding, routing, and access-control policy is
   user-managed. Mikrozia never changes it and ships no firewall tooling.
-- Certificates are user-managed: obtain and renew them outside the container and
-  configure their paths. There is no ACME client or renewal daemon inside.
+- The bundled ACME client issues certificates through manual HTTP-01 or
+  automatically renewed Cloudflare DNS-01. Certificates, keys, account state,
+  and renewal state persist under `/root/cert`; importing an existing pair is
+  also supported.
 - Panel, Xray, sidecars, and Geo data are immutable image content. There is no
   runtime software updater.
 

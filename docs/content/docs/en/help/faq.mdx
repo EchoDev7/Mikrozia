@@ -41,9 +41,12 @@ ports it listens on inside the container. See
 
 ## Does it issue or renew TLS certificates?
 
-No. Certificates are user-managed: obtain and renew them outside the container,
-place the files on the persistent `/root/cert` mount, and configure their paths
-in the panel. See [TLS certificates](/docs/config/ssl-certificates).
+Yes, with the ACME client bundled in the image — and only for domains you own.
+HTTP-01 issuance is manual, Cloudflare DNS-01 issuance renews automatically, and
+everything is stored on the persistent `/root/cert` mount. You can still import
+a certificate you already own and point the panel at it. Mikrozia never creates
+or changes a RouterOS firewall, NAT, or port-forwarding rule for you. See
+[TLS certificates](/docs/config/ssl-certificates).
 
 ## How do I update?
 

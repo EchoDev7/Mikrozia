@@ -1519,6 +1519,9 @@
       "telegramBotLanguage": "Jazyk Telegram bota",
       "security": {
         "admin": "Prihlasovacie údaje správcu",
+        "adminCredentialManagedTitle": "Správu administrátora spravuje prostredie",
+        "adminCredentialManagedDescription": "Správa administrátora pochádza z prostredia kontajnera RouterOS, preto ju panel nemôže zmeniť. Nastavte MIKROZIA_ADMIN_USERNAME a MIKROZIA_ADMIN_PASSWORD v RouterOS a reštartujte kontajner.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD v /container/envs a potom reštart kontajnera",
         "twoFactor": "Dvojfaktorové overenie",
         "twoFactorEnable": "Zapnúť 2FA",
         "twoFactorEnableDesc": "Pridá ďalší krok overenia a zvýši bezpečnosť prihlásenia.",
@@ -1555,6 +1558,7 @@
         "modifySettings": "Nastavenia boli zmenené.",
         "getSettings": "Nepodarilo sa načítať nastavenia.",
         "modifyUserError": "Nepodarilo sa zmeniť prihlasovacie údaje správcu.",
+        "adminCredentialManagedByEnvironment": "Prihlasovacie údaje správcu spravujú hodnoty prostredia kontajnera MIKROZIA_ADMIN_USERNAME a MIKROZIA_ADMIN_PASSWORD. Aktualizujte ich v RouterOS a reštartujte kontajner.",
         "modifyUser": "Prihlasovacie údaje správcu boli zmenené.",
         "originalUserPassIncorrect": "Aktuálne používateľské meno alebo heslo je nesprávne",
         "userPassMustBeNotEmpty": "Nové používateľské meno aj heslo sú prázdne",

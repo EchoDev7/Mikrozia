@@ -35,10 +35,12 @@ A checklist for the most common issues. When in doubt, raise the log level
 
 ## Certificate problems
 
-- Mikrozia does not issue or renew certificates inside the container. Acquire and
-  renew the certificate with your certificate authority outside the container,
-  place the files on the persistent `/root/cert` mount, and point the panel at
-  them (menu `14` or `x-ui cert`).
+- Mikrozia issues and renews certificates inside the container with the ACME
+  client bundled in the image: `x-ui acme issue --http --domain <domain>` for a
+  manual HTTP-01 issuance, or `x-ui acme issue --dns --domain <domain>` with a
+  Cloudflare API token for an automatic DNS-01 renewal. Everything lands on the
+  persistent `/root/cert` mount. You can still import a certificate you obtained
+  yourself and point the panel at it (menu `14` or `x-ui cert`).
 - The configured paths must exist and be readable by the panel; the panel only
   serves HTTPS when both the certificate and key are set.
 - If your validation method needs a public port, configure that access yourself

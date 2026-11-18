@@ -39,7 +39,7 @@ COPY --from=frontend /src/internal/web/dist ./internal/web/dist
 
 ENV CGO_ENABLED=1
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
-RUN go build -ldflags "-w -s -X 'github.com/mhsanaei/3x-ui/v3/internal/config.mikroziaVersion=$(cat /tmp/mikrozia-version)'" -o build/x-ui main.go
+RUN go build -ldflags "-w -s -X 'github.com/mhsanaei/3x-ui/v3/internal/config.mikroziaVersion=$(cat /tmp/mikrozia-version)'" -o build/x-ui .
 RUN ./DockerInit.sh "$TARGETARCH" "$TARGETVARIANT" "$XRAY_VERSION" "$MTG_VERSION"
 
 # ========================================================
@@ -71,14 +71,18 @@ RUN apk add --no-cache \
   curl \
   openssl \
   coreutils \
-  postgresql18-client=18.7-r0
+  postgresql18-client=18.7-r0 \
+  socat=1.8.1.3-r0
 
 COPY --from=builder /app/build/ /app/
+COPY --from=builder /app/acme /usr/local/share/acme.sh
 COPY --from=builder /app/DockerEntrypoint.sh /app/
 COPY --from=builder /app/x-ui.sh /usr/bin/x-ui
 COPY --from=builder /app/internal/web/translation /app/internal/web/translation
 # Records which pinned Geo release each bundled database came from.
 COPY --from=builder /app/GEO_DATA_SOURCES /app/GEO_DATA_SOURCES
+# Records the pinned ACME client the image ships with.
+COPY --from=builder /app/ACME_SOURCES /app/ACME_SOURCES
 
 
 RUN chmod +x \

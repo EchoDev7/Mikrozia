@@ -1394,6 +1394,9 @@
       "telegramBotLanguage": "Telegram 機器人語言",
       "security": {
         "admin": "管理員憑證",
+        "adminCredentialManagedTitle": "管理員帳號由容器環境管理",
+        "adminCredentialManagedDescription": "管理員帳號來自 RouterOS 容器環境，因此面板無法在此處修改。請在 RouterOS 中設定 MIKROZIA_ADMIN_USERNAME 與 MIKROZIA_ADMIN_PASSWORD，然後重新啟動容器。",
+        "adminCredentialManagedHint": "在 /container/envs 中設定 MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD，然後重新啟動容器",
         "twoFactor": "雙重驗證",
         "twoFactorEnable": "啟用 2FA",
         "twoFactorEnableDesc": "增加額外的驗證層以提高安全性。",
@@ -1430,6 +1433,7 @@
         "modifySettings": "參數已更改。",
         "getSettings": "取得參數時發生錯誤",
         "modifyUserError": "變更管理員憑證時發生錯誤。",
+        "adminCredentialManagedByEnvironment": "管理員憑證由容器環境變數 MIKROZIA_ADMIN_USERNAME 與 MIKROZIA_ADMIN_PASSWORD 管理。請在 RouterOS 中更新並重新啟動容器。",
         "modifyUser": "您已成功變更管理員憑證。",
         "originalUserPassIncorrect": "原使用者名稱或原密碼錯誤",
         "userPassMustBeNotEmpty": "新使用者名稱和新密碼不能為空",

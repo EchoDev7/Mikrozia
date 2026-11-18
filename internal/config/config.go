@@ -128,6 +128,40 @@ func GetPortOverride() (port int, configured bool, err error) {
 	return port, true, nil
 }
 
+// AdminUsernameEnv and AdminPasswordEnv are the RouterOS Container Environment
+// entries that own the panel administrator account.
+const (
+	AdminUsernameEnv = "MIKROZIA_ADMIN_USERNAME"
+	AdminPasswordEnv = "MIKROZIA_ADMIN_PASSWORD"
+)
+
+// GetAdminUsername returns the environment-provided administrator username.
+func GetAdminUsername() string {
+	return strings.TrimSpace(os.Getenv(AdminUsernameEnv))
+}
+
+// GetAdminPassword returns the environment-provided administrator password.
+func GetAdminPassword() string {
+	return os.Getenv(AdminPasswordEnv)
+}
+
+// AdminPasswordConfigured reports whether a non-blank administrator password is
+// present in the environment.
+func AdminPasswordConfigured() bool {
+	return strings.TrimSpace(GetAdminPassword()) != ""
+}
+
+// AdminCredentialEnvConfigured reports whether the environment owns the
+// administrator account; a half-configured pair is not a configured account.
+func AdminCredentialEnvConfigured() bool {
+	return GetAdminUsername() != "" && AdminPasswordConfigured()
+}
+
+// AdminCredentialMutationForbidden includes legacy accounts in the supported container runtime.
+func AdminCredentialMutationForbidden() bool {
+	return os.Getenv("XUI_IN_DOCKER") == "true" || AdminCredentialEnvConfigured()
+}
+
 // GetBinFolderPath returns the path to the binary folder, defaulting to "bin" if not set via XUI_BIN_FOLDER.
 func GetBinFolderPath() string {
 	binFolderPath := os.Getenv("XUI_BIN_FOLDER")

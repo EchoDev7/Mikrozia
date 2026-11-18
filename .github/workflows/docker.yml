@@ -103,6 +103,7 @@ jobs:
           sh -n scripts/build/verify-xray-checksum.sh
           sh -n scripts/build/verify-mtg-checksum.sh
           sh -n scripts/build/verify-geo-checksum.sh
+          sh -n scripts/build/verify-acme-checksum.sh
           sh -n scripts/build/verify-mikrozia-version.sh
           bash -n x-ui.sh
 
@@ -223,6 +224,10 @@ jobs:
               case "$geo_file" in "" | "#"*) continue ;; esac
               printf "%s  %s\n" "$geo_sha" "/app/bin/$geo_file" | sha256sum -c -
             done < /app/GEO_DATA_SOURCES
+            test -f /app/ACME_SOURCES
+            test -x /usr/local/share/acme.sh/acme.sh
+            test -f /usr/local/share/acme.sh/dnsapi/dns_cf.sh
+            grep -Eq "^acme\.sh\.tar\.gz https://github\.com/acmesh-official/acme\.sh/archive/[0-9a-f]{40}\.tar\.gz [0-9a-f]{64}\$" /app/ACME_SOURCES
             test ! -e /app/update.sh
             test ! -e /app/verify-xray-checksum.sh
             test ! -e /app/scripts/build/verify-xray-checksum.sh

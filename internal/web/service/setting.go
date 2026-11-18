@@ -417,13 +417,14 @@ func (s *SettingService) getSetting(key string) (*model.Setting, error) {
 }
 
 func (s *SettingService) saveSetting(key string, value string) error {
-	setting, err := s.getSetting(key)
-	db := database.GetDB()
+	return saveSettingWithDB(database.GetDB(), key, value)
+}
+
+func saveSettingWithDB(db *gorm.DB, key string, value string) error {
+	setting := &model.Setting{}
+	err := db.Model(model.Setting{}).Where("key = ?", key).First(setting).Error
 	if database.IsNotFound(err) {
-		return db.Create(&model.Setting{
-			Key:   key,
-			Value: value,
-		}).Error
+		return db.Create(&model.Setting{Key: key, Value: value}).Error
 	} else if err != nil {
 		return err
 	}
@@ -728,6 +729,42 @@ func (s *SettingService) SetKeyFile(webKeyFile string) error {
 
 func (s *SettingService) GetKeyFile() (string, error) {
 	return s.getString("webKeyFile")
+}
+
+func (s *SettingService) GetCertificatePaths() (CertificatePaths, error) {
+	panelCert, err := s.GetCertFile()
+	if err != nil {
+		return CertificatePaths{}, err
+	}
+	panelKey, err := s.GetKeyFile()
+	if err != nil {
+		return CertificatePaths{}, err
+	}
+	subCert, err := s.GetSubCertFile()
+	if err != nil {
+		return CertificatePaths{}, err
+	}
+	subKey, err := s.GetSubKeyFile()
+	if err != nil {
+		return CertificatePaths{}, err
+	}
+	return CertificatePaths{PanelCert: panelCert, PanelKey: panelKey, SubCert: subCert, SubKey: subKey}, nil
+}
+
+func (s *SettingService) SetCertificatePaths(paths CertificatePaths) error {
+	return database.GetDB().Transaction(func(tx *gorm.DB) error {
+		for key, value := range map[string]string{
+			"webCertFile": paths.PanelCert,
+			"webKeyFile":  paths.PanelKey,
+			"subCertFile": paths.SubCert,
+			"subKeyFile":  paths.SubKey,
+		} {
+			if err := saveSettingWithDB(tx, key, value); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (s *SettingService) GetExpireDiff() (int, error) {

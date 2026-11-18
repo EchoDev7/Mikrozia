@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Regression tests for the P0-DOC-01 RouterOS documentation contract.
+"""Regression tests for the RouterOS and bundled-ACME documentation contract.
 
 Every current guide must describe the supported product: a versioned OCI image
 for MikroTik RouterOS Container with persistent mounts, operator-owned network
-policy, user-managed certificates, and immutable runtime content. Historical
+policy, bundled ACME issuance/renewal, and immutable runtime content. Historical
 records may mention retired behaviour only behind a prominent superseded label.
 """
 
@@ -239,17 +239,171 @@ class DocsContractTests(unittest.TestCase):
                 self.assertIn("RouterOS", text)
                 self.assertNotIn("FirewallRulesGenerator", text)
 
-    def test_05_certificates_are_user_managed(self):
+    def test_05_certificates_are_issued_by_the_bundled_acme_client(self):
         ssl = self._normalized(self._read(DOCS_ROOT, "en", "config", "ssl-certificates.mdx"))
-        self.assertIn("does not issue or renew certificates", ssl)
-        self.assertIn("does not run an ACME client", ssl)
+        self.assertIn("HTTP-01", ssl)
+        self.assertIn("DNS-01", ssl)
+        self.assertIn("x-ui acme", ssl)
+        self.assertIn(
+            "never creates, changes, removes, enables, or disables RouterOS firewall",
+            ssl,
+        )
+        self.assertNotIn("does not issue or renew certificates", ssl)
+        self.assertNotIn("does not run an ACME client", ssl)
         faq = self._normalized(self._read(DOCS_ROOT, "en", "help", "faq.mdx"))
-        self.assertIn("Certificates are user-managed", faq)
+        self.assertIn("ACME client bundled in the image", faq)
         for locale in self.locales:
+            guide = self._normalized(self._read(DOCS_ROOT, locale, "config", "ssl-certificates.mdx"))
+            with self.subTest(locale=locale):
+                self.assertIn("HTTP-01", guide)
+                self.assertIn("DNS-01", guide)
             panel = self._read(DOCS_ROOT, locale, "config", "panel.mdx")
             with self.subTest(locale=locale):
                 self.assertNotIn("Let's Encrypt", panel)
                 self.assertIn("/root/cert", panel)
+
+    def test_05b_certificate_pages_do_not_retire_the_bundled_acme_client(self):
+        retired_claims = {
+            "en": "does not issue or renew certificates",
+            "fa": "گواهی را داخل کانتینر صادر یا تمدید نمی‌کند",
+            "ru": "не выпускает и не продлевает сертификаты",
+            "zh": "不在容器内签发或续期证书",
+        }
+        for locale in self.locales:
+            for page in (("config", "panel.mdx"), ("help", "troubleshooting.mdx")):
+                text = self._normalized(self._read(DOCS_ROOT, locale, *page))
+                with self.subTest(locale=locale, page=page):
+                    self.assertNotIn(retired_claims[locale], text)
+                    self.assertIn("HTTP-01", text)
+                    self.assertIn("DNS-01", text)
+                    self.assertIn("ACME", text)
+            troubleshooting = self._normalized(
+                self._read(DOCS_ROOT, locale, "help", "troubleshooting.mdx")
+            )
+            with self.subTest(locale=locale, page="troubleshooting"):
+                self.assertIn("x-ui acme", troubleshooting)
+
+    def test_05c_every_active_page_rejects_retired_acme_claims(self):
+        retired = (
+            r"there is no acme client",
+            r"not a certificate authority or acme client",
+            r"does not issue or renew(?: tls)? certificates",
+            r"does not run an acme client",
+            r"user-managed certificates",
+            r"obtain and renew them outside the container",
+            r"publicly trusted certificates obtained outside the container",
+            r"whether port 80 answered",
+            r"port 80 answered from inside",
+            r"هیچ کلاینت acme",
+            r"مرجع گواهی یا کلاینت acme نیست",
+            r"بیرون از کانتینر تهیه و تمدید",
+            r"پورت ۸۰\s+از داخل کانتینر پاسخ داد",
+            r"не acme-клиент",
+            r"нет acme-клиента",
+            r"сертификаты, полученные вне контейнера",
+            r"ответил ли порт 80",
+            r"没有\s*acme\s*客户端",
+            r"不是证书颁发机构或\s*acme\s*客户端",
+            r"80\s*端口在容器内部是否",
+        )
+        paths = list(self._mdx_pages())
+        paths += [os.path.join(self.repo_root, name) for name in self.readmes]
+        paths += [
+            os.path.join(self.repo_root, name)
+            for name in (
+                "docs/DOCKER_HUB_OVERVIEW.md",
+                "docs/MIKROZIA_CHR_INSTALL_FA.md",
+                "docs/MIKROZIA_AUTH_ACME_SPEC.md",
+            )
+        ]
+        violations = []
+        for path in paths:
+            rel = os.path.relpath(path, self.repo_root).replace(os.sep, "/")
+            text = self._normalized(self._read(rel)).lower()
+            for pattern in retired:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    violations.append(f"{rel}: {match.group(0)}")
+        self.assertGreaterEqual(len(list(self._mdx_pages())), 160)
+        self.assertEqual(violations, [], "\n".join(violations))
+
+    def test_05d_localized_acme_guides_match_the_shared_transaction(self):
+        warnings = {
+            "en": "Mikrozia cannot verify public HTTP-01 reachability from inside the container. The RouterOS operator must temporarily make TCP 80 reachable from the public Internet.",
+            "fa": "Mikrozia از داخل کانتینر نمی‌تواند دسترس‌پذیری عمومی HTTP-01 را بررسی کند. اپراتور RouterOS باید موقتاً TCP 80 را از اینترنت عمومی در دسترس قرار دهد.",
+            "ru": "Mikrozia не может проверить публичную доступность HTTP-01 изнутри контейнера. Оператор RouterOS должен временно сделать TCP-порт 80 доступным из публичного интернета.",
+            "zh": "Mikrozia 无法从容器内部验证 HTTP-01 的公网可达性。RouterOS 操作员必须临时使 TCP 80 端口可从公网访问。",
+        }
+        for locale in self.locales:
+            page = self._normalized(
+                self._read(DOCS_ROOT, locale, "config", "ssl-certificates.mdx")
+            )
+            with self.subTest(locale=locale):
+                self.assertIn(warnings[locale], page)
+                for token in (
+                    "/root/cert/<domain>/fullchain.pem",
+                    "/root/cert/<domain>/privkey.pem",
+                    "/root/cert/.acme.sh/",
+                    "x-ui acme issue --http",
+                    "x-ui acme issue --dns",
+                    "x-ui acme renew",
+                    "x-ui acme cloudflare setup",
+                    "MIKROZIA_CF_API_TOKEN",
+                    "--stdin",
+                    "0600",
+                    "14 — TLS Certificates",
+                    "3 — Issue or renew a certificate with HTTP-01 (manual)",
+                    "4 — Cloudflare DNS-01 setup and automatic renewal",
+                ):
+                    self.assertIn(token, page)
+                self.assertLessEqual(page.count("x-ui restart"), 1)
+                self.assertNotIn("Serve the new certificate", page)
+                self.assertNotIn("export MIKROZIA_CF_API_TOKEN", page)
+                self.assertIn("x-ui acme cloudflare setup --domain", page)
+                for token in {
+                    "en": ("exactly once", "restores"),
+                    "fa": ("دقیقاً یک‌بار", "بازیابی می‌شوند"),
+                    "ru": ("ровно один раз", "восстанавливаются"),
+                    "zh": ("恰好", "恢复原有"),
+                }[locale]:
+                    with self.subTest(locale=locale, token=token):
+                        self.assertIn(token, page)
+                env = self._normalized(
+                    self._read(DOCS_ROOT, locale, "reference", "env-vars.mdx")
+                )
+                self.assertIn("MIKROZIA_CF_API_TOKEN", env)
+                self.assertIn("RouterOS", env)
+                self.assertNotIn("export MIKROZIA_CF_API_TOKEN", env)
+
+        hub = self._normalized(self._read("docs", "DOCKER_HUB_OVERVIEW.md"))
+        self.assertIn("cannot verify public reachability from inside the container", hub)
+        self.assertIn("explicit `--stdin`", hub)
+        self.assertNotIn('printf \'%s\' "<your-token>"', hub)
+
+        spec = self._normalized(self._read("docs", "MIKROZIA_AUTH_ACME_SPEC.md"))
+        for token in (
+            "--install-cert",
+            "--fullchain-file",
+            "--key-file",
+            "exactly once",
+            "generic inherited standard input is rejected",
+            "awaiting project-manager review",
+        ):
+            with self.subTest(document="acme-spec", token=token):
+                self.assertIn(token, spec)
+        for token in (
+            "<domain>/<domain>.conf",
+            "<domain>/<domain>.cer",
+            "export MIKROZIA_CF_API_TOKEN",
+        ):
+            with self.subTest(document="acme-spec", retired=token):
+                self.assertNotIn(token, spec)
+
+    def test_05e_contributing_does_not_promise_a_generated_first_login_credential(self):
+        contributing = self._normalized(self._read("CONTRIBUTING.md"))
+        self.assertNotIn("No panel user existed", contributing)
+        self.assertIn("MIKROZIA_ADMIN_USERNAME", contributing)
+        self.assertIn("MIKROZIA_ADMIN_PASSWORD", contributing)
 
     def test_06_runtime_is_immutable_and_has_no_updater(self):
         update = self._normalized(self._read(DOCS_ROOT, "en", "guide", "update-uninstall.mdx"))
@@ -550,7 +704,7 @@ class DocsContractTests(unittest.TestCase):
             security,
         )
 
-    def test_15_routeros_policy_commands_are_absent_from_current_guidance(self):
+    def test_15_routeros_policy_examples_are_strictly_operator_owned(self):
         policy_syntax = (
             "/ip/firewall/",
             "action=masquerade",
@@ -562,11 +716,14 @@ class DocsContractTests(unittest.TestCase):
             "chain=forward",
             'comment="[Mikrozia]',
         )
-        # Historical records keep retired examples behind a superseded label,
-        # and the ledger/charter record the audit history. Nothing else may.
+        # Network policy is never generated or applied by Mikrozia. The owner
+        # explicitly approved these two Persian, operator-run examples; nowhere
+        # else may ship RouterOS firewall/NAT commands.
         allowed = set(self.historical) | {
             "docs/MIKROZIA_PROJECT_LEDGER.md",
             "docs/MIKROZIA_PROJECT_CHARTER.md",
+            "docs/MIKROZIA_CHR_INSTALL_FA.md",
+            "docs/content/docs/fa/reference/ports-firewall.mdx",
         }
         skipped_dirs = {
             ".git",
@@ -595,8 +752,18 @@ class DocsContractTests(unittest.TestCase):
         self.assertEqual(
             violations,
             [],
-            "current documentation still ships RouterOS firewall/NAT policy commands",
+            "RouterOS firewall/NAT examples must remain limited to the explicitly operator-owned Persian guides",
         )
+
+        for rel in (
+            "docs/MIKROZIA_CHR_INSTALL_FA.md",
+            "docs/content/docs/fa/reference/ports-firewall.mdx",
+        ):
+            text = self._read(rel)
+            self.assertIn("[Mikrozia:operator]", text)
+            self.assertIn("نمونه", text)
+            self.assertIn("دستی", text)
+            self.assertIn("/ip/firewall/nat/add chain=dstnat", text)
 
         overview = self._read("docs", "DOCKER_HUB_OVERVIEW.md")
         heading = "## Required Network Inputs (operator-owned)"

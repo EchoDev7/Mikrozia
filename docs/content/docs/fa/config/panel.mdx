@@ -29,10 +29,11 @@ icon: SlidersHorizontal
 ### TLS
 
 ارائه‌ی پنل روی HTTPS از اطلاعات احراز هویت شما در حین انتقال محافظت می‌کند.
-`webCertFile` + `webKeyFile` را روی فایل‌هایی تنظیم کنید که خودتان تهیه کرده و روی
-`/root/cert` Mount کرده‌اید (به [گواهی‌های TLS](/docs/config/ssl-certificates)
-مراجعه کنید — Mikrozia گواهی صادر یا تمدید نمی‌کند)، یا TLS را روی یک
-[پروکسی معکوس](/docs/operations/reverse-proxy) خاتمه دهید.
+`webCertFile` + `webKeyFile` را به گواهی و کلید روی Mount پایدار `/root/cert` اشاره دهید
+(به [گواهی‌های TLS](/docs/config/ssl-certificates) مراجعه کنید). آن‌ها را با کلاینت
+ACME پیوست‌شده به Image صادر کنید — HTTP-01 برای صدور دستی یا Cloudflare DNS-01 برای
+تمدید خودکار — یا گواهی تهیه‌شده توسط خودتان را درون‌ریزی کنید. همچنین می‌توانید TLS
+را روی یک [پروکسی معکوس](/docs/operations/reverse-proxy) خاتمه دهید.
 
 <Callout type="warn">
   هرگز پنل را روی اینترنت عمومی با HTTP ساده در دسترس قرار ندهید. از TLS، یک پورت

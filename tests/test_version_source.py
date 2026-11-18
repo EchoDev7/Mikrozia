@@ -22,7 +22,7 @@ SERVER_GO = os.path.join(REPO_ROOT, "internal", "web", "service", "server.go")
 PANEL_GO = os.path.join(REPO_ROOT, "internal", "web", "service", "panel", "panel.go")
 README = os.path.join(REPO_ROOT, "README.md")
 
-RELEASE_PATTERN = re.compile(r"^v(?:\d+\.\d+\.\d+-mikrozia\.\d+|\d+-mikrozia)$")
+RELEASE_PATTERN = re.compile(r"^v(?:\d+\.\d+\.\d+-mikrozia(?:\.\d+)?|\d+-mikrozia)$")
 
 
 def read(path):
@@ -79,7 +79,7 @@ class ValidatorScriptTest(unittest.TestCase):
         self.assertIn("invalid", result.stderr)
 
     def test_rejects_malformed_versions(self):
-        for value in ("v3.11", "3.11.0-mikrozia.4", "v3.11.0-", "v1", "v1-mikrozia.0", "v1-mikrozia extra", "vv1-mikrozia"):
+        for value in ("v3.11", "3.11.0-mikrozia.4", "v3.11.0-", "v1", "v1-mikrozia.0", "v1.0.1-mikrozia.0", "v1-mikrozia extra", "vv1-mikrozia"):
             result = self.run_validator(value)
             self.assertNotEqual(result.returncode, 0, value)
 

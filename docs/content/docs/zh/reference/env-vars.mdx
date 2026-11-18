@@ -1,10 +1,38 @@
 ---
 title: 环境变量
-description: 3x-ui 的 XUI_* 环境变量完整参考——涵盖数据库、面板、日志、内存、节点令牌加密以及隧道健康监测器。
+description: Mikrozia 环境变量完整参考——涵盖管理员凭据、数据库、面板、日志、内存、节点令牌加密以及隧道健康监测器。
 icon: Variable
 ---
 
-Mikrozia 从 `XUI_*` 环境变量中读取运行时配置。在 RouterOS Container 上，请通过 `/container/envs` 定义变量并将其 `envlist` 挂载到容器；本地开发使用 Docker 时，可在 `docker-compose.yml` 或 `docker run -e` 中设置。更改环境变量后，请使用相同的持久挂载（`/etc/x-ui` 与 `/root/cert`）重建容器。
+Mikrozia 从环境变量中读取运行时配置。在 RouterOS Container 上，请通过 `/container/envs` 定义变量并将其 `envlist` 挂载到容器；本地开发使用 Docker 时，可在 `docker-compose.yml` 或 `docker run -e` 中设置。更改环境变量后，请使用相同的持久挂载（`/etc/x-ui` 与 `/root/cert`）重建容器。
+
+## 管理员凭据
+
+容器环境是面板管理员账号的**权威来源**。既没有固定的 `admin/admin` 默认值，也没有生成一次的首次登录密码。
+
+| 变量                     | 默认值 | 说明                                     |
+| ------------------------ | ------ | ---------------------------------------- |
+| `MIKROZIA_ADMIN_USERNAME` | —      | 管理员用户名。必须与密码一起设置。       |
+| `MIKROZIA_ADMIN_PASSWORD` | —      | 管理员密码。必须与用户名一起设置。       |
+
+面板每次启动都会把已保存的管理员账号与这两个值对齐：用户名和密码会被更新，密码变更后使用旧密码签发的会话随即失效。已有账号绝不会被静默删除或重置。
+
+| 情况                                                  | 行为                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| 两个值都已设置                                        | 环境拥有该账号；每次启动都会对齐已保存的账号。                |
+| 只设置了其中一个                                      | 面板拒绝启动，并指出缺少的值。任何内容都不会被更改。        |
+| 两者都未设置，但已存在账号                            | 已保存的账号原样保留，面板在日志中说明该账号由别处管理。    |
+| 两者都未设置，且没有账号                              | 面板拒绝启动，并要求提供这两个值。                          |
+| 两者都未设置，已保存账号仍是旧的 `admin` / `admin`   | 面板拒绝启动，并保留已保存的账号。                          |
+
+当环境拥有该账号时，面板的**安全**标签页会显示提示而不是密码表单，面板内修改密码也会以明确的信息被拒绝 —— 环境会在下次启动时覆盖它。
+
+<Callout type="warn">
+  **RouterOS 的容器环境是配置存储，而不是机密存储。** `/container/envs` 中的每个
+  值对任何能读取或导出路由器配置的人都可见。请为管理员选择强密码，并保护路由器
+  自身的访问权限与备份。Mikrozia 绝不会把这些值打印到日志、绝不通过 API 返回，
+  也绝不写入镜像。
+</Callout>
 
 ## 数据库
 
@@ -96,3 +124,24 @@ x-ui encrypt-tokens
 | `XUI_TUNNEL_HEALTH_TIMEOUT`   | `10s`                                        | 单次探测的超时时间。                                            |
 | `XUI_TUNNEL_HEALTH_FAILURES`  | `3`                                          | 触发重启前的连续失败次数。                                      |
 | `XUI_TUNNEL_HEALTH_COOLDOWN`  | `5m`                                         | 两次重启之间的最小延迟。                                        |
+
+## ACME
+
+### `MIKROZIA_CF_API_TOKEN`
+
+用于 **DNS-01** 证书签发与自动续期的最小权限 Cloudflare API 令牌。该变量是可选
+的：首选隐藏交互输入（`x-ui` → `14 — TLS Certificates` → `4` 或
+`x-ui acme cloudflare setup --domain <domain>`），因为 RouterOS Environment
+中的值在路由器配置里可见。仅对明确的非交互场景支持单行 `--stdin`；普通继承的
+标准输入会被拒绝。
+
+该令牌绝不会被写入日志，绝不会通过 API 以明文返回，绝不会嵌入生成的配置，也
+绝不会被写入不可变的镜像根文件系统。它以 `0600` 权限保存在持久证书挂载目录，
+因此镜像替换和回滚后依然保留。
+
+<Callout type="warn">
+  RouterOS Environment 中的令牌对任何能读取或导出路由器配置的人都可见。请优先使用
+  `x-ui acme cloudflare setup --domain <domain>` 的隐藏交互输入，把令牌限制在单个 Zone
+  （`Zone → DNS → Edit` 与 `Zone → Zone → Read`），并在他人接触过路由器后及时
+  轮换。
+</Callout>

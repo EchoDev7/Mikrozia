@@ -1,6 +1,6 @@
 ---
 title: First Login
-description: Find the credentials generated on first boot, reach the panel, enable two-factor auth, and harden it before exposing anything.
+description: Log in with the administrator credentials from the container environment, reach the panel, enable two-factor auth, and harden it before exposing anything.
 icon: KeyRound
 ---
 
@@ -21,29 +21,25 @@ port is **2053** and the default base path is `/`.
 
 ### Find your credentials
 
-On first boot the panel generates a random username and password and prints them
-once to the container log:
+The administrator credential is the one you set in the container environment —
+there is no generated first-login password:
 
 ```text
-/log/print where topics~"container"
+/container/envs/print where list=MIKROZIA_ENV
 ```
 
-If the log is gone, open a container shell and reset them:
-
-```text
-/container/shell [find where comment="[Mikrozia:container] Container"]
-```
-
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
-```
-
-Inside the container, `x-ui settings` shows the current settings.
+Use the `MIKROZIA_ADMIN_USERNAME` and `MIKROZIA_ADMIN_PASSWORD` values you
+configured during [installation](/docs/guide/installation). The panel
+reconciles the stored account with them on every start, so both values are the
+single source of truth. Inside the container, `x-ui settings` shows the current
+settings.
 
 <Callout type="warn">
-  If your panel still uses the default `admin` / `admin` (the panel warns when it
-  does), change it immediately — before creating any inbounds.
+  The RouterOS Container Environment is a configuration store, not a secret
+  store: every value in `/container/envs` is visible to anyone who can read or
+  export the router configuration. Use a strong, unique administrator password
+  and change it in the environment (then restart the container) whenever that
+  configuration could have been exposed.
 </Callout>
 
 ## Change credentials, port, and path
@@ -58,6 +54,14 @@ harder to find. Change them from **Panel Settings** in the UI, or from the
 
 Changing your username or password **logs out all existing sessions** and, if
 two-factor auth was on, disables it.
+
+<Callout type="info">
+  When the container environment owns the administrator account, the username and
+  password cannot be changed from the panel or from `x-ui setting -username …
+  -password …`: the panel says so plainly instead of accepting a value that the
+  next start would overwrite. Change `MIKROZIA_ADMIN_USERNAME` and
+  `MIKROZIA_ADMIN_PASSWORD` in RouterOS and restart the container instead.
+</Callout>
 
 ## Two-factor authentication (2FA)
 
@@ -84,7 +88,8 @@ step or with `x-ui setting -resetTwoFactor`.
 <Step>
 ### Set strong, unique credentials
 
-Replace the generated (or `admin/admin`) username and password with strong values.
+Choose a strong, unique administrator password in the container environment
+before the first start, and keep it out of shared configuration exports.
 </Step>
 
 <Step>
@@ -102,9 +107,11 @@ Turn on 2FA so a leaked password alone can't grant access.
 <Step>
 ### Put the panel behind TLS
 
-Mikrozia does not issue certificates. Obtain one outside the container, place it
-on the `/root/cert` mount, and configure the panel paths (menu `14` or
-`x-ui cert`), or terminate TLS at a [reverse proxy](/docs/operations/reverse-proxy).
+Issue a certificate with the bundled ACME client (menu `14 — TLS Certificates`,
+or `x-ui acme issue --http …` / `x-ui acme issue --dns …`) — it is installed on
+the `/root/cert` mount and the panel paths are updated for you — or import an
+existing certificate with `x-ui cert`. Alternatively, terminate TLS at a
+[reverse proxy](/docs/operations/reverse-proxy).
 </Step>
 
 <Step>

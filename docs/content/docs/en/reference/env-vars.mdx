@@ -1,14 +1,51 @@
 ---
 title: Environment Variables
-description: Complete reference for 3x-ui's XUI_* environment variables — database, panel, logging, memory, node token encryption, and the tunnel health monitor.
+description: Complete reference for Mikrozia's environment variables — administrator credentials, database, panel, logging, memory, node token encryption, and the tunnel health monitor.
 icon: Variable
 ---
 
-Mikrozia reads its runtime configuration from `XUI_*` environment variables. On
+Mikrozia reads its runtime configuration from environment variables. On
 RouterOS Container, define them in `/container/envs` and attach the `envlist` to
 your container; for local development with Docker, set them in
 `docker-compose.yml` or `docker run -e`. To apply environment changes, recreate
 the container with the same persistent mounts (`/etc/x-ui` and `/root/cert`).
+
+## Administrator credentials
+
+The container environment is the **authoritative source** of the panel
+administrator account. There is no fixed `admin/admin` default and no generated
+first-login password.
+
+| Variable                  | Default | Description                                                       |
+| ------------------------- | ------- | ----------------------------------------------------------------- |
+| `MIKROZIA_ADMIN_USERNAME` | —       | Administrator username. Must be set together with the password.   |
+| `MIKROZIA_ADMIN_PASSWORD` | —       | Administrator password. Must be set together with the username.   |
+
+On every start the panel reconciles the stored administrator account with these
+two values: the username and password are updated to match, and a changed
+password invalidates the sessions that were issued with the old one. Existing
+accounts are never silently deleted or reset.
+
+| Situation                                              | Behavior                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Both values set                                        | The environment owns the account; the stored account is reconciled on every start.                  |
+| Only one of the two set                                | The panel refuses to start and names the missing value. Nothing is changed.                         |
+| Neither set, an account already exists                 | The stored account is preserved unchanged and the panel logs that it is managed elsewhere.          |
+| Neither set, no account exists                         | The panel refuses to start and asks for both values.                                                |
+| Neither set, the stored account still holds the legacy `admin` / `admin` pair | The panel refuses to start and keeps the stored account.                          |
+
+When the environment owns the account, the panel's **Security** tab shows a
+notice instead of a password form, and a panel-side password change is refused
+with a truthful message — the environment would overwrite it on the next start.
+
+<Callout type="warn">
+  **The RouterOS Container Environment is a configuration store, not a secret
+  store.** Every value in `/container/envs` is visible to anyone who can read the
+  router configuration or export it. Choose a strong administrator password, and
+  protect the router's own access and backups. Mikrozia never prints these
+  values to logs, never returns them through an API, and never writes them into
+  the image.
+</Callout>
 
 ## Database
 
@@ -104,3 +141,28 @@ clients, so enable it deliberately.
 | `XUI_TUNNEL_HEALTH_TIMEOUT`   | `10s`                                        | Per-probe timeout.                                               |
 | `XUI_TUNNEL_HEALTH_FAILURES`  | `3`                                          | Consecutive failures before a restart.                          |
 | `XUI_TUNNEL_HEALTH_COOLDOWN`  | `5m`                                         | Minimum delay between restarts.                                 |
+
+## ACME
+
+### `MIKROZIA_CF_API_TOKEN`
+
+The least-privilege Cloudflare API token used for **DNS-01** certificate
+issuance and automatic renewal. It is optional: the preferred way is the hidden
+interactive prompt (`x-ui` → `14 — TLS Certificates` → `4` or
+`x-ui acme cloudflare setup --domain <domain>`), because a value in the RouterOS
+Environment is visible in the router configuration. Explicit one-line `--stdin`
+is supported for deliberate noninteractive input; generic inherited standard
+input is rejected.
+
+The token is never logged, never returned in plaintext by an API, never embedded
+in generated configuration, and never written to the immutable image root. It is
+stored with mode `0600` on the persistent certificate mount, so it survives an
+image replacement and a rollback.
+
+<Callout type="warn">
+  A token in the RouterOS Environment is readable by anyone who can read or
+  export the router configuration. Prefer the hidden interactive prompt of
+  `x-ui acme cloudflare setup --domain <domain>`, restrict the token to the
+  single zone (`Zone → DNS → Edit` and `Zone → Zone → Read`), and rotate it
+  when somebody else had access to the router.
+</Callout>

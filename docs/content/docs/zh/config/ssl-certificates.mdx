@@ -1,48 +1,153 @@
 ---
 title: TLS 证书
-description: 为 Mikrozia 面板和入站提供并轮换 TLS 证书。Mikrozia 不会在容器内部签发或续期证书。
+description: 使用镜像内置的 ACME 客户端为 Mikrozia 面板和入站签发、安装并续期 TLS 证书 —— HTTP-01 手动方式或 Cloudflare DNS-01 自动方式。
 icon: ShieldCheck
 ---
 
 TLS 证书让你通过 HTTPS 提供**面板**服务（加密登录和 API 流量），并在**入站**
-（VLESS-TLS、Trojan、Shadowsocks-TLS 等）上终止 TLS。Mikrozia 只**读取**你提供
-的证书文件，不会在容器内运行 ACME 客户端、certbot 或任何其他证书签发工具。
+（VLESS-TLS、Trojan、Shadowsocks-TLS 等）上终止 TLS。Mikrozia 镜像内置了版本锁定的
+ACME 客户端，因此无需在路由器上安装任何软件，也无需在 RouterOS 本身运行证书签发
+工具，即可签发和续期证书。
+
+支持两种签发方式：
+
+| 方式                  | 是否需要公网 80 端口 | 续期方式 | 适用场景                             |
+| --------------------- | -------------------- | -------- | ------------------------------------ |
+| **HTTP-01**（手动）   | 需要                 | 手动     | 一次性域名、无 DNS 服务商 API 权限。 |
+| **Cloudflare DNS-01** | 不需要               | 自动     | DNS 托管在 Cloudflare 的域名。       |
 
 <Callout type="warn">
-  证书的获取和续期由**用户自行管理**。Mikrozia 从不在运行时下载或安装证书工具，
-  也从不创建或修改 RouterOS 的防火墙、NAT 或端口转发规则。如果你的验证方式需要
-  公网端口，请自行在 RouterOS 中配置相应访问。
+  域名的**可达性**由你自行负责。Mikrozia 绝不会创建、修改、删除、启用或禁用
+  RouterOS 的防火墙、NAT、端口转发、路由、地址列表或云安全规则 —— 无论是面板、
+  Shell 菜单还是本文档。Cloudflare 令牌绝不会被写入日志，绝不会通过 API 以明文
+  返回，绝不会嵌入生成的配置，也绝不会被写入不可变的镜像根文件系统。
 </Callout>
 
-## 在容器外获取证书
+## 证书存放位置
 
-在你控制的宿主机上，按证书颁发机构提供的签发和续期流程操作，然后把生成的文件
-复制到路由器的持久证书存储。不要在 Mikrozia 容器内安装软件包或运行证书安装程序。
-
-证书及其私钥通常是两个文件：
-
-- `fullchain.pem` — 证书及中间证书链。
-- `privkey.pem` — 私钥。请妥善保密，切勿放入镜像、支持包或日志。
-
-## 放到持久证书挂载目录
-
-在 `/root/cert`（RouterOS 证书挂载在容器内的路径）下为每份证书创建一个目录：
+所有 ACME 数据都位于持久证书挂载目录，因此镜像替换和回滚后依然保留：
 
 ```text
-/root/cert/vpn.example.com/fullchain.pem
-/root/cert/vpn.example.com/privkey.pem
+/root/cert/vpn.example.com/fullchain.pem   # 已签发证书及证书链
+/root/cert/vpn.example.com/privkey.pem      # 私钥（0600）
+/root/cert/.acme.sh/                         # ACME 账户、域名状态与续期状态
 ```
 
-配置面板前，两个文件都必须已存在于最终路径。该目录是持久挂载，因此证书在替换
-容器镜像和回滚后仍会保留。
+签发成功后，面板与订阅服务器会自动指向
+`/root/cert/<domain>/fullchain.pem` 和 `/root/cert/<domain>/privkey.pem`。
+[面板设置](/docs/config/panel#tls)中的 **Public Key Path** 与 **Private Key Path**
+字段仍可编辑，因此位于其他位置的证书同样可用。
 
-## 让面板使用这些文件
+## 签发证书：HTTP-01（手动）
 
-任选一种等效方式：
+HTTP-01 校验要求 TCP 80 端口在**签发进行期间**可从互联网访问本容器。
 
-- 运行 `x-ui`，选择 **`14` — TLS Certificate Paths**，然后选择 **`2` — Set
-  certificate paths for the panel**。
-- 或直接运行命令：
+<Steps>
+
+### 让 80 端口可达容器
+
+用你自己掌控的规则将公网 TCP/80 转发到容器的 80 端口。Mikrozia 面板绝不会替你
+写入该规则。证书签发完成后请关闭该转发 —— 续期是手动的，续期时再重新打开。
+
+### 检查前置条件
+
+```bash
+x-ui acme check --http --domain panel.example.com
+```
+
+输出会报告内置客户端、ACME 账户目录和本地 DNS 解析结果。Mikrozia 无法从容器内部验证 HTTP-01 的公网可达性。RouterOS 操作员必须临时使 TCP 80 端口可从公网访问。该命令绝不会把 RouterOS 策略当作公网可达性的证据，也不会更改路由器上的任何规则。
+
+### 签发证书
+
+```bash
+x-ui acme issue --http --domain panel.example.com
+```
+
+也可以使用 Shell 菜单：运行 `x-ui`，选择 **`14 — TLS Certificates`**，然后选择
+**`3 — Issue or renew a certificate with HTTP-01 (manual)`**。
+
+客户端首次使用时会注册 ACME 账户（加 `--email` 可接收到期通知），校验域名，并把
+证书对安装到持久挂载目录。面板与订阅的 TLS 路径只在新证书对校验通过后才更新；
+任何环节失败时，原有证书与原有设置保持不变。
+
+对于已变更且有效的证书对，同一事务会更新面板与订阅的全部四个 TLS 路径，并恰好
+重载面板、订阅监听器和 Xray 一次，无需单独重启。重载失败会明确报告，并恢复原有
+证书对与设置。
+
+</Steps>
+
+<Callout type="info">
+  HTTP-01 证书**手动续期**。面板绝不会为 HTTP-01 安排续期任务，因为它需要只有
+  你才能提供的 80 端口可达性。当证书临近到期时，在 80 端口开放的情况下重复上述
+  步骤即可。
+</Callout>
+
+## 签发证书：Cloudflare DNS-01（自动）
+
+DNS-01 校验不需要公网端口。面板通过 Cloudflare API 添加并删除
+`_acme-challenge` TXT 记录，因此校验流量不会到达路由器。
+
+### 创建最小权限 API 令牌
+
+在 Cloudflare 控制台创建 API 令牌：
+
+- **权限：** `Zone → DNS → Edit` 与 `Zone → Zone → Read`。
+- **Zone 资源：** `Include → Specific zone → 仅你的域名`。
+
+能够编辑所有 Zone 的 DNS 的令牌并无必要，也不应使用。
+
+### 保存令牌
+
+运行 `x-ui`，选择 **`14 — TLS Certificates`**，然后选择
+**`4 — Cloudflare DNS-01 setup and automatic renewal`**。令牌通过隐藏输入读取，
+绝不会回显。
+
+同样的隐藏输入流程可以用命令行完成：
+
+```bash
+x-ui acme cloudflare setup --domain panel.example.com
+```
+
+如需明确的非交互输入，请使用 `MIKROZIA_CF_API_TOKEN`，或仅在显式指定 `--stdin`
+时向标准输入提供一行。普通继承的标准输入不会被视为隐藏输入。
+
+令牌绝不会作为命令行参数接受，因此不会进入 Shell 历史，也不会出现在进程列表中。
+它以 `0600` 权限保存在 `/root/cert/.acme.sh/` 内，并且只通过子进程环境传给
+ACME 客户端。
+
+### 签发证书
+
+```bash
+x-ui acme issue --dns --domain panel.example.com
+```
+
+签发成功后，面板会将该域名保留在 DNS-01 模式，因此计划续期也适用于它。
+
+### 续期与重载
+
+面板每十二小时检查一次 DNS-01 域名。内置客户端只在证书临近到期时才重新签发，
+因此该周期是检查频率而不是签发频率。当已安装的文件确实发生变化时，面板会更新
+证书路径并重载监听器；若没有任何变化，则不会重载，流量也不会中断。
+
+### 轮换令牌
+
+在 Cloudflare 中创建新令牌，然后再次执行同一条命令。新令牌会替换旧令牌；之后
+即可在 Cloudflare 中撤销旧令牌。
+
+<Callout type="info">
+  Cloudflare API 令牌也可以通过容器环境变量 `MIKROZIA_CF_API_TOKEN` 提供。容器
+  环境是配置存储而不是机密存储。任何能够读取或导出 RouterOS 配置的人都能看到
+  RouterOS Environment 的值。使用前请先阅读
+  [敏感性警告](/docs/reference/env-vars#mikrozia-cf-api-token)。
+</Callout>
+
+## 使用你已有的证书
+
+导入现有证书完全受支持，且不需要 ACME 账户：
+
+- 运行 `x-ui`，选择 **`14 — TLS Certificates`**，然后选择
+  **`2 — Set certificate paths for the panel (manual import)`**。
+- 或使用命令行：
 
   ```bash
   x-ui cert -webCert /root/cert/vpn.example.com/fullchain.pem \
@@ -50,39 +155,52 @@ TLS 证书让你通过 HTTPS 提供**面板**服务（加密登录和 API 流量
   x-ui restart
   ```
 
-- 或在[面板设置](/docs/config/panel#tls)中设置 `webCertFile` 和
-  `webKeyFile`。
+- 或在[面板设置](/docs/config/panel#tls)中设置 `webCertFile` 与 `webKeyFile`。
 
-只有**两个**路径都已设置且两个文件都可读时，面板才会切换到 HTTPS。要清除它们，
-请运行 `x-ui cert -reset`。
+只有当**两个**路径都已设置且两个文件都可读时，面板才会切换到 HTTPS。要清除它们，
+运行 `x-ui cert -reset`。
 
-## 在入站中使用证书
+## 在入站上使用证书
 
-为入站启用 TLS 时，在入站的 TLS 设置中引用相同的证书和密钥路径（或粘贴其
-内容）。参见[入站](/docs/config/inbounds)和[传输](/docs/config/transports)。
-[REALITY](/docs/config/reality) 入站**不需要**证书，它们借用真实站点的 TLS。
+为入站启用 TLS 时，在该入站的 TLS 设置中引用同一证书与密钥路径（或粘贴其内容）。
+参见[入站](/docs/config/inbounds)与[传输方式](/docs/config/transports)。
+[REALITY](/docs/config/reality) 入站**不需要**证书，它借用真实站点的 TLS。
 
-## 续期与轮换
+## 命令行参考
 
-续期在容器外按你管理的时间表进行。当证书颁发机构签发新证书后，覆盖相同的
-`fullchain.pem` 和 `privkey.pem` 文件，使面板中保存的路径继续有效，然后重载
-面板：
-
-```bash
-x-ui restart
+```text title="x-ui acme"
+x-ui acme status                       # 域名、校验方式、到期时间、续期方式
+x-ui acme check --http --domain <d>   # HTTP-01 前置条件（只读）
+x-ui acme check --dns  --domain <d>   # DNS-01 前置条件（只读）
+x-ui acme issue --http --domain <d>   # 使用 HTTP-01 签发并安装
+x-ui acme issue --dns  --domain <d>   # 使用 DNS-01 签发并安装
+x-ui acme renew --domain <d>          # 续期并在文件变化时安装
+x-ui acme cloudflare setup --domain <d> --stdin
 ```
 
-`x-ui restart` 会重载面板的 Web 和订阅服务，并重启运行中容器内的 Xray。容器内
-没有续期守护进程或 cron 任务，也不会自动获取任何证书。
+`--email <address>` 设置 ACME 账户联系地址，`--staging` 使用 ACME 演练目录
+（不受信任的证书，不消耗签发配额，适合首次测试）。
 
-如果证书移动到其他路径，请通过菜单 `14` 或 `x-ui cert` 再次更新面板设置。
+## 故障排查
 
-<Callout type="info">
-  证书会过期。请使用外部签发工具监控有效期，并在到期前替换已挂载的文件；面板会
-  持续从配置的路径读取文件。
-</Callout>
+- **HTTP-01 校验失败。** 签发期间 80 端口无法从互联网访问，或 80 端口上已有
+  其他服务响应。在容器内运行 `x-ui acme check --http --domain <d>`。
+- **DNS-01 校验失败。** 令牌缺少该 Zone 的 `Zone → DNS → Edit` 权限，或记录尚未
+  生效。该 Zone 必须在 Cloudflare 中处于启用状态。
+- **证书未生效。** 请读取签发或续期错误。应用或重载失败会恢复原有证书对和全部
+  四个原有 TLS 路径；排除原因后重新执行 ACME 命令，并用 `x-ui acme status` 检查状态。
+- **到期。** 证书会到期。请用你自己的工具监控到期时间并提前续期；面板会持续从
+  已配置的路径读取文件。
 
-## 后续步骤
+## 已废弃：RouterOS 上的 Reverse Proxy 证书流程
+
+此前的指引要求你使用归属于 RouterOS 的证书（或在路由器上运行 `certbot`）来终止
+TLS。该流程已从当前文档中移除：证书由内置 ACME 客户端签发并保存在 `/root/cert`
+下，Mikrozia 绝不会把 RouterOS 的私钥导入容器。仍在使用旧流程的安装不会受到影响
+—— 镜像更新不会删除或改写任何内容。通过独立反向代理主机提供面板仍然受支持，
+参见 [Reverse proxy](/docs/operations/reverse-proxy)。
+
+## 下一步
 
 <Cards>
   <Card
@@ -91,13 +209,18 @@ x-ui restart
     description="webCertFile / webKeyFile 以及其余 Web 服务器设置。"
   />
   <Card
-    title="反向代理"
+    title="环境变量"
+    href="/docs/reference/env-vars"
+    description="MIKROZIA_ADMIN_USERNAME、MIKROZIA_ADMIN_PASSWORD 与 ACME 令牌。"
+  />
+  <Card
+    title="Reverse proxy"
     href="/docs/operations/reverse-proxy"
-    description="在容器外终止 TLS。"
+    description="改由代理主机提供面板服务。"
   />
   <Card
     title="REALITY"
     href="/docs/config/reality"
-    description="入站的隐蔽 TLS——无需证书。"
+    description="入站使用隐蔽 TLS —— 无需证书。"
   />
 </Cards>

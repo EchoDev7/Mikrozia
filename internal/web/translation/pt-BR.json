@@ -1394,6 +1394,9 @@
       "telegramBotLanguage": "Idioma do Bot do Telegram",
       "security": {
         "admin": "Credenciais de administrador",
+        "adminCredentialManagedTitle": "A conta de administrador é gerida pelo ambiente",
+        "adminCredentialManagedDescription": "A conta de administrador vem do ambiente do contêiner do RouterOS, portanto o painel não pode alterá-la aqui. Defina MIKROZIA_ADMIN_USERNAME e MIKROZIA_ADMIN_PASSWORD no RouterOS e reinicie o contêiner.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD em /container/envs e reinicie o contêiner",
         "twoFactor": "Autenticação de dois fatores",
         "twoFactorEnable": "Ativar 2FA",
         "twoFactorEnableDesc": "Adiciona uma camada extra de autenticação para mais segurança.",
@@ -1430,6 +1433,7 @@
         "modifySettings": "Os parâmetros foram alterados.",
         "getSettings": "Ocorreu um erro ao recuperar os parâmetros.",
         "modifyUserError": "Ocorreu um erro ao alterar as credenciais do administrador.",
+        "adminCredentialManagedByEnvironment": "As credenciais de administrador são gerenciadas pelos valores de ambiente do contêiner MIKROZIA_ADMIN_USERNAME e MIKROZIA_ADMIN_PASSWORD. Atualize-os no RouterOS e reinicie o contêiner.",
         "modifyUser": "Você alterou com sucesso as credenciais do administrador.",
         "originalUserPassIncorrect": "O nome de usuário ou senha atual é inválido",
         "userPassMustBeNotEmpty": "O novo nome de usuário e senha não podem estar vazios",

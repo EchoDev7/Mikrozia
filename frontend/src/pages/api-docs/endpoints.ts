@@ -1886,14 +1886,22 @@ export const sections: readonly Section[] = [
         method: 'POST',
         path: '/panel/api/setting/updateUser',
         summary:
-          'Change the panel admin username and password. Requires the current credentials for verification. The session is refreshed with the new values on success.',
+          'Change the panel admin username and password. Requires the current credentials for verification. The session is refreshed with the new values on success. Refused while the container environment owns the administrator account.',
         params: [
           { name: 'oldUsername', in: 'body', type: 'string', desc: 'Current admin username.' },
           { name: 'oldPassword', in: 'body', type: 'string', desc: 'Current admin password.' },
           { name: 'newUsername', in: 'body', type: 'string', desc: 'Desired new username.' },
           { name: 'newPassword', in: 'body', type: 'string', desc: 'Desired new password.' },
         ],
-        body: '{\n  "oldUsername": "admin",\n  "oldPassword": "admin",\n  "newUsername": "newadmin",\n  "newPassword": "newpass"\n}',
+        body: '{\n  "oldUsername": "<current-username>",\n  "oldPassword": "<current-password>",\n  "newUsername": "<new-username>",\n  "newPassword": "<new-password>"\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/adminCredentialState',
+        summary:
+          'Report where the administrator credential comes from: "environment" when the container environment owns it, "preserved" for a stored account the environment does not configure, "legacy-default" for the retired default pair, and "missing" when no account exists. Never returns the username or the password.',
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "source": "environment",\n    "managed": true\n  }\n}',
       },
       {
         method: 'POST',

@@ -114,8 +114,9 @@ func EmbeddedDist() embed.FS {
 
 // Server represents the main web server for the 3x-ui panel with controllers, services, and scheduled jobs.
 type Server struct {
-	httpServer *http.Server
-	listener   net.Listener
+	httpServer           *http.Server
+	listener             net.Listener
+	certificateTLSConfig *tls.Config
 
 	index *controller.IndexController
 	panel *controller.XUIController
@@ -317,6 +318,10 @@ const (
 	// stacks overlapping samplers; subscribers rate-limit alerts to 1/min anyway.
 	cadenceCPUAlarm    = "@every 1m"
 	cadenceMemoryAlarm = "@every 1m"
+	// ACME renewal runs twice a day: the bundled client only re-issues a
+	// certificate that is close to expiry, so the cadence is the check
+	// frequency, not the issuance frequency.
+	cadenceAcmeRenew = "@every 12h"
 )
 
 // startTask schedules background jobs (Xray checks, traffic jobs, cron
@@ -366,6 +371,10 @@ func (s *Server) startTask(restartXray bool, loc *time.Location) {
 	_, _ = s.cron.AddJob(cadenceOutboundSub, job.NewOutboundSubscriptionJob())
 
 	_, _ = s.cron.AddJob(cadenceReapOrphans, job.NewReapSyncOrphansJob())
+
+	// Automatic renewal of the DNS-01 certificates. HTTP-01 domains are
+	// renewed manually and are skipped by the job.
+	_, _ = s.cron.AddJob(cadenceAcmeRenew, job.NewAcmeRenewJob())
 
 	// Warm permanent routing URLs immediately and refresh them outside the
 	// latency-sensitive subscription request path.
@@ -626,6 +635,7 @@ func (s *Server) start(restartXray bool, startTgBot bool) (err error) {
 				logger.Info("Node mTLS enabled: verifying client certificates for the node API")
 			}
 			listener = network.NewAutoHttpsListener(listener)
+			s.certificateTLSConfig = c
 			listener = tls.NewListener(listener, c)
 			logger.Info("Web server running HTTPS on", listener.Addr())
 		} else {
@@ -855,6 +865,22 @@ func (s *Server) GetWSHub() any {
 
 func (s *Server) RestartXray() error {
 	return s.xrayService.RestartXray(true)
+}
+
+// ReloadTLS replaces only the HTTP listener, leaving the scheduler and its current job alive.
+func (s *Server) ReloadTLS() error {
+	cert, err := s.settingService.GetCertFile()
+	if err != nil {
+		return err
+	}
+	key, err := s.settingService.GetKeyFile()
+	if err != nil {
+		return err
+	}
+	if s.httpServer == nil {
+		return errors.New("panel listener is not initialized")
+	}
+	return network.ReloadHTTP(&s.httpServer, &s.listener, s.httpServer.Handler, s.certificateTLSConfig, cert, key)
 }
 
 // scheduleSettingJob schedules j on an admin-typed spec, running it on fallback

@@ -44,9 +44,17 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 /container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
+
+> **قيم حساسة:** Environment حاوية RouterOS هو مخزن إعدادات وليس خزنة أسرار. كل قيمة
+> في `/container/envs` مرئية لكل من يستطيع قراءة إعدادات الراوتر أو تصديرها.
+> `MIKROZIA_ADMIN_USERNAME` و`MIKROZIA_ADMIN_PASSWORD` هما المصدر الوحيد لحساب
+> المدير ويجب ضبطهما **معًا**؛ وفي وجود واحد منهما فقط ترفض اللوحة البدء. لا تكتب
+> Mikrozia هاتين القيمتين في السجل ولا تعيدهما عبر API.
 
 إذا كان أحد المجلدات موجودًا مسبقًا، فتجاوز سطر `/file/add` الخاص به. لمتابعة
 الاستخراج:
@@ -69,7 +77,7 @@ majlot/mikrozia:v1-mikrozia
 
 - تستمع اللوحة داخل الحاوية على `http://172.16.10.2:2053/`.
 - قاعدة البيانات والإعدادات على نقطة التثبيت الدائمة `/etc/x-ui`، وشهادات المستخدم على `/root/cert`.
-- احصل على شهادة TLS وجدّدها خارج الحاوية، وعرّف مسارها في اللوحة؛ لا تصدر Mikrozia الشهادات أو تجددها.
+- تتضمن الصورة عميل ACME مثبّت الإصدار: أصدر الشهادة داخل الحاوية عبر HTTP-01 (تجديد يدوي) أو Cloudflare DNS-01 (تجديد تلقائي). تبقى الشهادة وحالة الحساب على `/root/cert` بشكل دائم. لا تنشئ Mikrozia أي قواعد RouterOS للجدار الناري أو NAT أو إعادة توجيه المنافذ ولا تعدّلها.
 - سياسة Firewall وNAT وPort Forward والتوجيه والتحكم في الوصول مسؤولية مدير RouterOS بالكامل؛ ولا تنشئ Mikrozia أي قاعدة شبكة أو تعدّلها.
 
 ## التحديث

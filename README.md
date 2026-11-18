@@ -18,7 +18,7 @@ Mikrozia بسته‌ای از 3x-ui و Xray است که برای محدودیت�
 این پروژه موارد زیر را فراهم می‌کند:
 
 - Image چندمعماری قابل دریافت از Docker Hub؛
-- مسیرهای پایدار دیتابیس و گواهی TLS (تهیه و تمدید گواهی بر عهدهٔ کاربر است)؛
+- مسیرهای پایدار دیتابیس و گواهی TLS (گواهی با کلاینت ACME داخلی صادر و تمدید می‌شود)؛
 - EntryPoint سازگار با RootFS موقت Container؛
 - حذف کامل ابزارها و دستورات Firewall از Image کانتینری؛
 - اسکریپت‌های Container-only برای نصب و حذف؛
@@ -95,7 +95,16 @@ Mountهای پایدار و متغیرهای محیطی:
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+> **هشدار حساسیت:** Environment کانتینر RouterOS یک انبار پیکربندی است، نه انبار
+> اسرار. هر مقدار در `/container/envs` برای هر کسی که بتواند پیکربندی روتر را
+> بخواند یا خروجی بگیرد قابل مشاهده است. `MIKROZIA_ADMIN_USERNAME` و
+> `MIKROZIA_ADMIN_PASSWORD` مرجع اصلی حساب مدیر هستند و باید **با هم** تنظیم شوند؛
+> اگر فقط یکی از آن‌ها موجود باشد پنل اجرا نمی‌شود. Mikrozia این مقادیر را در Log
+> چاپ نمی‌کند و از طریق API برنمی‌گرداند.
 
 تنظیم Registry و ساخت Container با Image نسخه‌دار:
 
@@ -125,7 +134,7 @@ Monitor استخراج:
 | مورد | مقدار |
 |---|---|
 | دیتابیس و تنظیمات | `/etc/x-ui` |
-| گواهی TLS (کاربر) | `/root/cert` |
+| گواهی TLS و وضعیت ACME | `/root/cert` |
 | HOME | `/root` |
 | پنل داخلی | `2053/TCP` |
 | Subscription داخلی | `2096/TCP` |

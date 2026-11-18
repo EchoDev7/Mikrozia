@@ -17,7 +17,7 @@ x-ui
 
 | #     | آیتم                                   | کاری که انجام می‌دهد                                       |
 | ----- | -------------------------------------- | --------------------------------------------------------- |
-| 1     | Reset Username & Password              | تنظیم مشخصات جدید؛ با امکان غیرفعال‌سازی 2FA                |
+| 1     | Environment-Managed Admin Credentials  | نمایش منبع اطلاعات ورود و دستورهای RouterOS برای تنظیم آن     |
 | 2     | Reset Web Base Path                    | بازنشانی مسیر پایهٔ وب                                     |
 | 3     | Reset Settings                         | بازنشانی تنظیمات پنل (اطلاعات کاربران حفظ می‌شود)           |
 | 4     | Change Port                            | تغییر پورت پنل                                             |
@@ -28,7 +28,7 @@ x-ui
 | 10    | Check Status                           | وضعیت پنل، Xray و MTProto به همراه دستور بررسی خودکاربودن در RouterOS |
 | 11    | Logs Management                        | مشاهده لاگ دیباگ پنل / دستورهای لاگ کانتینر RouterOS        |
 | 12–13 | Show RouterOS Enable / Disable Autostart Command | نمایش دستورهای `/container/set` در RouterOS برای `start-on-boot` و `restart-policy` |
-| 14    | TLS Certificate Paths                  | انتخاب فایل‌های گواهی ارائه‌شده توسط کاربر برای پنل؛ صدور و تمدید بیرون از کانتینر انجام می‌شود |
+| 14    | TLS Certificates                       | صدور، درون‌ریزی و بررسی گواهی با کلاینت ACME پیوست‌شده      |
 | 15    | RouterOS Network Policy Notice         | راهنمای تنظیم فایروال و دسترسی‌ها در RouterOS              |
 | 16    | Database Tools                         | تبدیل SQLite `.db` ↔ `.dump` و راهنمای PostgreSQL خارجی   |
 | 0     | Exit                                   | خروج از اسکریپت                                            |
@@ -51,6 +51,7 @@ x-ui
 | `x-ui enable` / `disable`  | نمایش دستورهای RouterOS `/container/set` برای `start-on-boot` و `restart-policy` |
 | `x-ui log`                 | مشاهده لاگ دیباگ                                    |
 | `x-ui migrateDB [file]`    | تبدیل دیتابیس SQLite میان .db و .dump               |
+| `x-ui acme <command>`     | `status`، `check`، `issue`، `renew`، `cloudflare setup` — گواهی‌ها |
 
 ## به‌روزرسانی
 

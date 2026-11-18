@@ -44,9 +44,18 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 /container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
+
+> **هشدار حساسیت:** Environment کانتینر RouterOS یک انبار پیکربندی است، نه انبار
+> اسرار. هر مقدار در `/container/envs` برای هر کسی که بتواند پیکربندی روتر را
+> بخواند یا خروجی بگیرد قابل مشاهده است. `MIKROZIA_ADMIN_USERNAME` و
+> `MIKROZIA_ADMIN_PASSWORD` مرجع اصلی حساب مدیر هستند و باید **با هم** تنظیم شوند؛
+> اگر فقط یکی از آن‌ها موجود باشد پنل اجرا نمی‌شود. Mikrozia این مقادیر را در Log
+> چاپ نمی‌کند و از طریق API برنمی‌گرداند.
 
 اگر پوشه‌ای از قبل وجود دارد، خط `/file/add` آن را اجرا نکنید. برای Extract:
 
@@ -68,7 +77,7 @@ Firewall، NAT، Port Forward یا Routing ایجاد نمی‌کند.
 
 - پنل داخل کانتینر روی `http://172.16.10.2:2053/` شنود می‌کند.
 - دیتابیس و تنظیمات روی Mount پایدار `/etc/x-ui` و گواهی‌های کاربر روی `/root/cert` قرار دارند.
-- گواهی TLS را بیرون از کانتینر تهیه و تمدید کنید و مسیر آن را در پنل معرفی کنید؛ Mikrozia گواهی صادر یا تمدید نمی‌کند.
+- Image یک کلاینت ACME با نسخهٔ Pin‌شده دارد: گواهی را داخل کانتینر با HTTP-01 (تمدید دستی) یا Cloudflare DNS-01 (تمدید خودکار) صادر کنید. گواهی و وضعیت حساب روی `/root/cert` پایدار می‌مانند. Mikrozia هرگز Rule فایروال، NAT یا Port Forward ایجاد یا تغییر نمی‌دهد.
 - سیاست Firewall، NAT، Port Forward، Routing و Access Control کاملاً در اختیار مدیر RouterOS است؛ Mikrozia هیچ Rule شبکه‌ای ایجاد یا تغییر نمی‌دهد.
 
 ## به‌روزرسانی

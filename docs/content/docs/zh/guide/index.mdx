@@ -45,7 +45,8 @@ flowchart LR
 - 不是 Linux VPS 或 systemd 服务；没有主机安装程序、发行版软件包、tarball、
   Windows 构建或 Docker Compose 生产路径。
 - 不是防火墙、NAT、端口转发或访问控制管理器。
-- 不是证书颁发机构或 ACME 客户端；证书按路径挂载。
+- 内置 ACME 客户端支持手动续期的 HTTP-01 和自动续期的 Cloudflare DNS-01；
+  证书与续期状态持久保存在 `/root/cert`。
 - 不会自我更新：面板、Xray、sidecar 组件与 Geo 数据只能通过替换镜像更新。
 
 ## 内部实现

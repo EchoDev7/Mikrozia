@@ -47,9 +47,19 @@ producción es la etiqueta versionada `majlot/mikrozia:v1-mikrozia`.
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 /container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
+
+> **Valores sensibles:** el Environment del contenedor de RouterOS es un almacén de
+> configuración, no un almacén de secretos. Cualquier valor de `/container/envs` es
+> visible para quien pueda leer o exportar la configuración del router.
+> `MIKROZIA_ADMIN_USERNAME` y `MIKROZIA_ADMIN_PASSWORD` son la única fuente de la
+> cuenta de administrador y deben definirse **juntos**; si solo existe una de las dos,
+> el panel no arranca. Mikrozia no escribe estos valores en los registros ni los
+> devuelve por la API.
 
 Si un directorio ya existe, omita su línea `/file/add`. Para seguir la extracción:
 
@@ -72,8 +82,11 @@ contenedor; no crea reglas de firewall, NAT, port forwarding ni routing.
 - El panel escucha dentro del contenedor en `http://172.16.10.2:2053/`.
 - La base de datos y la configuración viven en el montaje persistente `/etc/x-ui`;
   los certificados del usuario, en `/root/cert`.
-- Obtenga y renueve el certificado TLS fuera del contenedor y configure su ruta en
-  el panel; Mikrozia no emite ni renueva certificados.
+- La imagen incluye un cliente ACME con versión fijada: emita el certificado dentro
+  del contenedor con HTTP-01 (renovación manual) o Cloudflare DNS-01 (renovación
+  automática). El certificado y el estado de la cuenta quedan persistentes en
+  `/root/cert`. Mikrozia nunca crea ni modifica reglas de firewall, NAT o reenvío de
+  puertos de RouterOS.
 - La política de firewall, NAT, port forwarding, routing y control de acceso es
   responsabilidad exclusiva del administrador de RouterOS; Mikrozia no crea ni
   modifica reglas de red.

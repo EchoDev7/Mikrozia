@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Alert,
   Button,
   Empty,
   Form,
@@ -38,6 +39,11 @@ interface ApiTokenRow {
   createdAt: number;
   scope: ApiTokenScope;
   expiresAt: number;
+}
+
+interface AdminCredentialState {
+  source: string;
+  managed: boolean;
 }
 
 interface SecurityTabProps {
@@ -95,6 +101,7 @@ export default function SecurityTab({ allSetting, updateSetting, saveSetting }: 
   const [createScope, setCreateScope] = useState<ApiTokenScope>('admin');
   const [creating, setCreating] = useState(false);
   const [createdToken, setCreatedToken] = useState<{ name: string; token: string } | null>(null);
+  const [adminState, setAdminState] = useState<AdminCredentialState | null>(null);
 
   const openTfa = useCallback((opts: Omit<TfaState, 'open'>) => {
     setTfa({ ...opts, open: true });
@@ -164,6 +171,19 @@ export default function SecurityTab({ allSetting, updateSetting, saveSetting }: 
   useEffect(() => {
     void fetchApiTokens();
   }, [fetchApiTokens]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const msg = (await HttpUtil.post(
+          '/panel/api/setting/adminCredentialState',
+        )) as ApiMsg<AdminCredentialState>;
+        if (msg?.success && msg.obj) setAdminState(msg.obj);
+      } catch {
+        setAdminState(null);
+      }
+    })();
+  }, []);
 
   async function copyToken(token: string) {
     if (!token) return;
@@ -311,40 +331,59 @@ export default function SecurityTab({ allSetting, updateSetting, saveSetting }: 
             ),
             children: (
               <>
-                <SettingListItem paddings="small" title={t('pages.settings.oldUsername')}>
-                  <Input
-                    value={user.oldUsername}
-                    autoComplete="username"
-                    onChange={(e) => updateUserField('oldUsername', e.target.value)}
+                {adminState?.managed ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    className="security-admin-managed"
+                    message={t('pages.settings.security.adminCredentialManagedTitle')}
+                    description={
+                      <>
+                        <p>{t('pages.settings.security.adminCredentialManagedDescription')}</p>
+                        <p className="security-admin-managed-hint">
+                          {t('pages.settings.security.adminCredentialManagedHint')}
+                        </p>
+                      </>
+                    }
                   />
-                </SettingListItem>
-                <SettingListItem paddings="small" title={t('pages.settings.currentPassword')}>
-                  <Input.Password
-                    value={user.oldPassword}
-                    autoComplete="current-password"
-                    onChange={(e) => updateUserField('oldPassword', e.target.value)}
-                  />
-                </SettingListItem>
-                <SettingListItem paddings="small" title={t('pages.settings.newUsername')}>
-                  <Input
-                    value={user.newUsername}
-                    onChange={(e) => updateUserField('newUsername', e.target.value)}
-                  />
-                </SettingListItem>
-                <SettingListItem paddings="small" title={t('pages.settings.newPassword')}>
-                  <Input.Password
-                    value={user.newPassword}
-                    autoComplete="new-password"
-                    onChange={(e) => updateUserField('newPassword', e.target.value)}
-                  />
-                </SettingListItem>
-                <div className="security-actions">
-                  <Space style={{ padding: '0 20px' }}>
-                    <Button type="primary" loading={updating} onClick={onUpdateUserClick}>
-                      {t('confirm')}
-                    </Button>
-                  </Space>
-                </div>
+                ) : (
+                  <>
+                    <SettingListItem paddings="small" title={t('pages.settings.oldUsername')}>
+                      <Input
+                        value={user.oldUsername}
+                        autoComplete="username"
+                        onChange={(e) => updateUserField('oldUsername', e.target.value)}
+                      />
+                    </SettingListItem>
+                    <SettingListItem paddings="small" title={t('pages.settings.currentPassword')}>
+                      <Input.Password
+                        value={user.oldPassword}
+                        autoComplete="current-password"
+                        onChange={(e) => updateUserField('oldPassword', e.target.value)}
+                      />
+                    </SettingListItem>
+                    <SettingListItem paddings="small" title={t('pages.settings.newUsername')}>
+                      <Input
+                        value={user.newUsername}
+                        onChange={(e) => updateUserField('newUsername', e.target.value)}
+                      />
+                    </SettingListItem>
+                    <SettingListItem paddings="small" title={t('pages.settings.newPassword')}>
+                      <Input.Password
+                        value={user.newPassword}
+                        autoComplete="new-password"
+                        onChange={(e) => updateUserField('newPassword', e.target.value)}
+                      />
+                    </SettingListItem>
+                    <div className="security-actions">
+                      <Space style={{ padding: '0 20px' }}>
+                        <Button type="primary" loading={updating} onClick={onUpdateUserClick}>
+                          {t('confirm')}
+                        </Button>
+                      </Space>
+                    </div>
+                  </>
+                )}
               </>
             ),
           },

@@ -17,7 +17,7 @@ x-ui
 
 | #     | 选项                                   | 功能说明                                                  |
 | ----- | -------------------------------------- | --------------------------------------------------------- |
-| 1     | Reset Username & Password              | 设置新登录凭据；可选择禁用 2FA                               |
+| 1     | Environment-Managed Admin Credentials  | 显示凭据来源以及在 RouterOS 中设置它的命令                   |
 | 2     | Reset Web Base Path                    | 重置 Web 根路径                                           |
 | 3     | Reset Settings                         | 重置面板设置（保留用户与数据）                               |
 | 4     | Change Port                            | 修改面板端口                                               |
@@ -28,7 +28,7 @@ x-ui
 | 10    | Check Status                           | 查看面板、Xray 和 MTProto 运行状态及 RouterOS 自启检查命令   |
 | 11    | Logs Management                        | 查看面板调试日志 / RouterOS 容器日志命令                     |
 | 12–13 | Show RouterOS Enable / Disable Autostart Command | 显示 RouterOS `/container/set` 自启与重启策略命令          |
-| 14    | TLS Certificate Paths                  | 选择用户提供的证书文件供面板使用；签发和续期在容器外进行      |
+| 14    | TLS Certificates                       | 使用内置 ACME 客户端签发、导入并查看证书                     |
 | 15    | RouterOS Network Policy Notice         | RouterOS 网络策略与防火墙配置说明                           |
 | 16    | Database Tools                         | SQLite `.db` ↔ `.dump` 转换与外部 PostgreSQL 指南         |
 | 0     | Exit                                   | 退出脚本                                                   |
@@ -51,6 +51,7 @@ x-ui
 | `x-ui enable` / `disable`  | 显示 RouterOS `/container/set` 的 `start-on-boot` 与 `restart-policy` 命令 |
 | `x-ui log`                 | 查看实时调试日志                                    |
 | `x-ui migrateDB [file]`    | 转换 SQLite 数据库（.db 与 .dump 之间互转）         |
+| `x-ui acme <command>`     | `status`、`check`、`issue`、`renew`、`cloudflare setup` —— 证书 |
 
 ## 更新
 

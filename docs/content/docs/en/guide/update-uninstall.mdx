@@ -17,7 +17,7 @@ The menu (items `0`–`16`) displays the panel and Xray status at the top:
 
 | #     | Item                                   | What it does                                              |
 | ----- | -------------------------------------- | --------------------------------------------------------- |
-| 1     | Reset Username & Password              | Set new credentials; optionally disable 2FA               |
+| 1     | Environment-Managed Admin Credentials  | Show the credential source and the RouterOS commands that set it |
 | 2     | Reset Web Base Path                    | Reset the web base path                                   |
 | 3     | Reset Settings                         | Reset panel settings (your account is preserved)          |
 | 4     | Change Port                            | Change the panel port                                     |
@@ -28,7 +28,7 @@ The menu (items `0`–`16`) displays the panel and Xray status at the top:
 | 10    | Check Status                           | Panel, Xray, and MTProto runtime status plus RouterOS autostart command |
 | 11    | Logs Management                        | View panel debug log / RouterOS container log commands    |
 | 12–13 | Show RouterOS Enable / Disable Autostart Command | Print RouterOS `/container/set ... start-on-boot` & `restart-policy` commands |
-| 14    | TLS Certificate Paths                  | Select user-supplied certificate files for the panel; issuance and renewal happen outside the container |
+| 14    | TLS Certificates                        | Issue, import, and inspect certificates with the bundled ACME client |
 | 15    | RouterOS Network Policy Notice         | Notice on configuring network and firewall in RouterOS    |
 | 16    | Database Tools                         | Convert SQLite `.db` ↔ `.dump` & external PostgreSQL guide |
 | 0     | Exit                                   | Exit Script                                               |
@@ -51,6 +51,7 @@ For scripts and quick actions, `x-ui` accepts subcommands directly:
 | `x-ui enable` / `disable`  | Print RouterOS `/container/set` commands for `start-on-boot` and `restart-policy` |
 | `x-ui log`                 | View debug log                                      |
 | `x-ui migrateDB [file]`    | Convert SQLite `.db` ↔ `.dump`                      |
+| `x-ui acme <command>`     | `status`, `check`, `issue`, `renew`, `cloudflare setup` — certificates |
 
 ## Updating
 

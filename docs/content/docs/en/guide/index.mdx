@@ -52,7 +52,8 @@ flowchart LR
 - Not a Linux VPS or systemd service; there is no host installer, distro
   package, tarball, Windows build, or Docker Compose production path.
 - Not a firewall, NAT, port-forwarding, or access-control manager.
-- Not a certificate authority or ACME client; certificates are mounted by path.
+- A bundled ACME client for manual HTTP-01 and automatically renewed Cloudflare
+  DNS-01; certificates and renewal state persist under `/root/cert`.
 - Not self-updating: panel, Xray, sidecars, and Geo data change only by replacing
   the image.
 

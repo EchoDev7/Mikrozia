@@ -17,7 +17,7 @@ x-ui
 
 | #     | Пункт                                  | Что делает                                                |
 | ----- | -------------------------------------- | --------------------------------------------------------- |
-| 1     | Reset Username & Password              | Задать новые учётные данные; при желании отключить 2FA    |
+| 1     | Environment-Managed Admin Credentials  | Показать источник учётных данных и команды RouterOS для их задания |
 | 2     | Reset Web Base Path                    | Сброс базового веб-пути                                    |
 | 3     | Reset Settings                         | Сброс настроек панели (учётные записи сохраняются)         |
 | 4     | Change Port                            | Изменить порт панели                                      |
@@ -28,7 +28,7 @@ x-ui
 | 10    | Check Status                           | Статус панели, Xray и MTProto и команда проверки автозапуска в RouterOS |
 | 11    | Logs Management                        | Просмотр отладочного лога панели / команд логов RouterOS   |
 | 12–13 | Show RouterOS Enable / Disable Autostart Command | Показать команды `/container/set` в RouterOS для `start-on-boot` и `restart-policy` |
-| 14    | TLS Certificate Paths                  | Выбрать предоставленные пользователем файлы сертификата для панели; выпуск и продление выполняются вне контейнера |
+| 14    | TLS Certificates                       | Выпуск, импорт и проверка сертификатов встроенным ACME-клиентом |
 | 15    | RouterOS Network Policy Notice         | Памятка по настройке сети и фаервола в RouterOS           |
 | 16    | Database Tools                         | Конвертация SQLite `.db` ↔ `.dump` и справка по PostgreSQL |
 | 0     | Exit                                   | Выход из скрипта                                          |
@@ -51,6 +51,7 @@ x-ui
 | `x-ui enable` / `disable`  | Показать команды RouterOS `/container/set` для `start-on-boot` и `restart-policy` |
 | `x-ui log`                 | Просмотр отладочного лога                           |
 | `x-ui migrateDB [file]`    | Конвертация SQLite между .db и .dump                |
+| `x-ui acme <command>`     | `status`, `check`, `issue`, `renew`, `cloudflare setup` — сертификаты |
 
 ## Обновление
 

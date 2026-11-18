@@ -1394,6 +1394,9 @@
       "telegramBotLanguage": "لغة بوت Telegram",
       "security": {
         "admin": "بيانات الأدمن",
+        "adminCredentialManagedTitle": "حساب المدير مُدار من بيئة الحاوية",
+        "adminCredentialManagedDescription": "يأتي حساب المدير من بيئة حاوية RouterOS، لذلك لا يمكن للوحة تغييره هنا. اضبط MIKROZIA_ADMIN_USERNAME و MIKROZIA_ADMIN_PASSWORD في RouterOS ثم أعد تشغيل الحاوية.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD في /container/envs، ثم أعد تشغيل الحاوية",
         "twoFactor": "المصادقة الثنائية",
         "twoFactorEnable": "تفعيل المصادقة الثنائية",
         "twoFactorEnableDesc": "يضيف طبقة إضافية من المصادقة لتعزيز الأمان.",
@@ -1430,6 +1433,7 @@
         "modifySettings": "تم تغيير المعلمات.",
         "getSettings": "حدث خطأ أثناء استرداد المعلمات.",
         "modifyUserError": "حدث خطأ أثناء تغيير بيانات اعتماد المسؤول.",
+        "adminCredentialManagedByEnvironment": "بيانات اعتماد المدير يديرها قيم بيئة الحاوية MIKROZIA_ADMIN_USERNAME و MIKROZIA_ADMIN_PASSWORD. حدّثها في RouterOS وأعد تشغيل الحاوية.",
         "modifyUser": "لقد قمت بتغيير بيانات اعتماد المسؤول بنجاح.",
         "originalUserPassIncorrect": "اسم المستخدم أو الباسورد الحالي غير صحيح",
         "userPassMustBeNotEmpty": "اسم المستخدم والباسورد الجديدين فاضيين",

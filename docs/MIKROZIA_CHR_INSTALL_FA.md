@@ -6,8 +6,7 @@
 
 Mikrozia فقط این بخش‌ها را مدیریت می‌کند:
 
-- ایمیج سازگار 3x-ui/Xray برای RouterOS Container؛
-- Bridge و VETH اختصاصی Container؛
+- ایمیج سازگار 3x-ui/Xray و قرارداد Mountهای پایدار Container؛
 - فضای پایدار دیتابیس و گواهی‌ها؛
 - متغیرهای محیطی لازم؛
 - ساخت، اجرا، توقف، به‌روزرسانی و عیب‌یابی Container.
@@ -122,9 +121,11 @@ Container:       172.16.10.2
 majlot/mikrozia:v1-mikrozia
 ```
 
-> این مسیر با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا است. پذیرش روی
-> CHR تمیز برای P1-CHR-01 هنوز کامل نشده است؛ پیش از Production کل مسیر را روی
-> یک CHR موقت آزمایش کنید. این مستند ادعای پذیرش واقعی CHR ندارد.
+> این مسیر با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا است. روی CHR
+> x86_64 با RouterOS `7.25.1` و همین Tag به‌صورت واقعی دریافت Image، شروع و
+> Restart، ICMP/HTTP داخلی، Mountهای پایدار و SQLite dump/restore جداگانه با
+> موفقیت آزموده شده‌اند. تنها آزمون باقی‌ماندهٔ P1-CHR-01، Rollback میان دو Tag
+> سازگار اما متفاوت است که پس از انتشار Tag بعدی انجام می‌شود.
 
 دستورهای زیر را به ترتیب در Terminal RouterOS یا WinBox اجرا کنید. فقط اشیای
 متعلق به Mikrozia ساخته می‌شوند و با `[Mikrozia:container]` علامت‌گذاری شده‌اند.
@@ -133,7 +134,9 @@ majlot/mikrozia:v1-mikrozia
 
 پوشهٔ `data` به `/etc/x-ui`، پوشهٔ `cert` به `/root/cert` و پوشهٔ `tmp` برای
 فضای موقت Extract متصل می‌شوند. پوشهٔ Root نسخه‌دار را RouterOS هنگام Extract
-می‌سازد. اگر پوشه‌ای از قبل وجود دارد، خط `/file/add` مربوط به آن را اجرا نکنید.
+می‌سازد. این دستورها فقط برای نصب تمیز هستند. اگر موردی از قبل وجود دارد، نصب
+را دوباره Paste نکنید؛ ابتدا وضعیت را با `/file/print where name~"mikrozia"`
+و `/container/print detail` بررسی کنید.
 
 ```routeros
 /file/add name=containers type=directory
@@ -159,6 +162,28 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
+```
+
+> ⚠️ **هشدار حساسیت:** Environment کانتینر RouterOS یک **انبار پیکربندی** است، نه
+> انبار اسرار. هر مقدار در `/container/envs` برای هر کسی که بتواند پیکربندی روتر را
+> بخواند یا خروجی بگیرد قابل مشاهده است. یک رمز عبور قوی و یکتا برای مدیر انتخاب
+> کنید، دسترسی به خود روتر و پشتیبان‌هایش را محدود نگه دارید و اگر پیکربندی از کنترل
+> شما خارج شد، رمز را چرخش دهید. Mikrozia هرگز این مقادیر را در Log چاپ نمی‌کند و
+> هرگز از طریق API برنمی‌گرداند.
+>
+> `MIKROZIA_ADMIN_USERNAME` و `MIKROZIA_ADMIN_PASSWORD` مرجع اصلی حساب مدیر پنل
+> هستند و باید **با هم** تنظیم شوند؛ اگر فقط یکی از آن‌ها موجود باشد، پنل اجرا
+> نمی‌شود و مقدار ناقص را نام می‌برد. اگر هیچ‌کدام تنظیم نشده باشند ولی حسابی از
+> قبل موجود باشد، آن حساب بدون تغییر حفظ می‌شود؛ اگر هیچ حسابی هم نباشد، پنل اجرا
+> نمی‌شود و هر دو مقدار را طلب می‌کند.
+
+تغییر بعدی اطلاعات ورود:
+
+```routeros
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
 ### 6.4 تنظیم Registry و ساخت Container
@@ -198,9 +223,9 @@ majlot/mikrozia:v1-mikrozia
 
 وضعیت باید `running` باشد.
 
-## 8. مسئولیت شبکه پس از نصب
+## 8. دسترسی شبکه: نمونهٔ دستی برای پنل و Subscription
 
-Container اکنون روی `172.16.10.2` قرار دارد، اما پروژه عمداً مسیر اینترنت، NAT، Port Forward و Rule دسترسی را ایجاد نکرده است.
+Container اکنون روی `172.16.10.2` قرار دارد، اما پروژه عمداً مسیر اینترنت، NAT، Port Forward و Rule دسترسی را ایجاد نکرده است. دستورهای این بخش **فقط نمونهٔ دستی برای مدیر RouterOS** هستند. Mikrozia آن‌ها را ایجاد، تغییر یا حذف نمی‌کند.
 
 مدیر RouterOS باید متناسب با طراحی شبکه خود این موارد را تعیین کند:
 
@@ -218,27 +243,93 @@ Container اکنون روی `172.16.10.2` قرار دارد، اما پروژه 
 | Subscription پیش‌فرض | `172.16.10.2:2096/TCP`         |
 | Inboundهای Xray     | پورتی که داخل پنل تعریف می‌کنید |
 
-## 9. مشاهده نام کاربری و رمز اولیه
+### 8.1 پیش از اعمال Ruleها
 
-در اولین Boot، پنل یک نام کاربری و رمز تصادفی می‌سازد و یک بار در Log نمایش می‌دهد:
-
-```routeros
-/log/print where topics~"container"
-```
-
-به دنبال `Username:` و `Password:` بگردید و آن‌ها را در Password Manager ذخیره کنید.
-
-اگر Log اولیه از دست رفته است:
+ابتدا نام واقعی WAN و وجود Ruleهای قبلی را ببینید. روی CHR مرجعِ آزمون، WAN
+`ether1` بود؛ این نام را کورکورانه کپی نکنید. همچنین `<...>` در دستورهای زیر
+placeholder است و باید پیش از اجرا عوض شود.
 
 ```routeros
-/container/shell [find where comment="[Mikrozia:container] Container"]
+/interface/print
+/ip/address/print
+/ip/firewall/filter/print
+/ip/firewall/nat/print
 ```
 
-سپس داخل Shell:
+### 8.2 پنل فقط برای IP مدیر، Subscription عمومی
 
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
+این الگو پنل `2053/TCP` را به IP عمومی مدیر محدود می‌کند و `2096/TCP` را برای
+Subscription منتشر می‌کند. IP مدیر، IP عمومی اینترنت شماست، نه IP خصوصی
+لپ‌تاپ و نه IP کانتینر.
+
+اگر CHR روی Cloud است، Security Group یا Cloud Firewall ارائه‌دهنده نیز باید
+همین پورت‌ها را اجازه دهد؛ NAT در RouterOS جای Rule فایروال ابری را نمی‌گیرد.
+
+```routeros
+/ip/firewall/address-list/add list=MIKROZIA_PANEL_ADMINS address=<YOUR_ADMIN_PUBLIC_IP>/32 comment="[Mikrozia:operator] Panel administrator source"
+/ip/firewall/nat/add chain=dstnat in-interface=<WAN_INTERFACE> protocol=tcp src-address-list=MIKROZIA_PANEL_ADMINS dst-port=2053 action=dst-nat to-addresses=172.16.10.2 to-ports=2053 comment="[Mikrozia:operator] Panel allow-listed port forward"
+/ip/firewall/nat/add chain=dstnat in-interface=<WAN_INTERFACE> protocol=tcp dst-port=2096 action=dst-nat to-addresses=172.16.10.2 to-ports=2096 comment="[Mikrozia:operator] Subscription port forward"
+```
+
+اگر زنجیرهٔ `forward` شما Rule نهایی Drop دارد، این Ruleهای allow را **قبل از
+آن Rule** قرار دهید:
+
+```routeros
+/ip/firewall/filter/add chain=forward in-interface=<WAN_INTERFACE> protocol=tcp src-address-list=MIKROZIA_PANEL_ADMINS dst-address=172.16.10.2 dst-port=2053 connection-nat-state=dstnat action=accept comment="[Mikrozia:operator] Allow listed panel forward"
+/ip/firewall/filter/add chain=forward in-interface=<WAN_INTERFACE> protocol=tcp dst-address=172.16.10.2 dst-port=2096 connection-nat-state=dstnat action=accept comment="[Mikrozia:operator] Allow subscription forward"
+```
+
+در یک نشست دوم، از IP مجاز `http://<ROUTER_PUBLIC_IP>:2053` را باز کنید. تا وقتی
+Subscription Path واقعی نساخته‌اید، پاسخ `404 page not found` از
+`http://<ROUTER_PUBLIC_IP>:2096/` عادی است و رسیدن درخواست به سرویس را نشان
+می‌دهد. شمارنده‌های Rule را هم بررسی کنید:
+
+```routeros
+/ip/firewall/nat/print stats where comment~"Mikrozia:operator"
+/ip/firewall/filter/print stats where comment~"Mikrozia:operator"
+```
+
+برای تغییر IP مدیر، IP جدید را ابتدا با یک `/ip/firewall/address-list/add` دوم
+اضافه، در نشست دوم آزمون، و فقط سپس IP قدیمی را حذف کنید. هرگز ابتدا IP قدیمی را
+جایگزین نکنید. Ruleهای Inboundهای Xray جدا هستند: برای هر پورتی که در پنل
+می‌سازید، باید تصمیم مستقل RouterOS بگیرید.
+
+## 9. مشاهده اطلاعات ورود مدیر
+
+اطلاعات ورود مدیر پنل از **Environment کانتینر RouterOS** خوانده می‌شود. مقدار
+`MIKROZIA_ADMIN_USERNAME` و `MIKROZIA_ADMIN_PASSWORD` که در بخش 6.3 تنظیم کرده‌اید،
+مرجع اصلی حساب مدیر هستند و در هر بار بالا آمدن کانتینر با پنل تطبیق داده می‌شوند.
+
+نمایش مقادیر:
+
+```routeros
+/container/envs/print where list=MIKROZIA_ENV
+```
+
+> ⚠️ این خروجی شامل **رمز عبور به‌صورت متن ساده** است. آن را در جای امن ذخیره کنید و
+> از کپی‌کردن آن به پیام‌رسان‌ها، ایمیل یا لاگ‌های مشترک خودداری کنید. به یاد داشته
+> باشید Environment کانتینر یک انبار پیکربندی است و هر کسی که بتواند پیکربندی روتر
+> را بخواند، آن‌ها را می‌بیند.
+
+رفتار پنل در موقعیت‌های مختلف:
+
+| وضعیت Environment                    | رفتار                                                       |
+| ------------------------------------ | ----------------------------------------------------------- |
+| هر دو متغیر تنظیم شده                | حساب مدیر روی هر استارت دقیقاً با آن‌ها تطبیق داده می‌شود.     |
+| فقط یکی از آن‌ها تنظیم شده            | پنل اجرا نمی‌شود و نام متغیر ناقص را اعلام می‌کند.             |
+| هیچ‌کدام تنظیم نشده، حساب موجود است   | حساب موجود بدون تغییر حفظ می‌شود و فقط یک یادآوری Log می‌شود. |
+| هیچ‌کدام تنظیم نشده، حسابی وجود ندارد | پنل اجرا نمی‌شود و هر دو متغیر را طلب می‌کند.                 |
+
+> **رمز تصادفیِ یک‌بارمصرف دیگر وجود ندارد.** رمز و نام کاربری هرگز به‌صورت متن ساده
+> در Log چاپ نمی‌شوند و از طریق API هم برگردانده نمی‌شوند.
+
+تا زمانی که Environment مالک حساب است، تغییر رمز از داخل پنل یا از Shell قدیمی
+(`x-ui setting -password …`) رد می‌شود تا دو منبع حقیقت رقیب ایجاد نشود. برای تغییر
+رمز، متغیر محیطی را تغییر داده و کانتینر را ری‌استارت کنید:
+
+```routeros
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
 برای اعمال تغییر تنظیمات پنل بدون ری‌استارت کل Container می‌توانید داخل Shell از `x-ui restart` (بارگذاری مجدد وب‌سرور پنل و ری‌استارت Xray) استفاده کنید، یا در RouterOS کل Container را ری‌استارت نمایید:
@@ -253,24 +344,69 @@ exit
 
 پس از دسترسی شبکه‌ای به پورت داخلی پنل:
 
-1. با اطلاعات اولیه وارد شوید.
-2. رمز قوی و یکتا انتخاب کنید.
-3. احراز هویت دومرحله‌ای را فعال کنید.
-4. Web Base Path تصادفی تنظیم کنید.
-5. تنظیمات را ذخیره و پنل را restart کنید.
+1. با اطلاعات Environment وارد شوید.
+2. (اختیاری) احراز هویت دومرحله‌ای را فعال کنید.
+3. Web Base Path تصادفی تنظیم کنید.
+4. تنظیمات را ذخیره و پنل را restart کنید.
+
+> اگر Environment مالک حساب مدیر است، تغییر نام کاربری یا رمز از داخل پنل رد
+> می‌شود؛ آن‌ها را از همان‌جا که تعریف کرده‌اید تغییر دهید.
 
 ## 11. دامنه و TLS
 
-یک رکورد DNS برای IP عمومی موردنظر خود بسازید. Mikrozia هیچ گواهی‌ای را داخل کانتینر صادر یا تمدید نمی‌کند؛ گواهی را با روش مرجع گواهی خود بیرون از کانتینر تهیه و تمدید کنید.
+یک رکورد DNS برای IP عمومی موردنظر خود بسازید. Mikrozia یک کلاینت ACME با نسخهٔ
+Pin‌شده داخل Image دارد؛ بنابراین می‌توانید گواهی را **داخل کانتینر** صادر کنید و
+پنل خودش HTTPS را ارائه می‌دهد.
 
-مسیر پایدار گواهی‌ها:
+دو روش پشتیبانی‌شده:
+
+| روش                            | نیاز به پورت عمومی                     | تمدید  |
+| ------------------------------ | -------------------------------------- | ------ |
+| **HTTP-01 (دستی)**             | بله، موقتاً TCP/80 باید به کانتینر برسد | دستی   |
+| **Cloudflare DNS-01 (خودکار)** | خیر                                    | خودکار |
+
+> ⚠️ Mikrozia هرگز Ruleهای فایروال، NAT، Port-Forward، Routing، Address-List یا
+> Address-List امنیت ابری RouterOS را ایجاد، تغییر، فعال یا غیرفعال نمی‌کند. برای
+> روش HTTP-01، دسترسی عمومی TCP/80 را **خودتان** و موقتاً در RouterOS فراهم کنید.
+
+از منوی `x-ui` گزینهٔ **14 — TLS Certificates** یا از CLI استفاده کنید:
+
+```bash
+# HTTP-01 (دستی)
+x-ui acme check --http --domain panel.example.com
+x-ui acme issue --http --domain panel.example.com
+
+# Cloudflare DNS-01 (خودکار) — توکن از ورودی پنهان یا عمداً از Environment خوانده می‌شود
+x-ui acme cloudflare setup --domain panel.example.com
+x-ui acme issue --dns --domain panel.example.com
+```
+
+مسیر پایدار گواهی‌ها روی Mount پایدار `/root/cert`:
 
 ```text
 /root/cert/<domain>/fullchain.pem
 /root/cert/<domain>/privkey.pem
+/root/cert/.acme.sh/          # حساب ACME، وضعیت هر دامنه و وضعیت تمدید
 ```
 
-فایل‌ها را روی Mount پایدار `/root/cert` قرار دهید و مسیر آن‌ها را از منوی `x-ui` (گزینه 14) یا با `x-ui cert` به پنل معرفی کنید. نه ابزار ACME و نه Cron تمدید در کانتینر وجود ندارد.
+Mikrozia از داخل کانتینر نمی‌تواند دسترس‌پذیری عمومی HTTP-01 را بررسی کند.
+اپراتور RouterOS باید موقتاً TCP 80 را از اینترنت عمومی در دسترس قرار دهد.
+
+پس از صدور موفق و تغییر واقعی جفت گواهی، Mikrozia هر چهار مسیر TLS پنل و اشتراک
+را در یک تراکنش به‌روزرسانی و پنل، شنوندهٔ اشتراک و Xray را دقیقاً یک‌بار Reload
+می‌کند. خطاهای نصب، Validation، ذخیرهٔ تنظیمات یا Reload گزارش می‌شوند و جفت و
+تنظیمات قبلی بازیابی می‌شوند. Inboundهای TLS در صورت نیاز همان مسیرها را دستی
+ارجاع می‌دهند. یک گواهی موجود را هم می‌توانید با
+`x-ui cert -webCert … -webCertKey …` درون‌ریزی کنید؛ برای جایگزینی دستی فایل‌ها
+بیرون از جریان ACME، `x-ui restart` را اجرا کنید.
+
+توکن Cloudflare با کمترین امتیاز (Zone → DNS → Edit و Zone → Zone → Read، فقط یک
+Zone) به‌صورت `0600` روی Mount پایدار ذخیره می‌شود، هرگز در Log چاپ نمی‌شود، هرگز
+به‌صورت متن ساده از API برگردانده نمی‌شود و هرگز در لایه‌های Image نوشته نمی‌شود.
+مقادیر RouterOS Environment برای هر کسی که Config را بخواند یا Export کند قابل
+مشاهده‌اند؛ برای ورودی عمداً غیرتعاملی فقط `--stdin` صریح یک‌خطی یا Environment
+پشتیبانی می‌شود. تمدید DNS-01 در پس‌زمینهٔ داخلی هر ۱۲ ساعت بررسی می‌شود و
+Listenerها فقط در صورت تغییر واقعی گواهی ری‌لود می‌شوند.
 
 ## 12. ساخت اولین Inbound
 
@@ -308,21 +444,64 @@ containers/mikrozia/root-<version>/
 
 این طراحی اجازه می‌دهد نسخه جدید را بدون بازنویسی دیتابیس و گواهی‌ها آزمایش کنید.
 
-## 14. Backup صحیح
+## 14. Backup و Restore بدون از دست‌دادن اطلاعات
 
-برای Backup سازگار SQLite، ابتدا Container را متوقف کنید:
+### 14.1 Backup آنلاین و سازگار SQLite (روش پیشنهادی)
 
-```routeros
-/container/stop [find where comment="[Mikrozia:container] Container"]
-```
-
-پوشه‌های `data` و `cert` را از طریق WinBox یا SFTP روی سیستم دیگری کپی کنید. سپس:
+در Terminal RouterOS وارد Shell کانتینر شوید:
 
 ```routeros
-/container/start [find where comment="[Mikrozia:container] Container"]
+/container/shell [find where comment="[Mikrozia:container] Container"]
 ```
 
-فایل دیتابیس را هنگام نوشتن فعال برنامه کپی نکنید.
+داخل Shell، یک نام یکتا با تاریخ انتخاب و فقط همین دستور را اجرا کنید:
+
+```sh
+x-ui migrate-db --dump /etc/x-ui/x-ui-backup-YYYY-MM-DD.sql
+exit
+```
+
+خروجی موفق باید `Dumped /etc/x-ui/x-ui.db -> ...` باشد. فایل Backup در WinBox →
+**Files** با نام `containers/mikrozia/data/x-ui-backup-YYYY-MM-DD.sql` دیده
+می‌شود؛ آن را فوراً روی یک دستگاه دیگر دانلود کنید. این Dump هنگام فعال‌بودن
+SQLite هم Snapshot سازگار می‌گیرد. فایل `/etc/x-ui/x-ui.db` را در حال اجرا
+مستقیماً کپی نکنید.
+
+از پوشهٔ `containers/mikrozia/cert/` نیز پس از هر تغییر گواهی یک نسخهٔ خارج از
+روتر نگه دارید؛ کلید خصوصی را در محل امن و رمزگذاری‌شده نگه‌داری کنید.
+
+### 14.2 اعتبارسنجی Restore، بدون لمس دیتابیس زنده
+
+این آزمایش را پیش از روز حادثه انجام دهید. در Shell همان Container:
+
+```sh
+x-ui migrate-db --restore /etc/x-ui/x-ui-backup-YYYY-MM-DD.sql --out /etc/x-ui/x-ui-restore-check.db
+exit
+```
+
+خروجی موفق باید `Restored ...` باشد. دستور عمداً فایل زنده را تغییر نمی‌دهد و
+اگر فایل مقصد از قبل وجود داشته باشد متوقف می‌شود. پس از تأیید موفقیت، فایل
+`x-ui-restore-check.db` را از WinBox → **Files** حذف کنید تا فضای Mount اشغال
+نشود.
+
+### 14.3 Restore واقعی بعد از خرابی یا مهاجرت
+
+برای جایگزینی دیتابیس زنده، از **Panel Dashboard → Backup & Restore → Restore**
+استفاده کنید و همان فایل `.sql` را Upload کنید. این مسیر از تراکنش بازیابی
+Mikrozia استفاده می‌کند: پیش از اعمال Snapshot سازگار می‌گیرد، Xray را متوقف و
+بعد از جایگزینی معتبر دوباره راه‌اندازی می‌کند؛ در خطا به دیتابیس قبل بازمی‌گردد.
+هنگام Upload گزینهٔ نگهداری تنظیمات میزبان/پنل فعلی را با دقت انتخاب کنید.
+
+پیش از Restore واقعی این کارها اجباری‌اند:
+
+1. یک Backup آنلاین تازه با بخش 14.1 بگیرید و دانلود کنید.
+2. از پنل در یک نشست دوم یا دسترسی Shell مطمئن شوید.
+3. فایل Backup را از نسخهٔ اصلی (major) سازگار انتخاب کنید.
+4. تا پایان پیام موفقیت، Container را Stop/Restart یا Image را تعویض نکنید.
+
+اگر برنامه دربارهٔ `.mikrozia-sqlite-restore-*` یا
+`.mikrozia-sqlite-restore-state.json` خطا داد، آن‌ها را دستی پاک نکنید؛ Logها و
+فایل‌ها را حفظ کنید و ابتدا وضعیت را بررسی کنید.
 
 ## 15. به‌روزرسانی به نسخه جدید
 
@@ -453,7 +632,7 @@ Log را بررسی کنید:
 ابتدا مطمئن شوید خود Container `running` است و برنامه روی پورت داخلی گوش می‌دهد:
 
 ```routeros
-/container/shell 0
+/container/shell [find where comment="[Mikrozia:container] Container"]
 ```
 
 داخل Container:
@@ -478,8 +657,11 @@ exit
 
 - Mount مربوط به `/root/cert` باید متصل باشد؛
 - فایل‌های تمدیدشده باید همان مسیرهای قبلی را بازنویسی کنند؛
-- پس از تمدید، دستور `x-ui restart` را اجرا کنید؛
-- تمدید گواهی بر عهدهٔ کاربر و بیرون از کانتینر است.
+- تمدید موفق ACME خودکار Reload می‌شود؛ فقط اگر فایل‌ها را دستی و بیرون از ACME
+  جایگزین کرده‌اید `x-ui restart` را اجرا کنید؛
+- با روش DNS-01 تمدید خودکار است؛ با روش HTTP-01 تمدید دستی و با همان دستور صدور انجام می‌شود:
+  `x-ui acme issue --http --domain <domain>`؛
+- وضعیت تمدید را با `x-ui acme status` بررسی کنید.
 
 ### پنل پس از تعویض نسخه خالی است
 
@@ -517,7 +699,7 @@ Container جدید بدون Mount صحیح `/etc/x-ui` ساخته شده است.
 - [ ] Image با Tag نسخه‌دار دریافت شده است.
 - [ ] `/etc/x-ui` و `/root/cert` Mount پایدار دارند.
 - [ ] Container در حالت `running` است.
-- [ ] نام کاربری و رمز اولیه ذخیره شده است.
+- [ ] `MIKROZIA_ADMIN_USERNAME` و `MIKROZIA_ADMIN_PASSWORD` تنظیم و ذخیره شده‌اند.
 - [ ] Backup دیتابیس و گواهی‌ها تهیه شده است.
 - [ ] مدیر RouterOS سیاست شبکه و دسترسی را جداگانه تنظیم کرده است.
 

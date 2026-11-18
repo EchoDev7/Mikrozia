@@ -50,7 +50,8 @@ flowchart LR
 - VPS لینوکسی یا سرویس systemd نیست؛ نصب‌کنندهٔ میزبان، بستهٔ توزیع، Tarball،
   نسخهٔ Windows یا مسیر تولیدی Docker Compose ندارد.
 - مدیر Firewall، NAT، Port Forward یا Access Control نیست.
-- مرجع گواهی یا کلاینت ACME نیست؛ گواهی‌ها بر اساس مسیر Mount می‌شوند.
+- کلاینت ACME پیوست‌شده برای HTTP-01 دستی و Cloudflare DNS-01 با تمدید خودکار؛
+  گواهی‌ها و وضعیت تمدید زیر `/root/cert` پایدار می‌مانند.
 - خودبه‌روزرسان نیست: پنل، Xray، Sidecarها و داده‌های Geo فقط با جایگزینی Image
   تغییر می‌کنند.
 

@@ -31,6 +31,96 @@ Rule مربوط به Firewall، NAT، Masquerade، Port Forward، Routing یا A
 Mikrozia پورت‌های لازم را مستند می‌کند اما هیچ‌یک از این مراحل را خودکار نمی‌کند.
 برای Firewall، NAT و Routing از مستندات خود MikroTik استفاده کنید.
 
+## الگوی دستیِ آزموده‌شده: پنل محدود و Subscription عمومی
+
+این بخش **فقط یک نمونهٔ دستی برای مدیر RouterOS** است، نه بخشی از نصب‌کننده یا
+پنل Mikrozia. Mikrozia این Ruleها را ایجاد، تغییر یا حذف نمی‌کند. نمونه روی CHR
+مرجع با RouterOS `7.25.1` آزمایش شده است. پیش از Paste کردن، مقدارهای داخل
+`<...>` را با مقدار واقعی خودتان عوض کنید؛ علامت‌های `<` و `>` نباید در دستور
+نهایی بمانند.
+
+در این الگو، پنل `2053/TCP` فقط از IP عمومی مدیر قابل دسترسی است و Subscription
+`2096/TCP` عمومی است. اگر Web Base Path یا TLS تنظیم کرده‌اید، URL نهایی پنل و
+Subscription را متناسب با همان تنظیمات استفاده کنید.
+
+اگر CHR روی یک ارائه‌دهندهٔ ابری است، Security Group یا Cloud Firewall آن
+ارائه‌دهنده نیز باید همان پورت‌ها را اجازه دهد؛ Rule داخل RouterOS به‌تنهایی از
+یک فایروال ابری عبور نمی‌کند.
+
+### ۱. ابتدا نام WAN و IP عمومی مدیر را پیدا کنید
+
+```text
+/interface/print
+/ip/address/print
+/ip/firewall/filter/print
+/ip/firewall/nat/print
+```
+
+در CHR مرجع، WAN برابر `ether1` بود؛ این نام برای همهٔ روترها یکسان نیست. IP
+مدیر، IP **عمومی خروجی اینترنتی** شماست، نه IP خصوصی کامپیوتر یا IP کانتینر.
+
+### ۲. IP مدیر را به Address List اضافه کنید
+
+```text
+/ip/firewall/address-list/add list=MIKROZIA_PANEL_ADMINS address=<YOUR_ADMIN_PUBLIC_IP>/32 comment="[Mikrozia:operator] Panel administrator source"
+```
+
+### ۳. NAT پنل و Subscription را اضافه کنید
+
+```text
+/ip/firewall/nat/add chain=dstnat in-interface=<WAN_INTERFACE> protocol=tcp src-address-list=MIKROZIA_PANEL_ADMINS dst-port=2053 action=dst-nat to-addresses=172.16.10.2 to-ports=2053 comment="[Mikrozia:operator] Panel allow-listed port forward"
+/ip/firewall/nat/add chain=dstnat in-interface=<WAN_INTERFACE> protocol=tcp dst-port=2096 action=dst-nat to-addresses=172.16.10.2 to-ports=2096 comment="[Mikrozia:operator] Subscription port forward"
+```
+
+اگر RouterOS شما یک Rule نهایی Drop در زنجیرهٔ `forward` دارد، Ruleهای اجازه را
+**پیش از آن Drop** قرار دهید. در نصب پیش‌فرضی که ترافیک `dstnat` را می‌پذیرد،
+ممکن است به Ruleهای زیر نیاز نداشته باشید؛ اضافه‌کردن صریح آن‌ها برای سیاست
+سفارشی روشن‌تر است:
+
+```text
+/ip/firewall/filter/add chain=forward in-interface=<WAN_INTERFACE> protocol=tcp src-address-list=MIKROZIA_PANEL_ADMINS dst-address=172.16.10.2 dst-port=2053 connection-nat-state=dstnat action=accept comment="[Mikrozia:operator] Allow listed panel forward"
+/ip/firewall/filter/add chain=forward in-interface=<WAN_INTERFACE> protocol=tcp dst-address=172.16.10.2 dst-port=2096 connection-nat-state=dstnat action=accept comment="[Mikrozia:operator] Allow subscription forward"
+```
+
+برای مشاهدهٔ شمارندهٔ برخورد Ruleها و اثبات رسیدن ترافیک، اجرا کنید:
+
+```text
+/ip/firewall/nat/print stats where comment~"Mikrozia:operator"
+/ip/firewall/filter/print stats where comment~"Mikrozia:operator"
+```
+
+صفحهٔ ورود پنل باید از IP مجاز در `http://<ROUTER_PUBLIC_IP>:2053` باز شود. پاسخ
+`404 page not found` برای `http://<ROUTER_PUBLIC_IP>:2096/` تا وقتی یک مسیر
+Subscription واقعی نساخته‌اید عادی است؛ این فقط رسیدن درخواست به سرویس را نشان
+می‌دهد. برای استفادهٔ تولیدی پنل، TLS و Web Base Path را فعال کنید و پنل را
+عمومی نکنید.
+
+### ۴. تغییر IP مدیر بدون قفل‌شدن
+
+ابتدا IP جدید را **به‌عنوان یک ورودی دوم** اضافه کنید، از IP جدید ورود به پنل را
+امتحان کنید، سپس فقط ورودی قدیمی را حذف کنید. هرگز IP قدیمی را پیش از آزمون
+جلسهٔ دوم جایگزین نکنید.
+
+```text
+/ip/firewall/address-list/add list=MIKROZIA_PANEL_ADMINS address=<NEW_ADMIN_PUBLIC_IP>/32 comment="[Mikrozia:operator] Panel administrator source"
+/ip/firewall/address-list/print where list="MIKROZIA_PANEL_ADMINS"
+```
+
+### ۵. حذف فقط Ruleهای نمونه
+
+اگر این نمونه دیگر لازم نیست، ابتدا پنل را از یک روش مدیریتی امن دیگر در دسترس
+داشته باشید، سپس فقط مواردی را که همین Comment را دارند حذف کنید:
+
+```text
+/ip/firewall/filter/remove [find where comment~"Mikrozia:operator"]
+/ip/firewall/nat/remove [find where comment~"Mikrozia:operator"]
+/ip/firewall/address-list/remove [find where comment~"Mikrozia:operator"]
+```
+
+این دستور حذف، Ruleهای بدون Comment پروژه را هدف نمی‌گیرد؛ با این حال قبل از
+اجرا خروجی `print` را بررسی کنید. Masquerade خروجی کانتینر وابسته به طراحی شبکه
+شماست و این نمونه آن را ایجاد یا حذف نمی‌کند.
+
 <Callout type="warn">
   پیش از اعمال هر سیاست محدودکننده، مطمئن شوید دسترسی مدیریتی به خود RouterOS
   برقرار می‌ماند. از یک نشست دوم آزمایش کنید تا خودتان را بیرون نیندازید.

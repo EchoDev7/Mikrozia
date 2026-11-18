@@ -1398,6 +1398,9 @@
       "telegramBotLanguage": "زبان ربات تلگرام",
       "security": {
         "admin": "اعتبارنامه‌های ادمین",
+        "adminCredentialManagedTitle": "حساب مدیر توسط محیط کانتینر مدیریت می‌شود",
+        "adminCredentialManagedDescription": "حساب مدیر از محیط کانتینر RouterOS خوانده می‌شود و پنل نمی‌تواند آن را از اینجا تغییر دهد. برای تغییر، MIKROZIA_ADMIN_USERNAME و MIKROZIA_ADMIN_PASSWORD را در RouterOS تنظیم کنید و کانتینر را ری‌استارت کنید.",
+        "adminCredentialManagedHint": "MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD در /container/envs، سپس ری‌استارت کانتینر",
         "twoFactor": "احراز هویت دو مرحله‌ای",
         "twoFactorEnable": "فعال‌سازی 2FA",
         "twoFactorEnableDesc": "یک لایه اضافی امنیتی برای احراز هویت فراهم می‌کند.",
@@ -1434,6 +1437,7 @@
         "modifySettings": "پارامترها تغییر کرده‌اند.",
         "getSettings": "خطا در دریافت پارامترها",
         "modifyUserError": "خطا در تغییر اعتبارنامه‌های مدیر سیستم.",
+        "adminCredentialManagedByEnvironment": "اعتبارنامهٔ مدیر سیستم را مقادیر محیطی MIKROZIA_ADMIN_USERNAME و MIKROZIA_ADMIN_PASSWORD در کانتینر مدیریت می‌کنند. آن‌ها را در RouterOS ویرایش کنید و کانتینر را restart کنید.",
         "modifyUser": "شما با موفقیت اعتبارنامه‌های مدیر سیستم را تغییر دادید.",
         "originalUserPassIncorrect": "نام‌کاربری یا رمزعبور فعلی اشتباه‌است",
         "userPassMustBeNotEmpty": "نام‌کاربری یا رمزعبور جدید خالی‌است",

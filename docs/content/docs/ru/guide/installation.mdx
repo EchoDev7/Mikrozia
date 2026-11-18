@@ -140,7 +140,23 @@ majlot/mikrozia:v1-mikrozia
 /container/mounts/add list=MIKROZIA_CERT src=containers/mikrozia/cert dst="/root/cert" comment="[Mikrozia:container] Cert Mount"
 /container/envs/add list=MIKROZIA_ENV key=XUI_PORT value="2053" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+<Callout type="warn">
+  **Environment контейнера RouterOS — это хранилище конфигурации, а не секретов.**
+  Любое значение в `/container/envs` видно тому, кто может прочитать или выгрузить
+  конфигурацию роутера. Выберите надёжный пароль администратора, ограничьте доступ к
+  самому роутеру и его резервным копиям и выполните ротацию, если конфигурация
+  когда-либо выходила из-под вашего контроля. Mikrozia никогда не печатает эти
+  значения в журнал и никогда не возвращает их через API.
+</Callout>
+
+Значения `MIKROZIA_ADMIN_*` — авторитетный источник учётной записи администратора
+панели: их нужно задавать **вместе**, и панель не запустится, если присутствует
+только одно из них. Полный контракт — в разделе
+[переменных окружения](/docs/reference/env-vars#учётные-данные-администратора).
 
 ### 4. Настройте registry и добавьте контейнер
 
@@ -183,23 +199,29 @@ RouterOS; Mikrozia не публикует и не перенаправляет 
 
 ## Первоначальные учётные данные
 
-При первой загрузке панель генерирует случайные имя пользователя и пароль и один
-раз выводит их в лог контейнера:
+Фиксированной учётной записи по умолчанию и сгенерированного пароля для первого
+входа нет. Учётной записью администратора владеет окружение контейнера:
+
+- Если заданы `MIKROZIA_ADMIN_USERNAME` и `MIKROZIA_ADMIN_PASSWORD`, при каждом
+  запуске сохранённая учётная запись приводится в соответствие с ними; при смене
+  пароля сессии, выданные со старым паролем, аннулируются.
+- Если задано только одно из двух, панель не запускается и называет недостающее
+  значение. Ничего не изменяется.
+- Если не задано ни одного, но учётная запись уже существует, она сохраняется без
+  изменений, а панель сообщает в журнале, что ею управляют в другом месте.
+- Если не задано ни одного и учётной записи нет, панель не запускается и требует
+  оба значения.
+
+Когда окружение владеет учётной записью, форма смены пароля в панели заменяется
+уведомлением, а команда `x-ui setting -username … -password …` отклоняет изменение
+с правдивым сообщением, чтобы не возникло двух конкурирующих источников истины.
+
+Чтобы изменить данные позже, обновите два значения в окружении и перезапустите
+контейнер:
 
 ```text
-/log/print where topics~"container"
-```
-
-Ищите `Username:` и `Password:`. Если лог утерян, откройте оболочку контейнера и
-сбросьте их:
-
-```text
-/container/shell [find where comment="[Mikrozia:container] Container"]
-```
-
-```sh
-/app/x-ui setting -username NEW_USER -password 'NEW_STRONG_PASSWORD'
-exit
+/container/envs/set [find where list=MIKROZIA_ENV and key=MIKROZIA_ADMIN_PASSWORD] value="NEW_STRONG_PASSWORD"
+/container/restart [find where comment="[Mikrozia:container] Container"]
 ```
 
 Затем переходите к разделу [Первый вход](/docs/guide/first-login).
@@ -237,6 +259,6 @@ Mikrozia объекты. Не используйте конфликтующую 
   <Card
     title="TLS-сертификаты"
     href="/docs/config/ssl-certificates"
-    description="Сертификаты управляются пользователем и монтируются по пути."
+    description="Выпускайте и продлевайте сертификаты встроенным ACME-клиентом."
   />
 </Cards>

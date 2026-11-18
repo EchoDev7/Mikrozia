@@ -1394,6 +1394,9 @@
       "telegramBotLanguage": "Telegram Botの言語",
       "security": {
         "admin": "管理者の資格情報",
+        "adminCredentialManagedTitle": "管理者アカウントは環境変数で管理されます",
+        "adminCredentialManagedDescription": "管理者アカウントは RouterOS コンテナ環境から読み込まれるため、パネルからは変更できません。RouterOS で MIKROZIA_ADMIN_USERNAME と MIKROZIA_ADMIN_PASSWORD を設定し、コンテナを再起動してください。",
+        "adminCredentialManagedHint": "/container/envs に MIKROZIA_ADMIN_USERNAME / MIKROZIA_ADMIN_PASSWORD を設定し、コンテナを再起動",
         "twoFactor": "二段階認証",
         "twoFactorEnable": "2FAを有効化",
         "twoFactorEnableDesc": "セキュリティを強化するために追加の認証層を追加します。",
@@ -1430,6 +1433,7 @@
         "modifySettings": "パラメーターが変更されました。",
         "getSettings": "パラメーターの取得中にエラーが発生しました",
         "modifyUserError": "管理者認証情報の変更中にエラーが発生しました。",
+        "adminCredentialManagedByEnvironment": "管理者認証情報はコンテナ環境変数 MIKROZIA_ADMIN_USERNAME と MIKROZIA_ADMIN_PASSWORD が管理します。RouterOS で更新し、コンテナを再起動してください。",
         "modifyUser": "管理者の認証情報を正常に変更しました。",
         "originalUserPassIncorrect": "旧ユーザー名または旧パスワードが間違っています",
         "userPassMustBeNotEmpty": "新しいユーザー名と新しいパスワードは空にできません",

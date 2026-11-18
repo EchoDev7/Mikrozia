@@ -30,9 +30,11 @@ icon: Wrench
 
 ## 证书问题
 
-- Mikrozia 不在容器内签发或续期证书。请在容器外通过自己的证书机构获取并续期证书，
-  将文件放在持久化挂载 `/root/cert` 上，并在面板中配置其路径（菜单 `14` 或
-  `x-ui cert`）。
+- Mikrozia 使用镜像内置的 ACME 客户端在容器内签发并续期证书：
+  `x-ui acme issue --http --domain <domain>` 进行 HTTP-01 手动签发，或
+  `x-ui acme issue --dns --domain <domain>` 配合 Cloudflare API 令牌进行 DNS-01 自动续期。
+  所有内容都保存在持久化挂载 `/root/cert` 上。你仍可导入自行获取的证书，并在面板中配置其
+  路径（菜单 `14` 或 `x-ui cert`）。
 - 配置的路径必须存在且面板可读；只有同时设置证书和密钥时，面板才提供 HTTPS。
 - 如果你的验证方式需要公共端口，请自行在 RouterOS 中设置该访问。
 - 对于 REALITY，请记住它**无需证书**——问题通常出在错误的 `dest`/SNI 上（参见
