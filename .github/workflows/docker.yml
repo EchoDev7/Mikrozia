@@ -195,7 +195,8 @@ jobs:
           test "$actual_mikrozia_ver" = "$RELEASE_TAG" || report_failure "OCI version label mismatch" "actual=${actual_mikrozia_ver} expected=${RELEASE_TAG}"
           runtime_err=$(mktemp)
           runtime_mikrozia_ver=$(docker run --rm --platform "$platform" --entrypoint /app/x-ui "$image" -v 2>"${runtime_err}") || report_failure "panel binary did not report its version" "$(cat "${runtime_err}")"
-          test "$runtime_mikrozia_ver" = "$RELEASE_TAG" || report_failure "runtime version mismatch" "actual=${runtime_mikrozia_ver} expected=${RELEASE_TAG} stderr=$(cat "${runtime_err}")"
+          expected_runtime_mikrozia_ver="Mikrozia ${RELEASE_TAG%-mikrozia}"
+          test "$runtime_mikrozia_ver" = "$expected_runtime_mikrozia_ver" || report_failure "runtime version mismatch" "actual=${runtime_mikrozia_ver} expected=${expected_runtime_mikrozia_ver} stderr=$(cat "${runtime_err}")"
           actual_xray_ver=$(docker inspect --format '{{ index .Config.Labels "io.mikrozia.xray.version" }}' "$image")
           test "$actual_xray_ver" = "$XRAY_VERSION" || report_failure "Xray version label mismatch" "actual=${actual_xray_ver} expected=${XRAY_VERSION}"
           actual_mtg_ver=$(docker inspect --format '{{ index .Config.Labels "io.mikrozia.mtg.version" }}' "$image")

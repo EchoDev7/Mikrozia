@@ -10,6 +10,7 @@ workflow, in the release docs, and in the smoke matrix.
 
 import os
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -179,9 +180,21 @@ class VersionAndEvidenceTest(unittest.TestCase):
     def test_runtime_version_and_labels_agree(self):
         docker = read(DOCKER_WORKFLOW)
         self.assertIn('test "$actual_mikrozia_ver" = "$RELEASE_TAG"', docker)
-        self.assertIn('test "$runtime_mikrozia_ver" = "$RELEASE_TAG"', docker)
+        self.assertIn('expected_runtime_mikrozia_ver="Mikrozia ${RELEASE_TAG%-mikrozia}"', docker)
+        self.assertIn('test "$runtime_mikrozia_ver" = "$expected_runtime_mikrozia_ver"', docker)
         self.assertIn('test "$actual_xray_ver" = "$XRAY_VERSION"', docker)
         self.assertIn('test "$actual_mtg_ver" = "$MTG_VERSION"', docker)
+
+    def test_runtime_smoke_expectation_tracks_the_canonical_release_tag(self):
+        docker = read(DOCKER_WORKFLOW)
+        match = re.search(r'^\s*(expected_runtime_mikrozia_ver="[^"]*")$', docker, re.MULTILINE)
+        self.assertIsNotNone(match, "smoke must derive the displayed version from RELEASE_TAG")
+        assignment = match.group(1)
+        self.assertNotRegex(assignment, r"v\d", "the smoke expectation must not hard-code a version")
+        tag = read(REPO_ROOT / "MIKROZIA_VERSION").strip()
+        script = 'RELEASE_TAG="$1"\n' + assignment + '\nprintf %s "$expected_runtime_mikrozia_ver"'
+        result = subprocess.run(["sh", "-c", script, "sh", tag], capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout, "Mikrozia " + tag.removesuffix("-mikrozia"))
 
     def test_release_record_carries_sbom_provenance_and_digest(self):
         docker = read(DOCKER_WORKFLOW)
