@@ -39,6 +39,7 @@ func applyLXCStats(status *Status, sample *sys.LXCStats) {
 	status.Swap.Current = sample.SwapUsed
 	status.Swap.Total = sample.SwapTotal
 	status.Uptime = sample.Uptime
+	status.ContainerMem = sample.ContainerMem
 }
 
 // MetricAvailable distinguishes an unavailable metric from a measured zero.

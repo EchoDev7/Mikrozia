@@ -2496,6 +2496,61 @@ export const SCHEMAS: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "ClientsSummaryCounts": {
+    "description": "ClientsSummaryCounts holds counts-only client bucket totals with no PII.",
+    "properties": {
+      "active": {
+        "example": 1850,
+        "type": "integer"
+      },
+      "depleting": {
+        "example": 0,
+        "type": "integer"
+      },
+      "disabled": {
+        "example": 150,
+        "type": "integer"
+      },
+      "ended": {
+        "example": 0,
+        "type": "integer"
+      },
+      "online": {
+        "example": 1,
+        "type": "integer"
+      },
+      "total": {
+        "example": 2000,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "active",
+      "depleting",
+      "disabled",
+      "ended",
+      "online",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ContainerMemory": {
+    "properties": {
+      "limit": {
+        "format": "int64",
+        "nullable": true,
+        "type": "integer"
+      },
+      "used": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "used"
+    ],
+    "type": "object"
+  },
   "FallbackParentInfo": {
     "description": "FallbackParentInfo carries everything the frontend needs to rewrite a\nchild inbound's client link: where to connect (the master's address\nand port) and which path matched on the master's fallbacks array.\nThe frontend already has the master inbound in its dbInbounds list,\nso we only ship identifiers + the match path here.",
     "properties": {
@@ -4434,6 +4489,85 @@ export const SCHEMAS: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "RouterOSAPIStatus": {
+    "properties": {
+      "checkedAt": {
+        "example": 0,
+        "format": "int64",
+        "type": "integer"
+      },
+      "cpuAvg": {
+        "nullable": true,
+        "type": "number"
+      },
+      "cpuCount": {
+        "nullable": true,
+        "type": "integer"
+      },
+      "cpuFrequencyMhz": {
+        "nullable": true,
+        "type": "integer"
+      },
+      "cpuHistory": {
+        "items": {
+          "type": "integer"
+        },
+        "type": "array"
+      },
+      "cpuLoad": {
+        "nullable": true,
+        "type": "integer"
+      },
+      "cpuPeak": {
+        "nullable": true,
+        "type": "integer"
+      },
+      "memAvg": {
+        "nullable": true,
+        "type": "number"
+      },
+      "memHistory": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "memPeak": {
+        "nullable": true,
+        "type": "number"
+      },
+      "memPercent": {
+        "nullable": true,
+        "type": "number"
+      },
+      "memTotal": {
+        "format": "int64",
+        "nullable": true,
+        "type": "integer"
+      },
+      "memUsed": {
+        "format": "int64",
+        "nullable": true,
+        "type": "integer"
+      },
+      "stale": {
+        "example": false,
+        "type": "boolean"
+      },
+      "state": {
+        "example": "not_configured",
+        "type": "string"
+      }
+    },
+    "required": [
+      "checkedAt",
+      "cpuHistory",
+      "memHistory",
+      "stale",
+      "state"
+    ],
+    "type": "object"
+  },
   "ServerSettings": {
     "description": "ServerSettings is the \"server\" block of an AmneziaWG inbound's Settings\nJSON: the interface-level configuration shared by every client/peer. The\nlisten port is deliberately not duplicated here — it lives on the inbound\nrow itself (Inbound.Port), like every other protocol.",
     "properties": {
@@ -4780,6 +4914,45 @@ export const SCHEMAS: Record<string, unknown> = {
       "inlineEnabled",
       "running",
       "username"
+    ],
+    "type": "object"
+  },
+  "TopInbound": {
+    "description": "TopInbound is the bounded projection returned by GET /panel/api/inbounds/top.\nIt carries only non-secret display fields and cumulative up + down traffic.",
+    "properties": {
+      "enabled": {
+        "example": true,
+        "type": "boolean"
+      },
+      "id": {
+        "example": 1,
+        "type": "integer"
+      },
+      "port": {
+        "example": 443,
+        "type": "integer"
+      },
+      "protocol": {
+        "example": "vless",
+        "type": "string"
+      },
+      "remark": {
+        "example": "VLESS-443",
+        "type": "string"
+      },
+      "traffic": {
+        "example": 3145728,
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "enabled",
+      "id",
+      "port",
+      "protocol",
+      "remark",
+      "traffic"
     ],
     "type": "object"
   },

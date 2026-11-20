@@ -464,6 +464,39 @@ func inboundStreamHints(protocol string, streamSettings string, settings string)
 	return netHint, secHint
 }
 
+const topInboundsLimit = 5
+
+// TopInbound is the bounded projection returned by GET /panel/api/inbounds/top.
+// It carries only non-secret display fields and cumulative up + down traffic.
+type TopInbound struct {
+	Id       int    `json:"id" gorm:"column:id" example:"1"`
+	Remark   string `json:"remark" gorm:"column:remark" example:"VLESS-443"`
+	Protocol string `json:"protocol" gorm:"column:protocol" example:"vless"`
+	Port     int    `json:"port" gorm:"column:port" example:"443"`
+	Traffic  int64  `json:"traffic" gorm:"column:traffic" example:"3145728"`
+	Enabled  bool   `json:"enabled" gorm:"column:enabled" example:"true"`
+}
+
+// GetTopInbounds returns up to 5 inbounds belonging to userId ranked by
+// cumulative traffic (up + down) descending, with id ascending as tie-breaker.
+func (s *InboundService) GetTopInbounds(userId int) ([]TopInbound, error) {
+	db := database.GetDB()
+	var rows []TopInbound
+	err := db.Model(&model.Inbound{}).
+		Select("id, remark, protocol, port, (up + down) AS traffic, enable AS enabled").
+		Where("user_id = ?", userId).
+		Order("(up + down) DESC, id ASC").
+		Limit(topInboundsLimit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		return []TopInbound{}, nil
+	}
+	return rows, nil
+}
+
 func inboundWireguardHints(protocol string, settings string) (string, int, string) {
 	if protocol != string(model.WireGuard) || strings.TrimSpace(settings) == "" {
 		return "", 0, ""

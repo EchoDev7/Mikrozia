@@ -18,7 +18,7 @@ func TestGetUpdateInfo(t *testing.T) {
 		t.Fatal("GetUpdateInfo returned nil info")
 	}
 
-	expectedVersion := config.GetMikroziaVersion()
+	expectedVersion := config.FormatMikroziaVersion(config.GetMikroziaVersion())
 	if info.CurrentVersion != expectedVersion {
 		t.Errorf("CurrentVersion = %q, want %q", info.CurrentVersion, expectedVersion)
 	}

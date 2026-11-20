@@ -33,6 +33,7 @@ type ServerController struct {
 	settingService     service.SettingService
 	panelService       panel.PanelService
 	xrayMetricsService service.XrayMetricsService
+	routerOSAPIService service.RouterOSAPIService
 }
 
 // NewServerController creates a new ServerController, initializes routes, and starts background tasks.
@@ -47,6 +48,7 @@ func NewServerController(g *gin.RouterGroup) *ServerController {
 // initRouter sets up the routes for server status, Xray management, and utility endpoints.
 func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/status", a.status)
+	g.GET("/routerosAPIStatus", a.routerosAPIStatus)
 	g.GET("/cpuHistory/:bucket", a.getCpuHistoryBucket)
 	g.GET("/history/:metric/:bucket", a.getMetricHistoryBucket)
 	g.GET("/xrayMetricsState", a.getXrayMetricsState)
@@ -69,6 +71,7 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.POST("/stopXrayService", a.stopXrayService)
 	g.POST("/restartXrayService", a.restartXrayService)
 	g.POST("/logs/:count", a.getLogs)
+	g.POST("/xrayRuntimeLogs/:count", a.getXrayRuntimeLogs)
 	g.POST("/xraylogs/:count", a.getXrayLogs)
 	g.POST("/amneziawglogs/:count", a.getAmneziaWGLogs)
 	g.POST("/importDB", a.importDB)
@@ -103,6 +106,11 @@ func (a *ServerController) startTask() {
 
 // status returns the current server status information.
 func (a *ServerController) status(c *gin.Context) { jsonObj(c, a.serverService.CurrentStatus(), nil) }
+
+func (a *ServerController) routerosAPIStatus(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	jsonObj(c, a.routerOSAPIService.Status(), nil)
+}
 
 func parseHistoryBucket(c *gin.Context) (int, bool) {
 	bucket, err := strconv.Atoi(c.Param("bucket"))
@@ -221,7 +229,7 @@ func (a *ServerController) restartXrayService(c *gin.Context) {
 
 // getLogs retrieves the application logs based on count and level filters.
 func (a *ServerController) getLogs(c *gin.Context) {
-	logs := a.serverService.GetLogs(c.Param("count"), c.PostForm("level"))
+	logs := a.serverService.GetPanelLogs(c.Param("count"), c.PostForm("level"))
 	jsonObj(c, logs, nil)
 }
 
@@ -238,6 +246,10 @@ func (a *ServerController) getXrayLogs(c *gin.Context) {
 		blackholes,
 	)
 	jsonObj(c, logs, nil)
+}
+
+func (a *ServerController) getXrayRuntimeLogs(c *gin.Context) {
+	jsonObj(c, a.serverService.GetXrayRuntimeLogs(c.Param("count"), c.PostForm("level")), nil)
 }
 
 // getAmneziaWGLogs retrieves the live AmneziaWG peer activity and the panel's

@@ -2522,6 +2522,44 @@
         ],
         "type": "object"
       },
+      "ClientsSummaryCounts": {
+        "description": "ClientsSummaryCounts holds counts-only client bucket totals with no PII.",
+        "properties": {
+          "active": {
+            "example": 1850,
+            "type": "integer"
+          },
+          "depleting": {
+            "example": 0,
+            "type": "integer"
+          },
+          "disabled": {
+            "example": 150,
+            "type": "integer"
+          },
+          "ended": {
+            "example": 0,
+            "type": "integer"
+          },
+          "online": {
+            "example": 1,
+            "type": "integer"
+          },
+          "total": {
+            "example": 2000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active",
+          "depleting",
+          "disabled",
+          "ended",
+          "online",
+          "total"
+        ],
+        "type": "object"
+      },
       "FallbackParentInfo": {
         "description": "FallbackParentInfo carries everything the frontend needs to rewrite a\nchild inbound's client link: where to connect (the master's address\nand port) and which path matched on the master's fallbacks array.\nThe frontend already has the master inbound in its dbInbounds list,\nso we only ship identifiers + the match path here.",
         "properties": {
@@ -4457,6 +4495,29 @@
           "tls13",
           "tlsVersion",
           "x25519"
+        ],
+        "type": "object"
+      },
+      "RouterOSAPIStatus": {
+        "properties": {
+          "checkedAt": {
+            "example": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale": {
+            "example": false,
+            "type": "boolean"
+          },
+          "state": {
+            "example": "not_configured",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkedAt",
+          "stale",
+          "state"
         ],
         "type": "object"
       },
@@ -7178,6 +7239,103 @@
         }
       }
     },
+    "/panel/api/server/xrayRuntimeLogs/{count}": {
+      "post": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Read only Xray runtime/error lines classified from the panel logger.",
+        "operationId": "post_panel_api_server_xrayRuntimeLogs_count",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "path",
+            "required": true,
+            "description": "Maximum lines to return.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "type": "string",
+                    "description": "Maximum severity."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/server/routerosAPIStatus": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Read the cached status of the internal RouterOS API health probe.",
+        "operationId": "get_panel_api_server_routerosAPIStatus",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "$ref": "#/components/schemas/RouterOSAPIStatus"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "checkedAt": 0,
+                    "stale": false,
+                    "state": "not_configured"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/panel/api/server/logs/{count}": {
       "post": {
         "tags": [
@@ -7996,6 +8154,49 @@
                       }
                     }
                   ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/clients/summary": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "Return counts-only client totals (total, online, ended, depleting, disabled, active) without loading client rows or emails.",
+        "operationId": "get_panel_api_clients_summary",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "$ref": "#/components/schemas/ClientsSummaryCounts"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "active": 1850,
+                    "depleting": 0,
+                    "disabled": 150,
+                    "ended": 0,
+                    "online": 1,
+                    "total": 2000
+                  }
                 }
               }
             }

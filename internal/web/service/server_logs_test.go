@@ -61,3 +61,17 @@ func TestGetLogs_ValidatesCountAndNormalizesLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestPanelAndXrayLogSourcesAreFilteredByLoggerSourceTag(t *testing.T) {
+	logger.Infof("XRAY: panel-source-classification-canary")
+	logger.XrayInfo("xray-source-classification-canary")
+	svc := &ServerService{}
+	panel := strings.Join(svc.GetPanelLogs("1", "info"), "\n")
+	xray := strings.Join(svc.GetXrayRuntimeLogs("1", "info"), "\n")
+	if !strings.Contains(panel, "panel-source-classification-canary") || strings.Contains(panel, "xray-source-classification-canary") {
+		t.Fatalf("panel source classification mixed logs: %q", panel)
+	}
+	if !strings.Contains(xray, "xray-source-classification-canary") || strings.Contains(xray, "panel-source-classification-canary") {
+		t.Fatalf("Xray source classification mixed logs: %q", xray)
+	}
+}

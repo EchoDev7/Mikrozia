@@ -7,8 +7,8 @@ import type { Status } from '@/models/status';
 
 interface ConnectionsCardProps {
   status: Status;
-  tcp: number[];
-  udp: number[];
+  tcp: Array<number | null>;
+  udp: Array<number | null>;
   labels: string[];
   isMobile: boolean;
 }

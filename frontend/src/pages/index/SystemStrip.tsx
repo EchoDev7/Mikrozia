@@ -2,13 +2,12 @@ import { useTranslation } from 'react-i18next';
 import { Card, Tooltip } from 'antd';
 import {
   ClockCircleOutlined,
-  DatabaseOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
 
-import { SizeFormatter, TimeFormatter } from '@/utils';
+import { TimeFormatter } from '@/utils';
 import { activateOnKey } from '@/utils/a11y';
 import type { Status } from '@/models/status';
 
@@ -44,24 +43,6 @@ export default function SystemStrip({ status, showIp, onToggleIp }: SystemStripP
               <div className="ov-strip-value">
                 {status.metricAvailable('uptime') ? TimeFormatter.formatSecond(status.uptime) : '—'}
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="ov-strip-cell">
-          <div className="ov-kicker ov-kicker-icon">
-            <DatabaseOutlined aria-hidden />
-            {t('pages.index.panel')}
-          </div>
-          <div className="ov-strip-split">
-            <div>
-              <div className="ov-strip-sub">{t('pages.index.memory')}</div>
-              <div className="ov-strip-value">{SizeFormatter.sizeFormat(status.appStats.mem)}</div>
-            </div>
-            <span className="ov-strip-split-sep" />
-            <div>
-              <div className="ov-strip-sub">{t('pages.index.threads')}</div>
-              <div className="ov-strip-value">{status.appStats.threads}</div>
             </div>
           </div>
         </div>

@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Select, Tabs } from 'antd';
+import { Modal, Select, Tabs, Tooltip } from 'antd';
 import {
   ApiOutlined,
   DashboardOutlined,
   DatabaseOutlined,
-  DeploymentUnitOutlined,
-  GlobalOutlined,
   HddOutlined,
-  LineChartOutlined,
+  InfoCircleOutlined,
   PieChartOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
@@ -31,6 +29,7 @@ interface MetricDef {
   tab: string;
   tabKey?: string;
   title: string;
+  hint?: string;
   icon: ReactNode;
   valueMax: number | null;
   unit: string;
@@ -60,47 +59,16 @@ const METRICS: MetricDef[] = [
     tab: 'RAM',
     tabKey: 'pages.index.memory',
     title: 'pages.index.historyTitleMem',
+    hint: 'pages.index.historyHintMem',
     icon: <DatabaseOutlined aria-hidden />,
     valueMax: 100,
     unit: '%',
     stroke: '#7c4dff',
-    key2: 'swap',
-    stroke2: '#ffa940',
-    name1: 'pages.index.memory',
-    name2: 'pages.index.swap',
-  },
-  {
-    key: 'netUp',
-    tab: 'Bandwidth',
-    tabKey: 'pages.index.historyTabBandwidth',
-    title: 'pages.index.historyTitleNetwork',
-    icon: <GlobalOutlined aria-hidden />,
-    valueMax: null,
-    unit: 'B/s',
-    stroke: '#1890ff',
-    key2: 'netDown',
-    stroke2: '#13c2c2',
-    name1: 'Up',
-    name2: 'Down',
-  },
-  {
-    key: 'pktUp',
-    tab: 'Packets',
-    tabKey: 'pages.index.historyTabPackets',
-    title: 'pages.index.historyTitlePackets',
-    icon: <DeploymentUnitOutlined aria-hidden />,
-    valueMax: null,
-    unit: 'pkt/s',
-    stroke: '#2f54eb',
-    key2: 'pktDown',
-    stroke2: '#36cfc9',
-    name1: 'Up',
-    name2: 'Down',
   },
   {
     key: 'tcpCount',
-    tab: 'Connections',
-    tabKey: 'pages.index.historyTabConnections',
+    tab: 'Container Sockets',
+    tabKey: 'pages.index.historyTabContainerSockets',
     title: 'pages.index.historyTitleConnections',
     icon: <ApiOutlined aria-hidden />,
     valueMax: null,
@@ -116,6 +84,7 @@ const METRICS: MetricDef[] = [
     tab: 'Disk I/O',
     tabKey: 'pages.index.historyTabDisk',
     title: 'pages.index.historyTitleDisk',
+    hint: 'pages.index.historyHintDisk',
     icon: <HddOutlined aria-hidden />,
     valueMax: null,
     unit: 'B/s',
@@ -145,31 +114,11 @@ const METRICS: MetricDef[] = [
     unit: '',
     stroke: '#52c41a',
   },
-  {
-    key: 'load1',
-    tab: 'Load',
-    tabKey: 'pages.index.historyTabLoad',
-    title: 'pages.index.historyTitleLoad',
-    icon: <LineChartOutlined aria-hidden />,
-    valueMax: null,
-    unit: '',
-    stroke: '#fa8c16',
-    key2: 'load5',
-    stroke2: '#f5222d',
-    name1: '1m',
-    name2: '5m',
-    key3: 'load15',
-    stroke3: '#a0d911',
-    name3: '15m',
-  },
 ];
 
 function unitFormatter(unit: string, activeKey: string): (v: number) => string {
   if (unit === 'B/s') {
     return (v) => `${SizeFormatter.sizeFormat(Math.max(0, Number(v) || 0)).replace(/\.\d+/, '')}/s`;
-  }
-  if (unit === 'pkt/s') {
-    return (v) => `${Math.round(Math.max(0, Number(v) || 0)).toLocaleString()}/s`;
   }
   if (unit === '%') {
     return (v) => `${Number(v).toFixed(1)}%`;
@@ -201,9 +150,9 @@ function formatFullTimestamp(unixSec: number): string {
 }
 
 interface HistoryChart {
-  points: number[];
-  points2: number[];
-  points3: number[];
+  points: Array<number | null>;
+  points2: Array<number | null>;
+  points3: Array<number | null>;
   labels: string[];
   timestamps: number[];
 }
@@ -220,11 +169,17 @@ async function loadBucket(metric: (typeof METRICS)[number], bucket: number): Pro
   try {
     const msg = await HttpUtil.get(`/panel/api/server/history/${metric.key}/${bucket}`);
     if (!msg?.success || !Array.isArray(msg.obj)) return EMPTY_CHART;
-    const points: number[] = [];
-    const labels: string[] = [];
-    const timestamps: number[] = [];
+    const byTs = new Map<number, number | null>();
     for (const p of msg.obj) {
-      const d = new Date(p.t * 1000);
+      const ts = Number(p.t);
+      const value = p.v == null || p.v === '' ? NaN : Number(p.v);
+      if (Number.isFinite(ts)) byTs.set(ts, Number.isFinite(value) ? value : null);
+    }
+    const timestamps = [...byTs.keys()].sort((a, b) => a - b);
+    const points = timestamps.map((ts) => byTs.get(ts) ?? null);
+    const labels: string[] = [];
+    for (const ts of timestamps) {
+      const d = new Date(ts * 1000);
       const MM = String(d.getMonth() + 1).padStart(2, '0');
       const DD = String(d.getDate()).padStart(2, '0');
       const hh = String(d.getHours()).padStart(2, '0');
@@ -237,23 +192,28 @@ async function loadBucket(metric: (typeof METRICS)[number], bucket: number): Pro
             ? `${hh}:${mm}`
             : `${hh}:${mm}:${ss}`,
       );
-      points.push(Number(p.v) || 0);
-      timestamps.push(Number(p.t) || 0);
     }
-    const fetchAligned = async (key?: string): Promise<number[]> => {
+    const fetchAligned = async (key?: string): Promise<Array<number | null>> => {
       if (!key) return [];
       const m = await HttpUtil.get(`/panel/api/server/history/${key}/${bucket}`);
       if (!m?.success || !Array.isArray(m.obj)) return [];
-      const byTs = new Map<number, number>();
-      for (const p of m.obj) byTs.set(Number(p.t) || 0, Number(p.v) || 0);
-      return timestamps.map((ts) => byTs.get(ts) ?? 0);
+      const byTs = new Map<number, number | null>();
+      for (const p of m.obj) {
+        const ts = Number(p.t);
+        const value = p.v == null || p.v === '' ? NaN : Number(p.v);
+        if (!Number.isFinite(ts)) continue;
+        byTs.set(ts, Number.isFinite(value) ? value : null);
+      }
+      return timestamps.map((ts) => byTs.get(ts) ?? null);
     };
+    const secondary = await fetchAligned(metric.key2);
+    const tertiary = await fetchAligned(metric.key3);
     return {
       labels,
       points,
       timestamps,
-      points2: await fetchAligned(metric.key2),
-      points3: await fetchAligned(metric.key3),
+      points2: secondary.length ? secondary : metric.key2 ? timestamps.map(() => null) : [],
+      points3: tertiary.length ? tertiary : metric.key3 ? timestamps.map(() => null) : [],
     };
   } catch (e) {
     console.error('Failed to fetch history bucket', e);
@@ -374,7 +334,22 @@ export default function SystemHistoryModal({ open, status, onClose }: SystemHist
       />
 
       <div className="cpu-chart-wrap">
-        {activeMetric?.title && <div className="history-chart-title">{t(activeMetric.title)}</div>}
+        {activeMetric?.title && (
+          <div className="history-chart-title">
+            <span>{t(activeMetric.title)}</span>
+            {activeMetric.hint && (
+              <Tooltip title={t(activeMetric.hint)} trigger={['hover', 'focus', 'click']}>
+                <button
+                  type="button"
+                  className="history-chart-hint"
+                  aria-label={t(activeMetric.hint)}
+                >
+                  <InfoCircleOutlined aria-hidden />
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
         <Sparkline
           data={points}
           data2={activeMetric?.key2 ? points2 : undefined}

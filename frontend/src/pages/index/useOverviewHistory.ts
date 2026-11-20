@@ -9,7 +9,6 @@ const SEED_BUCKET_SECONDS = 2;
 const SERIES_KEYS = [
   'cpu',
   'mem',
-  'swap',
   'diskUsage',
   'netUp',
   'netDown',
@@ -20,24 +19,24 @@ const SERIES_KEYS = [
 export type OverviewSeriesKey = (typeof SERIES_KEYS)[number];
 
 export interface OverviewHistory {
-  series: Record<OverviewSeriesKey, number[]>;
+  series: Record<OverviewSeriesKey, Array<number | null>>;
   labels: string[];
 }
 
 interface HistoryPoint {
   t: number;
-  v: number;
+  v: number | null;
 }
 
 interface HistoryWindow {
-  series: Record<OverviewSeriesKey, number[]>;
+  series: Record<OverviewSeriesKey, Array<number | null>>;
   times: number[];
 }
 
-function emptySeries(): Record<OverviewSeriesKey, number[]> {
-  return Object.fromEntries(SERIES_KEYS.map((key) => [key, [] as number[]])) as Record<
+function emptySeries(): Record<OverviewSeriesKey, Array<number | null>> {
+  return Object.fromEntries(SERIES_KEYS.map((key) => [key, [] as Array<number | null>])) as Record<
     OverviewSeriesKey,
-    number[]
+    Array<number | null>
   >;
 }
 
@@ -45,14 +44,13 @@ function emptyWindow(): HistoryWindow {
   return { series: emptySeries(), times: [] };
 }
 
-function sampleOf(status: Status): Record<OverviewSeriesKey, number> {
+function sampleOf(status: Status): Record<OverviewSeriesKey, number | null> {
   return {
-    cpu: status.cpu.percent,
+    cpu: status.metricAvailable('cpu') ? status.cpu.percent : null,
     mem: status.mem.percent,
-    swap: status.swap.percent,
     diskUsage: status.disk.percent,
-    netUp: status.netIO.up,
-    netDown: status.netIO.down,
+    netUp: status.metricAvailable('netIO') ? status.netIO.up : null,
+    netDown: status.metricAvailable('netIO') ? status.netIO.down : null,
     tcpCount: status.tcpCount,
     udpCount: status.udpCount,
   };
@@ -62,23 +60,25 @@ function tailWindow<T>(values: T[]): T[] {
   return values.slice(-OVERVIEW_WINDOW);
 }
 
-export function mean(values: number[]): number {
-  if (values.length === 0) return 0;
+export function mean(values: Array<number | null>): number {
+  const available = values.filter((v): v is number => v != null);
+  if (available.length === 0) return 0;
   let total = 0;
-  for (const v of values) total += v;
-  return total / values.length;
+  for (const v of available) total += v;
+  return total / available.length;
 }
 
-export function peak(values: number[]): number {
-  let max = 0;
-  for (const v of values) if (v > max) max = v;
-  return max;
+export function peak(values: Array<number | null>): number {
+  let max: number | null = null;
+  for (const v of values) if (v != null && (max == null || v > max)) max = v;
+  return max ?? 0;
 }
 
 /* the seed bucket must be in the backend's allowedHistoryBuckets whitelist;
    2s is the smallest and matches the status poll cadence */
 export function useOverviewHistory(status: Status, hasData: boolean): OverviewHistory {
   const [trend, setTrend] = useState<HistoryWindow>(emptyWindow);
+  const resourceScope = status.resourceScope;
 
   const seededUnscoped = useRef(false);
   const seedState = useRef<{ scope: string; complete: boolean } | null>(null);
@@ -86,16 +86,13 @@ export function useOverviewHistory(status: Status, hasData: boolean): OverviewHi
   useEffect(() => {
     // The placeholder has no resource scope. Wait for the first real status,
     // then seed each scope once even if polling temporarily loses data.
-    if (
-      !hasData ||
-      (seedState.current?.scope === status.resourceScope && seedState.current.complete)
-    ) {
+    if (!hasData || (seedState.current?.scope === resourceScope && seedState.current.complete)) {
       return;
     }
-    seedState.current = { scope: status.resourceScope, complete: false };
+    seedState.current = { scope: resourceScope, complete: false };
     let cancelled = false;
     const seedUnscoped = !seededUnscoped.current;
-    const keys = seedUnscoped ? SERIES_KEYS : (['cpu', 'swap'] as const);
+    const keys = seedUnscoped ? SERIES_KEYS : (['cpu'] as const);
 
     const seed = async () => {
       const responses = new Map<OverviewSeriesKey, HistoryPoint[]>();
@@ -110,35 +107,42 @@ export function useOverviewHistory(status: Status, hasData: boolean): OverviewHi
         }),
       );
       if (cancelled || responses.size === 0) return;
-      seedState.current = { scope: status.resourceScope, complete: true };
+      seedState.current = { scope: resourceScope, complete: true };
       seededUnscoped.current = true;
 
-      let axis: HistoryPoint[] = [];
-      for (const points of responses.values()) {
-        if (points.length > axis.length) axis = points;
-      }
-      axis = tailWindow(axis);
-      if (axis.length === 0) return;
-
-      const seedTimes = axis.map((p) => Number(p.t) || 0);
+      const seedTimes = tailWindow(
+        [
+          ...new Set(
+            [...responses.values()].flatMap((points) =>
+              points.map((p) => Number(p.t)).filter((ts) => Number.isFinite(ts)),
+            ),
+          ),
+        ].sort((a, b) => a - b),
+      );
+      if (seedTimes.length === 0) return;
       const seedSeries = emptySeries();
       for (const key of SERIES_KEYS) {
-        const byTs = new Map<number, number>();
-        for (const p of responses.get(key) ?? []) byTs.set(Number(p.t) || 0, Number(p.v) || 0);
-        seedSeries[key] =
-          status.resourceScope && (key === 'cpu' || key === 'swap')
-            ? seedTimes.flatMap((ts) => (byTs.has(ts) ? [byTs.get(ts)!] : []))
-            : seedTimes.map((ts) => byTs.get(ts) ?? 0);
+        const byTs = new Map<number, number | null>();
+        for (const p of responses.get(key) ?? []) {
+          const value = p.v == null ? NaN : Number(p.v);
+          byTs.set(Number(p.t) || 0, Number.isFinite(value) ? value : null);
+        }
+        seedSeries[key] = seedTimes.map((ts) => byTs.get(ts) ?? null);
       }
 
       setTrend((prev) => {
         const merged = emptyWindow();
-        merged.times = seedUnscoped ? tailWindow(seedTimes.concat(prev.times)) : prev.times;
+        merged.times = tailWindow([...new Set(seedTimes.concat(prev.times))].sort((a, b) => a - b));
         for (const key of SERIES_KEYS) {
-          merged.series[key] =
-            seedUnscoped || key === 'cpu' || key === 'swap'
-              ? tailWindow(seedSeries[key].concat(prev.series[key]))
-              : prev.series[key];
+          const points = new Map<number, number | null>();
+          if (seedUnscoped || key === 'cpu') {
+            seedTimes.forEach((ts, index) => points.set(ts, seedSeries[key][index]));
+          }
+          prev.times.forEach((ts, index) => {
+            const previous = prev.series[key][index] ?? null;
+            if (previous != null || !points.has(ts)) points.set(ts, previous);
+          });
+          merged.series[key] = merged.times.map((ts) => points.get(ts) ?? null);
         }
         return merged;
       });
@@ -148,7 +152,7 @@ export function useOverviewHistory(status: Status, hasData: boolean): OverviewHi
     return () => {
       cancelled = true;
     };
-  }, [hasData, status.resourceScope]);
+  }, [hasData, resourceScope]);
 
   // Each polled status is appended during render; an effect would show the
   // chart one sample behind the numbers beside it.
@@ -159,14 +163,20 @@ export function useOverviewHistory(status: Status, hasData: boolean): OverviewHi
       const scopeChanged = sampledStatus && sampledStatus.resourceScope !== status.resourceScope;
       const point = sampleOf(status);
       const next = emptyWindow();
-      next.times = tailWindow(prev.times.concat(Math.floor(Date.now() / 1000)));
+      const sampledAt = Math.max(
+        Math.floor(Date.now() / 1000),
+        (prev.times[prev.times.length - 1] ?? 0) + 1,
+      );
+      next.times = tailWindow([...new Set(prev.times.concat(sampledAt))].sort((a, b) => a - b));
       for (const key of SERIES_KEYS) {
-        const scoped = key === 'cpu' || key === 'swap';
-        const previous = scoped && scopeChanged ? [] : prev.series[key];
-        next.series[key] =
-          !scoped || status.metricAvailable(key)
-            ? tailWindow(previous.concat(point[key]))
-            : previous;
+        const scoped = key === 'cpu';
+        const nextTime = next.times[next.times.length - 1];
+        const points = new Map<number, number | null>();
+        prev.times.forEach((ts, index) => {
+          points.set(ts, scoped && scopeChanged ? null : (prev.series[key][index] ?? null));
+        });
+        points.set(nextTime, !scoped || status.metricAvailable(key) ? point[key] : null);
+        next.series[key] = next.times.map((ts) => points.get(ts) ?? null);
       }
       return next;
     });

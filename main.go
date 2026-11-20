@@ -74,7 +74,7 @@ func initNodeTokenCrypto() error {
 
 // runWebServer initializes and starts the web server for the 3x-ui panel.
 func runWebServer() {
-	log.Printf("Starting %v %v", config.GetName(), config.GetPanelVersion())
+	log.Printf("Starting %s", config.GetPanelVersion())
 
 	switch config.GetLogLevel() {
 	case config.Debug:

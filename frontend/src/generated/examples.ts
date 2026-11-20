@@ -626,6 +626,18 @@ export const EXAMPLES: Record<string, unknown> = {
     "onlineCount": 1,
     "total": 2000
   },
+  "ClientsSummaryCounts": {
+    "active": 1850,
+    "depleting": 0,
+    "disabled": 150,
+    "ended": 0,
+    "online": 1,
+    "total": 2000
+  },
+  "ContainerMemory": {
+    "limit": null,
+    "used": 0
+  },
   "FallbackParentInfo": {
     "masterId": 0,
     "path": ""
@@ -1098,6 +1110,27 @@ export const EXAMPLES: Record<string, unknown> = {
     "tlsVersion": "1.3",
     "x25519": true
   },
+  "RouterOSAPIStatus": {
+    "checkedAt": 0,
+    "cpuAvg": null,
+    "cpuCount": null,
+    "cpuFrequencyMhz": null,
+    "cpuHistory": [
+      0
+    ],
+    "cpuLoad": null,
+    "cpuPeak": null,
+    "memAvg": null,
+    "memHistory": [
+      0
+    ],
+    "memPeak": null,
+    "memPercent": null,
+    "memTotal": null,
+    "memUsed": null,
+    "stale": false,
+    "state": "not_configured"
+  },
   "ServerSettings": {
     "contentPaddingAddition": "",
     "disableCookies": false,
@@ -1194,6 +1227,14 @@ export const EXAMPLES: Record<string, unknown> = {
     "inlineEnabled": true,
     "running": true,
     "username": "xui_bot"
+  },
+  "TopInbound": {
+    "enabled": true,
+    "id": 1,
+    "port": 443,
+    "protocol": "vless",
+    "remark": "VLESS-443",
+    "traffic": 3145728
   },
   "Traffic": {
     "Down": 2097152,

@@ -74,7 +74,8 @@ type Status struct {
 		Current uint64 `json:"current"`
 		Total   uint64 `json:"total"`
 	} `json:"mem"`
-	Swap struct {
+	ContainerMem *sys.ContainerMemory `json:"containerMem"`
+	Swap         struct {
 		Current uint64 `json:"current"`
 		Total   uint64 `json:"total"`
 	} `json:"swap"`
@@ -134,7 +135,8 @@ type Status struct {
 // ServerService provides business logic for server monitoring and management.
 // It handles system status collection, IP detection, and application statistics.
 type ServerService struct {
-	lxcMetrics sys.LXCReader
+	lxcMetrics    sys.LXCReader
+	netIOCounters func(bool) ([]net.IOCountersStat, error)
 
 	xrayService        XrayService
 	inboundService     InboundService
@@ -583,41 +585,12 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 	}
 
 	// Network stats
-	ioStats, err := net.IOCounters(true)
-	if err != nil {
-		logger.Warning("get io counters failed:", err)
-	} else {
-		var totalSent, totalRecv, totalPktSent, totalPktRecv uint64
-		for _, iface := range ioStats {
-			name := strings.ToLower(iface.Name)
-			if isVirtualInterface(name) {
-				continue
-			}
-			totalSent += iface.BytesSent
-			totalRecv += iface.BytesRecv
-			totalPktSent += iface.PacketsSent
-			totalPktRecv += iface.PacketsRecv
-		}
-		status.NetTraffic.Sent = totalSent
-		status.NetTraffic.Recv = totalRecv
-		status.NetTraffic.PktSent = totalPktSent
-		status.NetTraffic.PktRecv = totalPktRecv
-
-		if lastStatus != nil {
-			duration := now.Sub(lastStatus.T)
-			seconds := float64(duration) / float64(time.Second)
-			up := uint64(float64(status.NetTraffic.Sent-lastStatus.NetTraffic.Sent) / seconds)
-			down := uint64(float64(status.NetTraffic.Recv-lastStatus.NetTraffic.Recv) / seconds)
-			status.NetIO.Up = up
-			status.NetIO.Down = down
-			if seconds > 0 && status.NetTraffic.PktSent >= lastStatus.NetTraffic.PktSent {
-				status.NetIO.PktUp = uint64(float64(status.NetTraffic.PktSent-lastStatus.NetTraffic.PktSent) / seconds)
-			}
-			if seconds > 0 && status.NetTraffic.PktRecv >= lastStatus.NetTraffic.PktRecv {
-				status.NetIO.PktDown = uint64(float64(status.NetTraffic.PktRecv-lastStatus.NetTraffic.PktRecv) / seconds)
-			}
-		}
+	readNet := s.netIOCounters
+	if readNet == nil {
+		readNet = net.IOCounters
 	}
+	ioStats, err := readNet(true)
+	collectNetIO(ioStats, err, status, lastStatus, now)
 
 	// TCP/UDP connections
 	status.TcpCount, err = sys.GetTCPCount()
@@ -705,15 +678,17 @@ func (s *ServerService) AppendStatusSample(t time.Time, status *Status) {
 	} else {
 		appendScopedMetric(status, "swap", t, 0)
 	}
-	systemMetrics.append("netUp", t, float64(status.NetIO.Up))
-	systemMetrics.append("netDown", t, float64(status.NetIO.Down))
+	if status.MetricAvailable("netIO") {
+		systemMetrics.append("netUp", t, float64(status.NetIO.Up))
+		systemMetrics.append("netDown", t, float64(status.NetIO.Down))
+		systemMetrics.append("pktUp", t, float64(status.NetIO.PktUp))
+		systemMetrics.append("pktDown", t, float64(status.NetIO.PktDown))
+	}
 	systemMetrics.append("diskRead", t, float64(status.DiskIO.Read))
 	systemMetrics.append("diskWrite", t, float64(status.DiskIO.Write))
 	if status.Disk.Total > 0 {
 		systemMetrics.append("diskUsage", t, float64(status.Disk.Current)*100.0/float64(status.Disk.Total))
 	}
-	systemMetrics.append("pktUp", t, float64(status.NetIO.PktUp))
-	systemMetrics.append("pktDown", t, float64(status.NetIO.PktDown))
 	systemMetrics.append("tcpCount", t, float64(status.TcpCount))
 	systemMetrics.append("udpCount", t, float64(status.UdpCount))
 	online := 0
@@ -854,6 +829,34 @@ func (s *ServerService) GetLogs(count string, level string) []string {
 	}
 
 	return logger.GetLogs(c, lvl)
+}
+
+func (s *ServerService) GetPanelLogs(count string, level string) []string {
+	return s.getLogsBySource(count, level, "panel")
+}
+
+func (s *ServerService) GetXrayRuntimeLogs(count string, level string) []string {
+	return s.getLogsBySource(count, level, "xray")
+}
+
+func (s *ServerService) getLogsBySource(count string, level string, source string) []string {
+	c, err := strconv.Atoi(strings.TrimSpace(count))
+	if err != nil || c < 1 || c > 10000 {
+		return []string{}
+	}
+	lvl := strings.ToLower(strings.TrimSpace(level))
+	if lvl == "" {
+		lvl = "info"
+	}
+	if lvl == "err" {
+		lvl = "error"
+	}
+	switch lvl {
+	case "debug", "info", "notice", "warning", "error", "critical":
+	default:
+		return []string{}
+	}
+	return logger.GetLogsBySource(c, lvl, source)
 }
 
 // parseAccessLogFields extracts the structured fields from one Xray access-log
@@ -1109,12 +1112,78 @@ func (s *ServerService) GetXrayLogs(
 	return entries
 }
 
-// isVirtualInterface returns true for loopback and virtual/tunnel interfaces
+func markMetricUnavailable(status *Status, metric string) {
+	if status == nil || slices.Contains(status.UnavailableMetrics, metric) {
+		return
+	}
+	status.UnavailableMetrics = append(status.UnavailableMetrics, metric)
+}
+
+func hasHostBridgeInterface(ioStats []net.IOCountersStat) bool {
+	for _, iface := range ioStats {
+		name := strings.ToLower(iface.Name)
+		if strings.HasPrefix(name, "docker") || strings.HasPrefix(name, "br-") || strings.HasPrefix(name, "virbr") {
+			return true
+		}
+	}
+	return false
+}
+
+func collectNetIO(ioStats []net.IOCountersStat, err error, status *Status, lastStatus *Status, now time.Time) {
+	if err != nil {
+		logger.Warning("get io counters failed:", err)
+		markMetricUnavailable(status, "netIO")
+		return
+	}
+	allowVeth := status.ResourceScope == "container" && !hasHostBridgeInterface(ioStats)
+	var usable int
+	var totalSent, totalRecv, totalPktSent, totalPktRecv uint64
+	for _, iface := range ioStats {
+		name := strings.ToLower(iface.Name)
+		if isVirtualInterfaceInScope(name, allowVeth) {
+			continue
+		}
+		usable++
+		totalSent += iface.BytesSent
+		totalRecv += iface.BytesRecv
+		totalPktSent += iface.PacketsSent
+		totalPktRecv += iface.PacketsRecv
+	}
+	if usable == 0 {
+		markMetricUnavailable(status, "netIO")
+		return
+	}
+	status.NetTraffic.Sent = totalSent
+	status.NetTraffic.Recv = totalRecv
+	status.NetTraffic.PktSent = totalPktSent
+	status.NetTraffic.PktRecv = totalPktRecv
+
+	if lastStatus != nil && lastStatus.MetricAvailable("netIO") {
+		seconds := now.Sub(lastStatus.T).Seconds()
+		if seconds > 0 && status.NetTraffic.Sent >= lastStatus.NetTraffic.Sent {
+			status.NetIO.Up = uint64(float64(status.NetTraffic.Sent-lastStatus.NetTraffic.Sent) / seconds)
+		}
+		if seconds > 0 && status.NetTraffic.Recv >= lastStatus.NetTraffic.Recv {
+			status.NetIO.Down = uint64(float64(status.NetTraffic.Recv-lastStatus.NetTraffic.Recv) / seconds)
+		}
+		if seconds > 0 && status.NetTraffic.PktSent >= lastStatus.NetTraffic.PktSent {
+			status.NetIO.PktUp = uint64(float64(status.NetTraffic.PktSent-lastStatus.NetTraffic.PktSent) / seconds)
+		}
+		if seconds > 0 && status.NetTraffic.PktRecv >= lastStatus.NetTraffic.PktRecv {
+			status.NetIO.PktDown = uint64(float64(status.NetTraffic.PktRecv-lastStatus.NetTraffic.PktRecv) / seconds)
+		}
+	}
+}
+
+// isVirtualInterfaceInScope returns true for loopback and virtual/tunnel interfaces
 // that should be excluded from network traffic statistics.
-func isVirtualInterface(name string) bool {
+func isVirtualInterfaceInScope(name string, allowVeth bool) bool {
 	// Exact matches
 	if name == "lo" || name == "lo0" {
 		return true
+	}
+	if allowVeth && strings.HasPrefix(name, "veth") {
+		return false
 	}
 	// Prefix matches for virtual/tunnel interfaces
 	virtualPrefixes := []string{

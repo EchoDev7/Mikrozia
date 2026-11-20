@@ -30,7 +30,7 @@ func TestContainerStatusOnlyOverridesCPUSwapAndUptime(t *testing.T) {
 		filepath.Join(proc, "loadavg"):        "1.25 2.50 3.75 1/5 1\n",
 		filepath.Join(proc, "diskstats"):      "8 0 vda 1 0 2 0 1 0 4 0 0 0 0\n",
 		filepath.Join(proc, "stat"):           "cpu 100 0 50 1000 0 0 0 0\n",
-		filepath.Join(proc, "net/dev"):        "Inter-| Receive | Transmit\n face |bytes packets errs drop fifo frame compressed multicast|bytes packets errs drop fifo colls carrier compressed\n",
+		filepath.Join(proc, "net/dev"):        "Inter-| Receive | Transmit\n face |bytes packets errs drop fifo frame compressed multicast|bytes packets errs drop fifo colls carrier compressed\n  veth0: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
 		filepath.Join(cg, "cpu.stat"):         "usage_usec 222772076\n",
 		filepath.Join(cg, "cpu.max"):          "max 100000\n",
 		filepath.Join(cg, "io.stat"):          "259:0 rbytes=999999999 wbytes=999999999\n",

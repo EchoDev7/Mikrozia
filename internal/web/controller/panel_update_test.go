@@ -82,7 +82,7 @@ func TestGetPanelUpdateInfo_ReturnsCurrentVersionWithoutNetwork(t *testing.T) {
 		t.Fatalf("expected success=true, got false (msg: %s)", env.Msg)
 	}
 
-	expectedVersion := config.GetMikroziaVersion()
+	expectedVersion := config.FormatMikroziaVersion(config.GetMikroziaVersion())
 	if env.Obj.CurrentVersion != expectedVersion {
 		t.Errorf("CurrentVersion = %q, want %q", env.Obj.CurrentVersion, expectedVersion)
 	}

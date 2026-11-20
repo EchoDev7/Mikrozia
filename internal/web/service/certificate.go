@@ -28,9 +28,7 @@ type CertificateReloader interface {
 	Reload() error
 }
 
-type panelCertificateReloader struct {
-	serverService ServerService
-}
+type panelCertificateReloader struct{}
 
 func (r *panelCertificateReloader) Reload() error {
 	return global.ReloadCertificates()

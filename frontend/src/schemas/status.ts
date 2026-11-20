@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ContainerMemorySchema } from '@/generated/zod';
 
 export const CurTotalInputSchema = z.object({
   current: z.number().optional(),
@@ -45,6 +46,7 @@ export const StatusSchema = z.object({
   disk: CurTotalInputSchema.optional(),
   loads: z.array(z.number()).optional(),
   mem: CurTotalInputSchema.optional(),
+  containerMem: ContainerMemorySchema.nullable().optional(),
   netIO: NetIOSchema.optional(),
   netTraffic: NetTrafficSchema.optional(),
   publicIP: PublicIPSchema.optional(),

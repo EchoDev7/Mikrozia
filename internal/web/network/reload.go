@@ -43,7 +43,7 @@ func ReloadHTTP(server **http.Server, listener *net.Listener, handler http.Handl
 	}
 	config.Certificates = []tls.Certificate{pair}
 	next := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 120 * time.Second}
-	var nextListener net.Listener = raw
+	nextListener := raw
 	if secure {
 		nextListener = tls.NewListener(NewAutoHttpsListener(raw), config)
 	}

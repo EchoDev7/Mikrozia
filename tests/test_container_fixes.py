@@ -937,7 +937,14 @@ class TestContainerFixes(unittest.TestCase):
         with open(log_modal_path, "r", encoding="utf-8") as f:
             log_modal = f.read()
         self.assertNotIn("SysLog", log_modal)
-        self.assertIn("routerosContainerLogsTitle", log_modal)
+        self.assertIn("routerosContainerTab", log_modal)
+        self.assertIn("routerosStatusPrefix", log_modal)
+        self.assertIn("routerosLogsUnavailableGuidance", log_modal)
+
+        en_locale_path = os.path.join(self.repo_root, "internal", "web", "translation", "en-US.json")
+        with open(en_locale_path, "r", encoding="utf-8") as f:
+            en_locale = f.read()
+        self.assertIn("will not guess a container or change RouterOS settings", en_locale)
 
         xray_log_modal_path = os.path.join(self.repo_root, "frontend", "src", "pages", "index", "XrayLogModal.tsx")
         with open(xray_log_modal_path, "r", encoding="utf-8") as f:

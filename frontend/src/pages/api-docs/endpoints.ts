@@ -285,6 +285,14 @@ export const sections: readonly Section[] = [
       },
       {
         method: 'GET',
+        path: '/panel/api/inbounds/top',
+        summary:
+          'Return up to 5 inbounds belonging to the authenticated user ranked by cumulative traffic (up + down) descending, then id ascending. Excludes settings, streamSettings, clientStats, and secrets.',
+        responseSchema: 'TopInbound',
+        responseSchemaArray: true,
+      },
+      {
+        method: 'GET',
         path: '/panel/api/inbounds/allLinks',
         responseObjectSchema: { type: 'array', nullable: true, items: { type: 'string' } },
         summary:
@@ -627,6 +635,27 @@ export const sections: readonly Section[] = [
       },
       {
         method: 'POST',
+        path: '/panel/api/server/xrayRuntimeLogs/:count',
+        summary: 'Read only Xray runtime/error lines classified from the panel logger.',
+        params: [
+          { name: 'count', in: 'path', type: 'integer', desc: 'Maximum lines to return.' },
+          {
+            name: 'level',
+            in: 'body (form)',
+            type: 'string',
+            desc: 'Maximum severity.',
+            optional: true,
+          },
+        ],
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/server/routerosAPIStatus',
+        summary: 'Read the cached status of the internal RouterOS API health probe.',
+        responseSchema: 'RouterOSAPIStatus',
+      },
+      {
+        method: 'POST',
         path: '/panel/api/server/logs/:count',
         summary: 'Return the last N lines of the panel\u2019s own log.',
         params: [
@@ -900,6 +929,13 @@ export const sections: readonly Section[] = [
           'List every client with its attached inbound IDs and traffic record. The reverse field, if set, is returned as a nested JSON object (legacy JSON-encoded-string form is still accepted on write).',
         response:
           '{\n  "success": true,\n  "obj": [\n    {\n      "id": 1,\n      "email": "alice@example.com",\n      "subId": "abcd1234",\n      "uuid": "...",\n      "totalGB": 53687091200,\n      "expiryTime": 1735689600000,\n      "enable": true,\n      "reverse": null,\n      "inboundIds": [3, 5],\n      "traffic": { "up": 1024, "down": 4096, "enable": true }\n    }\n  ]\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/clients/summary',
+        summary:
+          'Return counts-only client totals (total, online, ended, depleting, disabled, active) without loading client rows or emails.',
+        responseSchema: 'ClientsSummaryCounts',
       },
       {
         method: 'GET',

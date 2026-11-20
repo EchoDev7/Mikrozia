@@ -53,8 +53,8 @@ func (s *PanelService) GetUpdateInfo() (*PanelUpdateInfo, error) {
 	current := config.GetMikroziaVersion()
 	return &PanelUpdateInfo{
 		Channel:         "stable",
-		CurrentVersion:  current,
-		LatestVersion:   current,
+		CurrentVersion:  config.FormatMikroziaVersion(current),
+		LatestVersion:   config.FormatMikroziaVersion(current),
 		UpdateAvailable: false,
 	}, nil
 }

@@ -57,8 +57,9 @@ func TestGetPanelVersion(t *testing.T) {
 			if got := GetMikroziaVersion(); got != tt.want {
 				t.Fatalf("GetMikroziaVersion = %q, want %q", got, tt.want)
 			}
-			if got := GetPanelVersion(); got != tt.want {
-				t.Fatalf("GetPanelVersion = %q, want %q", got, tt.want)
+			presented := FormatMikroziaVersion(tt.want)
+			if got := GetPanelVersion(); got != presented {
+				t.Fatalf("GetPanelVersion = %q, want %q", got, presented)
 			}
 		})
 	}
@@ -83,8 +84,8 @@ func TestMissingInjectionNeverFallsBackToCanonicalRelease(t *testing.T) {
 		canonical + "\n" + canonical,
 	} {
 		mikroziaVersion = injected
-		if got := GetPanelVersion(); got != devVersion {
-			t.Fatalf("injected %q produced %q, want %q", injected, got, devVersion)
+		if got := GetPanelVersion(); got != "Mikrozia dev" {
+			t.Fatalf("injected %q produced %q, want Mikrozia dev", injected, got)
 		}
 	}
 }
@@ -96,6 +97,22 @@ func TestUpstreamVersionStaysSeparateFromMikroziaIdentity(t *testing.T) {
 	}
 	if upstream == GetMikroziaVersion() {
 		t.Fatalf("upstream version %q must stay separate from the Mikrozia release version", upstream)
+	}
+}
+
+func TestFormatMikroziaVersionPreservesReleaseInputAndPresentsProductIdentity(t *testing.T) {
+	canonical := readCanonicalMikroziaVersion(t)
+	wantCanonical := "Mikrozia " + strings.TrimSuffix(canonical, "-mikrozia")
+	if got := FormatMikroziaVersion(canonical); got != wantCanonical {
+		t.Fatalf("presentation for %q = %q, want %q", canonical, got, wantCanonical)
+	}
+	for input, want := range map[string]string{
+		"v2.4.0": "Mikrozia v2.4.0", "v2.4.0-mikrozia": "Mikrozia v2.4.0",
+		"dev": "Mikrozia dev", "": "Mikrozia dev", "v1.2": "Mikrozia dev", " v2.4.0": "Mikrozia dev",
+	} {
+		if got := FormatMikroziaVersion(input); got != want {
+			t.Errorf("FormatMikroziaVersion(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 

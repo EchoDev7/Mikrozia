@@ -38,6 +38,36 @@ When the environment owns the account, the panel's **Security** tab shows a
 notice instead of a password form, and a panel-side password change is refused
 with a truthful message — the environment would overwrite it on the next start.
 
+## RouterOS API status and telemetry
+
+The dashboard can perform a read-only native RouterOS API query over the
+internal Container-to-router network on TCP/8728 only. These values are
+optional; set all three or leave all three unset. Partial configuration is
+reported as invalid. Mikrozia does not enable the API service, create users, or
+change router settings.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MIKROZIA_ROUTEROS_API_HOST` | — | Literal private IPv4/IPv6 address of the RouterOS API endpoint (no hostnames, zones, loopback, or link-local addresses). |
+| `MIKROZIA_ROUTEROS_API_USERNAME` | — | Dedicated read-only RouterOS API account name (`read,api` policies only). |
+| `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API account password. |
+
+Example values are placeholders only:
+
+```text
+MIKROZIA_ROUTEROS_API_HOST=172.16.10.1
+MIKROZIA_ROUTEROS_API_USERNAME=<READ_ONLY_API_USER>
+MIKROZIA_ROUTEROS_API_PASSWORD=<SET_A_SECRET_VALUE>
+```
+
+The password is held only in process memory while probing; it is never stored in
+the database or returned by the panel API. RouterOS Container `/container/envs`
+is visible to router administrators and is not a secret store. Restrict access
+to the router configuration. The integration polls `/system/resource/print`
+(`uptime`, `cpu-load`, `cpu-count`, `cpu-frequency`, `total-memory`,
+`free-memory`) every 15s with a 4s timeout and 30s stale threshold; RouterOS
+Container log reads and VETH telemetry remain deferred prerequisites.
+
 <Callout type="warn">
   **The RouterOS Container Environment is a configuration store, not a secret
   store.** Every value in `/container/envs` is visible to anyone who can read the

@@ -29,6 +29,13 @@ const (
 	compressRotated = true
 )
 
+type logEntry struct {
+	time   string
+	level  logging.Level
+	log    string
+	source string
+}
+
 var (
 	// InitLogger swaps the handle while other goroutines are logging, so it is
 	// published atomically — a plain assignment is an unsafe publication.
@@ -41,11 +48,7 @@ var (
 	// logBuffer maintains recent log entries in memory for web UI retrieval;
 	// logBufferMu guards it — written from many goroutines, read by the web UI.
 	logBufferMu sync.Mutex
-	logBuffer   []struct {
-		time  string
-		level logging.Level
-		log   string
-	}
+	logBuffer   []logEntry
 )
 
 // A usable default so logging never nil-derefs before InitLogger runs — the
@@ -199,8 +202,32 @@ func Errorf(format string, args ...any) {
 	addToBuffer("ERROR", fmt.Sprintf(format, args...))
 }
 
+func XrayDebug(message string) {
+	logger.Load().Debug("XRAY: " + message)
+	addToBufferSource("xray", "DEBUG", message)
+}
+
+func XrayInfo(message string) {
+	logger.Load().Info("XRAY: " + message)
+	addToBufferSource("xray", "INFO", message)
+}
+
+func XrayWarning(message string) {
+	logger.Load().Warning("XRAY: " + message)
+	addToBufferSource("xray", "WARNING", message)
+}
+
+func XrayError(message string) {
+	logger.Load().Error("XRAY: " + message)
+	addToBufferSource("xray", "ERROR", message)
+}
+
 // addToBuffer adds a log entry to the in-memory ring buffer for web UI retrieval.
 func addToBuffer(level string, newLog string) {
+	addToBufferSource("panel", level, newLog)
+}
+
+func addToBufferSource(source string, level string, newLog string) {
 	t := time.Now()
 	logBufferMu.Lock()
 	defer logBufferMu.Unlock()
@@ -209,37 +236,39 @@ func addToBuffer(level string, newLog string) {
 	}
 
 	logLevel, _ := logging.LogLevel(level)
-	logBuffer = append(logBuffer, struct {
-		time  string
-		level logging.Level
-		log   string
-	}{
-		time:  t.Format(timeFormat),
-		level: logLevel,
-		log:   newLog,
+	logBuffer = append(logBuffer, logEntry{
+		time:   t.Format(timeFormat),
+		level:  logLevel,
+		log:    newLog,
+		source: source,
 	})
 }
 
 // GetLogs retrieves up to c log entries from the buffer that are at or below the specified level.
 func GetLogs(c int, level string) []string {
-	var output []string
+	return GetLogsBySource(c, level, "")
+}
+
+// GetLogsBySource filters before applying the limit; an empty source selects all entries.
+func GetLogsBySource(c int, level string, source string) []string {
+	output := []string{}
 	logLevel, _ := logging.LogLevel(level)
 
 	// Snapshot (copy) under the lock, then filter/format unlocked: a UI log fetch
 	// must not block addToBuffer — and thus all logging — for the formatting loop.
 	// A copy (not a reslice) is required, since addToBuffer can append in place.
 	logBufferMu.Lock()
-	snapshot := make([]struct {
-		time  string
-		level logging.Level
-		log   string
-	}, len(logBuffer))
-	copy(snapshot, logBuffer)
+	snapshot := append([]logEntry(nil), logBuffer...)
 	logBufferMu.Unlock()
 
 	for i := len(snapshot) - 1; i >= 0 && len(output) < c; i-- {
-		if snapshot[i].level <= logLevel {
-			output = append(output, fmt.Sprintf("%s %s - %s", snapshot[i].time, snapshot[i].level, snapshot[i].log))
+		entry := snapshot[i]
+		if entry.level <= logLevel && (source == "" || entry.source == source) {
+			message := entry.log
+			if source == "" && entry.source == "xray" {
+				message = "XRAY: " + message
+			}
+			output = append(output, fmt.Sprintf("%s %s - %s", entry.time, entry.level, message))
 		}
 	}
 	return output

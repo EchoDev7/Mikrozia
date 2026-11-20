@@ -77,6 +77,7 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g.GET("/list", a.getInbounds)
 	g.GET("/list/slim", a.getInboundsSlim)
 	g.GET("/options", a.getInboundOptions)
+	g.GET("/top", a.getTopInbounds)
 	g.GET("/allLinks", a.getAllInboundLinks)
 	g.GET("/get/:id", a.getInbound)
 	g.GET("/:id/fallbacks", a.getFallbacks)
@@ -142,6 +143,18 @@ func (a *InboundController) getInboundOptions(c *gin.Context) {
 		return
 	}
 	jsonObj(c, options, nil)
+}
+
+// getTopInbounds returns up to 5 of the authenticated user's inbounds ranked by
+// cumulative traffic (up + down) descending, with id ascending as tie-breaker.
+func (a *InboundController) getTopInbounds(c *gin.Context) {
+	user := session.GetLoginUser(c)
+	top, err := a.inboundService.GetTopInbounds(user.Id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.obtain"), err)
+		return
+	}
+	jsonObj(c, top, nil)
 }
 
 // getInbound retrieves a specific inbound by its ID.

@@ -22,7 +22,7 @@ export const LEVEL_CLASSES = [
 
 const APP_LOG = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+(\S+)\s+-\s+([\s\S]*)$/;
 
-export function parseLogLine(line: string): ParsedLog {
+export function parseLogLine(line: string, defaultService = 'X-UI:'): ParsedLog {
   const raw = (line || '').trim();
 
   let date = '';
@@ -48,7 +48,7 @@ export function parseLogLine(line: string): ParsedLog {
     service = 'XRAY:';
     body = body.slice('XRAY:'.length).trimStart();
   } else if (body) {
-    service = 'X-UI:';
+    service = defaultService;
   }
 
   const stamp = [date, time].filter(Boolean).join(' ');

@@ -141,7 +141,19 @@ extraction. If a directory already exists, skip its `/file/add` line.
 /container/envs/add list=MIKROZIA_ENV key=HOME value="/root" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
+# Optional read-only RouterOS API status; use placeholders and a dedicated account.
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROUTEROS_API_HOST value="172.16.10.1" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROUTEROS_API_USERNAME value="YOUR_READ_ONLY_API_USER" comment="[Mikrozia:container] Environment"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROUTEROS_API_PASSWORD value="YOUR_API_PASSWORD" comment="[Mikrozia:container] Environment"
 ```
+
+The RouterOS API health integration is optional. Either omit all three
+`MIKROZIA_ROUTEROS_API_*` values or set them together; use the private literal
+address of the router and ensure its native API service is already available on
+TCP/8728. Mikrozia will not enable or modify RouterOS services. See the
+[environment reference](/docs/reference/env-vars#routeros-api-health-status) for
+the full contract. RouterOS Environment values are visible to router
+administrators; use a dedicated least-privilege read-only API account.
 
 <Callout type="warn">
   **The RouterOS Container Environment is a configuration store, not a secret

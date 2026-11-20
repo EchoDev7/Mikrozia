@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"slices"
 	"sort"
 	"strconv"
@@ -95,6 +96,16 @@ type ClientsSummary struct {
 	Depleted      []string `json:"depleted" example:"[]"`
 	Expiring      []string `json:"expiring" example:"[]"`
 	Deactive      []string `json:"deactive" example:"[\"bob@example.com\"]"`
+}
+
+// ClientsSummaryCounts holds counts-only client bucket totals with no PII.
+type ClientsSummaryCounts struct {
+	Total     int `json:"total" example:"2000"`
+	Online    int `json:"online" example:"1"`
+	Ended     int `json:"ended" example:"0"`
+	Depleting int `json:"depleting" example:"0"`
+	Disabled  int `json:"disabled" example:"150"`
+	Active    int `json:"active" example:"1850"`
 }
 
 const (
@@ -440,6 +451,56 @@ func (s *ClientService) ListPaged(inboundSvc *InboundService, settingSvc *Settin
 	}, nil
 }
 
+// SummaryCounts returns counts-only client totals using the same bucket
+// predicates as ListPaged without loading client rows or email lists.
+func (s *ClientService) SummaryCounts(inboundSvc *InboundService, settingSvc *SettingService) (*ClientsSummaryCounts, error) {
+	db := database.GetDB()
+	if db == nil {
+		return nil, errors.New("database is not initialized")
+	}
+
+	var expireDiffMs, trafficDiffBytes int64
+	if settingSvc != nil {
+		if v, err := settingSvc.GetExpireDiff(); err == nil {
+			expireDiffMs = int64(v) * 86400000
+		}
+		if v, err := settingSvc.GetTrafficDiff(); err == nil {
+			trafficDiffBytes = int64(v) * 1073741824
+		}
+	}
+
+	var onlines []string
+	if inboundSvc != nil {
+		onlines = inboundSvc.GetOnlineClients()
+	}
+
+	q := newClientQuery(db, time.Now().UnixMilli(), expireDiffMs, trafficDiffBytes)
+
+	var total int64
+	if err := db.Model(&model.ClientRecord{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	active, depleted, expiring, deactive, err := q.bucketCounts()
+	if err != nil {
+		return nil, err
+	}
+
+	online, err := q.onlineCount(onlines)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClientsSummaryCounts{
+		Total:     int(total),
+		Online:    online,
+		Ended:     depleted,
+		Depleting: expiring,
+		Disabled:  deactive,
+		Active:    active,
+	}, nil
+}
+
 // pageRows resolves the requested page to client ids, then loads the records,
 // attachments and traffic for those ids only. A page never exceeds
 // clientPageMaxSize rows, which stays under sqlInChunk, so the follow-up IN
@@ -505,15 +566,7 @@ func (q clientQuery) pageRows(params ClientPageParams, onlines []string, offset,
 	return items, nil
 }
 
-func (q clientQuery) summary(onlines []string, total int) (ClientsSummary, error) {
-	s := ClientsSummary{
-		Total:    total,
-		Online:   []string{},
-		Depleted: []string{},
-		Expiring: []string{},
-		Deactive: []string{},
-	}
-
+func (q clientQuery) bucketCounts() (active, depleted, expiring, deactive int, err error) {
 	var counts struct {
 		Active   int64
 		Depleted int64
@@ -528,12 +581,28 @@ func (q clientQuery) summary(onlines []string, total int) (ClientsSummary, error
 			" COALESCE(SUM(CASE WHEN " + q.expiringExpr() + " THEN 1 ELSE 0 END), 0) AS expiring," +
 			" COALESCE(SUM(CASE WHEN " + q.deactiveExpr() + " THEN 1 ELSE 0 END), 0) AS deactive",
 	).Scan(&counts).Error; err != nil {
+		return 0, 0, 0, 0, err
+	}
+	return int(counts.Active), int(counts.Depleted), int(counts.Expiring), int(counts.Deactive), nil
+}
+
+func (q clientQuery) summary(onlines []string, total int) (ClientsSummary, error) {
+	s := ClientsSummary{
+		Total:    total,
+		Online:   []string{},
+		Depleted: []string{},
+		Expiring: []string{},
+		Deactive: []string{},
+	}
+
+	active, depleted, expiring, deactive, err := q.bucketCounts()
+	if err != nil {
 		return s, err
 	}
-	s.Active = int(counts.Active)
-	s.DepletedCount = int(counts.Depleted)
-	s.ExpiringCount = int(counts.Expiring)
-	s.DeactiveCount = int(counts.Deactive)
+	s.Active = active
+	s.DepletedCount = depleted
+	s.ExpiringCount = expiring
+	s.DeactiveCount = deactive
 
 	buckets := []struct {
 		cond  string
@@ -568,6 +637,43 @@ func (q clientQuery) summary(onlines []string, total int) (ClientsSummary, error
 	s.Online = online
 	s.OnlineCount = onlineCount
 	return s, nil
+}
+
+func dedupeNonEmptyStrings(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, s := range items {
+		if s == "" {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+func (q clientQuery) onlineCount(onlines []string) (int, error) {
+	unique := dedupeNonEmptyStrings(onlines)
+	if len(unique) == 0 {
+		return 0, nil
+	}
+	var count int64
+	for _, batch := range chunkStrings(unique, sqlInChunk) {
+		var n int64
+		if err := q.db.Model(&model.ClientRecord{}).
+			Where("COALESCE(enable, FALSE) = TRUE AND email IN ?", batch).
+			Count(&n).Error; err != nil {
+			return 0, err
+		}
+		count += n
+	}
+	return int(count), nil
 }
 
 // onlineEmails intersects the emails xray reports as connected with the enabled

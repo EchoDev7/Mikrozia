@@ -566,11 +566,6 @@ func writeFileAtomic(path string, content []byte, mode os.FileMode) error {
 	return os.Rename(tempName, path)
 }
 
-// trimDomain normalizes a domain name.
-func trimDomain(domain string) string {
-	return strings.TrimSpace(domain)
-}
-
 // ToolPath returns the path of the bundled client this manager invokes.
 func (m *Manager) ToolPath() string {
 	return m.toolPath

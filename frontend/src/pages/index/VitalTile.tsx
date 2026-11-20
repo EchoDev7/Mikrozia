@@ -7,6 +7,11 @@ import { mean, peak } from './useOverviewHistory';
 
 interface VitalTileProps {
   available?: boolean;
+  unavailableText?: string;
+  stale?: boolean;
+  staleLabel?: string;
+  secondaryLabel?: string;
+  secondaryValue?: string;
   icon: ReactNode;
   label: string;
   percent: number;
@@ -14,12 +19,17 @@ interface VitalTileProps {
   detail: string;
   footLeft: string;
   footRight: string;
-  data: number[];
+  data: Array<number | null>;
   isMobile: boolean;
 }
 
 export default function VitalTile({
   available = true,
+  unavailableText,
+  stale = false,
+  staleLabel,
+  secondaryLabel,
+  secondaryValue,
   icon,
   label,
   percent,
@@ -43,12 +53,30 @@ export default function VitalTile({
       <div className="ov-tile-head">
         <span className="ov-tile-icon">{icon}</span>
         <span className="ov-kicker">{label}</span>
+        {available && stale && staleLabel && (
+          <span className="ov-top-inbounds-disabled">{staleLabel}</span>
+        )}
       </div>
 
       <div className="ov-tile-value">
-        <span className="ov-tile-number">{available ? percent.toFixed(1) : '—'}</span>
-        {available && <span className="ov-tile-unit">%</span>}
+        {available ? (
+          <>
+            <span className="ov-tile-number">{percent.toFixed(1)}</span>
+            <span className="ov-tile-unit">%</span>
+          </>
+        ) : unavailableText ? (
+          <span className="ov-clients-unavailable">{unavailableText}</span>
+        ) : (
+          <span className="ov-tile-number">—</span>
+        )}
       </div>
+
+      {secondaryLabel && (
+        <div className="ov-tile-sub">
+          <span className="ov-tile-sub-label">{secondaryLabel}</span>
+          <span className="ov-tile-sub-val">{secondaryValue ?? '—'}</span>
+        </div>
+      )}
 
       <div className="ov-tile-detail">{available ? detail : '—'}</div>
 

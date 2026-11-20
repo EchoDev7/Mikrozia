@@ -27,9 +27,9 @@ const AXIS_FONT = '10px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif
 const LABEL_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 interface SparklineProps {
-  data: number[];
-  data2?: number[];
-  data3?: number[];
+  data: Array<number | null>;
+  data2?: Array<number | null>;
+  data3?: Array<number | null>;
   stroke2?: string;
   stroke3?: string;
   name1?: string;
@@ -60,9 +60,9 @@ interface SparklineProps {
 
 interface ChartPoint {
   index: number;
-  value: number;
-  value2: number;
-  value3: number;
+  value: number | null;
+  value2: number | null;
+  value3: number | null;
   label: string;
 }
 
@@ -169,13 +169,13 @@ export default function Sparkline(props: SparklineProps) {
     if (n === 0) return [];
     const sliceStart = data.length - n;
     const labelStart = Math.max(0, labels.length - n);
-    const slice2Start = data2.length - n;
-    const slice3Start = data3.length - n;
+    const slice2Start = data2.length - data.length + sliceStart;
+    const slice3Start = data3.length - data.length + sliceStart;
     return data.slice(sliceStart).map((value, i) => ({
       index: i,
-      value: Number(value) || 0,
-      value2: data2.length ? Number(data2[slice2Start + i]) || 0 : 0,
-      value3: data3.length ? Number(data3[slice3Start + i]) || 0 : 0,
+      value: value == null || !Number.isFinite(value) ? null : value,
+      value2: data2.length && slice2Start + i >= 0 ? (data2[slice2Start + i] ?? null) : null,
+      value3: data3.length && slice3Start + i >= 0 ? (data3[slice3Start + i] ?? null) : null,
       label: String(labels[labelStart + i] ?? i + 1),
     }));
   }, [data, data2, data3, labels, maxPoints]);
@@ -184,9 +184,9 @@ export default function Sparkline(props: SparklineProps) {
     if (valueMax != null) return [valueMin, valueMax];
     let max = valueMin;
     for (const p of points) {
-      if (Number.isFinite(p.value) && p.value > max) max = p.value;
-      if (hasSeries2 && Number.isFinite(p.value2) && p.value2 > max) max = p.value2;
-      if (hasSeries3 && Number.isFinite(p.value3) && p.value3 > max) max = p.value3;
+      if (p.value != null && p.value > max) max = p.value;
+      if (hasSeries2 && p.value2 != null && p.value2 > max) max = p.value2;
+      if (hasSeries3 && p.value3 != null && p.value3 > max) max = p.value3;
     }
     if (max <= valueMin) max = valueMin + 1;
     return [valueMin, max * 1.1];
@@ -214,9 +214,13 @@ export default function Sparkline(props: SparklineProps) {
     if (!extrema?.show || multiSeries || points.length < 2) return null;
     let minIdx = 0;
     let maxIdx = 0;
+    while (minIdx < points.length && points[minIdx].value == null) minIdx++;
+    if (minIdx === points.length) return null;
+    maxIdx = minIdx;
     for (let i = 1; i < points.length; i++) {
-      if (points[i].value < points[minIdx].value) minIdx = i;
-      if (points[i].value > points[maxIdx].value) maxIdx = i;
+      if (points[i].value == null) continue;
+      if (points[i].value! < points[minIdx].value!) minIdx = i;
+      if (points[i].value! > points[maxIdx].value!) maxIdx = i;
     }
     if (minIdx === maxIdx) return null;
     return { min: points[minIdx], max: points[maxIdx], minIdx, maxIdx };
@@ -240,9 +244,17 @@ export default function Sparkline(props: SparklineProps) {
     if (points.length === 0) return name1 ?? '';
     const last = points[points.length - 1];
     const parts: string[] = [];
-    parts.push(name1 ? `${name1}: ${yFormatter(last.value)}` : yFormatter(last.value));
-    if (hasSeries2 && name2) parts.push(`${name2}: ${yFormatter(last.value2)}`);
-    if (hasSeries3 && name3) parts.push(`${name3}: ${yFormatter(last.value3)}`);
+    parts.push(
+      name1
+        ? `${name1}: ${last.value == null ? '—' : yFormatter(last.value)}`
+        : last.value == null
+          ? '—'
+          : yFormatter(last.value),
+    );
+    if (hasSeries2 && name2)
+      parts.push(`${name2}: ${last.value2 == null ? '—' : yFormatter(last.value2)}`);
+    if (hasSeries3 && name3)
+      parts.push(`${name3}: ${last.value3 == null ? '—' : yFormatter(last.value3)}`);
     return parts.join(', ');
   }, [points, name1, name2, name3, hasSeries2, hasSeries3, yFormatter]);
 
@@ -301,7 +313,7 @@ export default function Sparkline(props: SparklineProps) {
     const buildData = (): uPlot.AlignedData => {
       const v = viewRef.current;
       const xs = v.points.map((_, i) => i);
-      const series: number[][] = [v.points.map((p) => p.value)];
+      const series: Array<Array<number | null>> = [v.points.map((p) => p.value)];
       if (hasSeries2) series.push(v.points.map((p) => p.value2));
       if (hasSeries3) series.push(v.points.map((p) => p.value3));
       return [xs, ...series];
@@ -320,7 +332,7 @@ export default function Sparkline(props: SparklineProps) {
       },
       paths: uPlot.paths.spline?.(),
       points: { show: false },
-      spanGaps: true,
+      spanGaps: false,
     });
 
     const series: uPlot.Series[] = [{}, makeSeries()];
@@ -423,8 +435,8 @@ export default function Sparkline(props: SparklineProps) {
           ctx.stroke();
           ctx.restore();
         };
-        dot(ex.max.value, ex.maxIdx, p.extrema.maxColor ?? DEFAULT_MAX_COLOR);
-        dot(ex.min.value, ex.minIdx, p.extrema.minColor ?? DEFAULT_MIN_COLOR);
+        dot(ex.max.value!, ex.maxIdx, p.extrema.maxColor ?? DEFAULT_MAX_COLOR);
+        dot(ex.min.value!, ex.minIdx, p.extrema.minColor ?? DEFAULT_MIN_COLOR);
       }
     };
 
@@ -471,7 +483,7 @@ export default function Sparkline(props: SparklineProps) {
         }
         const val = document.createElement('span');
         val.className = 'spk-tt-val';
-        val.textContent = fmt(r.val);
+        val.textContent = r.val == null ? '—' : fmt(r.val);
         row.appendChild(val);
         tooltipEl.appendChild(row);
       }
@@ -560,7 +572,7 @@ export default function Sparkline(props: SparklineProps) {
     plotRef.current?.setData(
       (() => {
         const xs = points.map((_, i) => i);
-        const s: number[][] = [points.map((p) => p.value)];
+        const s: Array<Array<number | null>> = [points.map((p) => p.value)];
         if (hasSeries2) s.push(points.map((p) => p.value2));
         if (hasSeries3) s.push(points.map((p) => p.value3));
         return [xs, ...s] as uPlot.AlignedData;
@@ -589,10 +601,10 @@ export default function Sparkline(props: SparklineProps) {
       {extremaPoints && (
         <div className="sparkline-extrema" aria-hidden="true">
           <span className="extrema-item" style={{ color: maxColor }}>
-            ▲ {fmtExtrema(extremaPoints.max.value)}
+            ▲ {fmtExtrema(extremaPoints.max.value!)}
           </span>
           <span className="extrema-item" style={{ color: minColor }}>
-            ▼ {fmtExtrema(extremaPoints.min.value)}
+            ▼ {fmtExtrema(extremaPoints.min.value!)}
           </span>
         </div>
       )}

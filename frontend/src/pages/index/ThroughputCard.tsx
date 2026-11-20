@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, theme } from 'antd';
-import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons';
+import { Card, Tooltip, theme } from 'antd';
+import { ArrowDownOutlined, ArrowUpOutlined, InfoCircleOutlined } from '@ant-design/icons';
 
 import { SizeFormatter } from '@/utils';
 import { Sparkline } from '@/components/viz';
@@ -10,8 +10,8 @@ import { mean, peak } from './useOverviewHistory';
 
 interface ThroughputCardProps {
   status: Status;
-  up: number[];
-  down: number[];
+  up: Array<number | null>;
+  down: Array<number | null>;
   labels: string[];
   isMobile: boolean;
 }
@@ -27,34 +27,60 @@ export default function ThroughputCard({
   const { token } = theme.useToken();
   const accent = token.colorPrimary;
   const downColor = token.colorTextTertiary;
+  const available = status.metricAvailable('netIO');
 
   const referenceLines = useMemo(
-    () => [
-      { y: status.netIO.down, color: downColor, dash: '2 4' },
-      { y: status.netIO.up, color: accent, dash: '2 4' },
-    ],
-    [status.netIO.up, status.netIO.down, accent, downColor],
+    () =>
+      available
+        ? [
+            { y: status.netIO.down, color: downColor, dash: '2 4' },
+            { y: status.netIO.up, color: accent, dash: '2 4' },
+          ]
+        : [],
+    [available, status.netIO.up, status.netIO.down, accent, downColor],
   );
 
   return (
     <Card hoverable styles={{ body: { padding: 0 } }}>
       <div className="ov-wide-head">
         <div>
-          <div className="ov-kicker">{t('pages.index.overallSpeed')}</div>
+          <div className="ov-kicker ov-kicker-row">
+            <span>{t('pages.index.overallSpeed')}</span>
+            <Tooltip
+              title={t('pages.index.overallSpeedHint')}
+              trigger={['hover', 'focus', 'click']}
+            >
+              <button
+                type="button"
+                className="ov-kicker-hint"
+                aria-label={t('pages.index.overallSpeedHint')}
+              >
+                <InfoCircleOutlined aria-hidden />
+              </button>
+            </Tooltip>
+          </div>
           <div className="ov-sub">
-            {`${t('pages.index.throughputSub')} · ${t('pages.index.peak')} ${SizeFormatter.speedFormat(peak(down))}`}
+            {`${t('pages.index.throughputSub')} · ${t('pages.index.peak')} ${available ? SizeFormatter.speedFormat(peak(down)) : '—'}`}
           </div>
         </div>
         <div className="ov-wide-legend">
           <div className="ov-legend-label">
             <ArrowUpOutlined aria-hidden style={{ color: accent }} />
             {t('pages.index.upload')}
-            <span className="ov-legend-num">{SizeFormatter.speedFormat(status.netIO.up)}</span>
+            <span className="ov-legend-num">
+              {available
+                ? SizeFormatter.speedFormat(status.netIO.up)
+                : t('pages.index.unavailable')}
+            </span>
           </div>
           <div className="ov-legend-label">
             <ArrowDownOutlined aria-hidden style={{ color: downColor }} />
             {t('pages.index.download')}
-            <span className="ov-legend-num">{SizeFormatter.speedFormat(status.netIO.down)}</span>
+            <span className="ov-legend-num">
+              {available
+                ? SizeFormatter.speedFormat(status.netIO.down)
+                : t('pages.index.unavailable')}
+            </span>
           </div>
         </div>
       </div>
@@ -82,19 +108,29 @@ export default function ThroughputCard({
       <div className="ov-wide-foot">
         <div>
           <div className="ov-kicker">{t('pages.index.sent')}</div>
-          <div className="ov-foot-value">{SizeFormatter.sizeFormat(status.netTraffic.sent)}</div>
+          <div className="ov-foot-value">
+            {available ? SizeFormatter.sizeFormat(status.netTraffic.sent) : '—'}
+          </div>
         </div>
         <span className="ov-foot-sep" />
         <div>
           <div className="ov-kicker">{t('pages.index.received')}</div>
-          <div className="ov-foot-value">{SizeFormatter.sizeFormat(status.netTraffic.recv)}</div>
+          <div className="ov-foot-value">
+            {available ? SizeFormatter.sizeFormat(status.netTraffic.recv) : '—'}
+          </div>
         </div>
         <span className="ov-foot-sep" />
         <div>
           <div className="ov-kicker">{t('pages.index.avgWindow')}</div>
           <div className="ov-foot-value">
-            <span className="ov-foot-part">{`↑ ${SizeFormatter.speedFormat(mean(up))}`}</span>{' '}
-            <span className="ov-foot-part">{`↓ ${SizeFormatter.speedFormat(mean(down))}`}</span>
+            {available ? (
+              <>
+                <span className="ov-foot-part">{`↑ ${SizeFormatter.speedFormat(mean(up))}`}</span>{' '}
+                <span className="ov-foot-part">{`↓ ${SizeFormatter.speedFormat(mean(down))}`}</span>
+              </>
+            ) : (
+              '—'
+            )}
           </div>
         </div>
       </div>

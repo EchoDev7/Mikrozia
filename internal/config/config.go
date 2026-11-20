@@ -84,9 +84,18 @@ func GetBuildDate() string {
 	return strings.TrimSpace(buildDate)
 }
 
-// GetPanelVersion returns the release version displayed across the panel UI, API, and CLI.
+// FormatMikroziaVersion returns the product-facing release identity.
+func FormatMikroziaVersion(raw string) string {
+	if !releaseVersionPattern.MatchString(raw) {
+		return "Mikrozia dev"
+	}
+	version := strings.TrimSuffix(strings.TrimPrefix(raw, "v"), "-mikrozia")
+	return "Mikrozia v" + version
+}
+
+// GetPanelVersion returns the product-facing release identity used by UI, API, and CLI.
 func GetPanelVersion() string {
-	return GetMikroziaVersion()
+	return FormatMikroziaVersion(GetMikroziaVersion())
 }
 
 // GetLogLevel returns the current logging level based on environment variables or defaults to Info.

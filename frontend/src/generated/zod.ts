@@ -614,6 +614,22 @@ export const ClientsSummarySchema = z.object({
 });
 export type ClientsSummary = z.infer<typeof ClientsSummarySchema>;
 
+export const ClientsSummaryCountsSchema = z.object({
+  active: z.number().int(),
+  depleting: z.number().int(),
+  disabled: z.number().int(),
+  ended: z.number().int(),
+  online: z.number().int(),
+  total: z.number().int(),
+});
+export type ClientsSummaryCounts = z.infer<typeof ClientsSummaryCountsSchema>;
+
+export const ContainerMemorySchema = z.object({
+  limit: z.number().int().nullable().optional(),
+  used: z.number().int(),
+});
+export type ContainerMemory = z.infer<typeof ContainerMemorySchema>;
+
 export const FallbackParentInfoSchema = z.object({
   masterId: z.number().int(),
   path: z.string().optional(),
@@ -1067,6 +1083,25 @@ export const RealityScanResultSchema = z.object({
 });
 export type RealityScanResult = z.infer<typeof RealityScanResultSchema>;
 
+export const RouterOSAPIStatusSchema = z.object({
+  checkedAt: z.number().int(),
+  cpuAvg: z.number().nullable().optional(),
+  cpuCount: z.number().int().nullable().optional(),
+  cpuFrequencyMhz: z.number().int().nullable().optional(),
+  cpuHistory: z.array(z.number().int()),
+  cpuLoad: z.number().int().nullable().optional(),
+  cpuPeak: z.number().int().nullable().optional(),
+  memAvg: z.number().nullable().optional(),
+  memHistory: z.array(z.number()),
+  memPeak: z.number().nullable().optional(),
+  memPercent: z.number().nullable().optional(),
+  memTotal: z.number().int().nullable().optional(),
+  memUsed: z.number().int().nullable().optional(),
+  stale: z.boolean(),
+  state: z.string(),
+});
+export type RouterOSAPIStatus = z.infer<typeof RouterOSAPIStatusSchema>;
+
 export const ServerSettingsSchema = z.object({
   contentPaddingAddition: z.string().optional(),
   disableCookies: z.boolean(),
@@ -1155,6 +1190,16 @@ export const TgBotCapabilitiesSchema = z.object({
   username: z.string(),
 });
 export type TgBotCapabilities = z.infer<typeof TgBotCapabilitiesSchema>;
+
+export const TopInboundSchema = z.object({
+  enabled: z.boolean(),
+  id: z.number().int(),
+  port: z.number().int(),
+  protocol: z.string(),
+  remark: z.string(),
+  traffic: z.number().int(),
+});
+export type TopInbound = z.infer<typeof TopInboundSchema>;
 
 export const TrafficSchema = z.object({
   Down: z.number().int(),

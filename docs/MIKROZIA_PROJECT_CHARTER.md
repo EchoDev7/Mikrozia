@@ -45,20 +45,33 @@ ahead of data safety or RouterOS correctness.
 - The image must start without systemd and without assuming control of the host
   Linux kernel.
 
-### 3.2 Network ownership
+### 3.2 Network ownership and managed integration
 
-Mikrozia does not create, modify, or delete RouterOS:
+RouterOS policy remains operator-owned by default. An administrator may
+explicitly enable Managed RouterOS Integration and supply a dedicated RouterOS
+API account for a configured router. Only in that mode may Mikrozia create,
+update, or delete the RouterOS firewall and NAT objects required to expose an
+enabled Mikrozia inbound.
 
-- firewall filter rules;
-- NAT or masquerade rules;
-- port forwarding;
-- policy routing;
-- address lists;
-- access-control policy.
+Managed integration must meet all of these requirements:
 
-The RouterOS administrator owns those decisions. Mikrozia may document required
-ports and connectivity, validate reachability, and show warnings, but must not
-silently mutate network policy.
+- It is off until the administrator explicitly enables it in Mikrozia.
+- Every managed object carries a stable Mikrozia ownership marker and inbound
+  identifier; Mikrozia never adopts, edits, or deletes an unmarked object.
+- Inbound changes reconcile only the objects owned by that inbound. Deleting or
+  disabling an inbound removes or disables only its own managed objects.
+- Validation, conflict detection, ordered application, compensating rollback,
+  and an auditable result are required. A partial RouterOS failure must be
+  visible and recoverable, never reported as a successful save.
+- The RouterOS administrator retains the choice of endpoint, credentials,
+  service exposure, and permitted scope. Mikrozia never enables RouterOS API,
+  creates RouterOS users, opens WAN access, or changes unrelated policy merely
+  to establish integration.
+- Certificate issuance remains independent: HTTP-01 and DNS-01 do not create
+  or remove RouterOS policy automatically.
+
+Outside Managed RouterOS Integration, Mikrozia may document required ports,
+validate reachability, and show warnings but does not mutate network policy.
 
 ### 3.3 Persistent data
 
@@ -87,15 +100,15 @@ before destructive change.
 
 Evaluate inherited and proposed features with this sequence:
 
-| Finding                                                              | Decision                                                   |
-| -------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Works safely in RouterOS Container                                   | Keep it and add RouterOS coverage                          |
-| Works after a bounded adaptation                                     | Adapt it behind the platform contract                      |
-| Requires a host service that can be replaced in userspace            | Use the userspace design if it is stable and resource-safe |
-| Requires unavailable host-kernel control or privileged host mutation | Remove the complete feature slice                          |
-| Mutates firewall/NAT policy                                          | Keep policy outside Mikrozia; document inputs only         |
-| Duplicates another supported workflow                                | Keep one canonical workflow and remove the duplicate       |
-| Has no active UI/API/runtime consumer                                | Remove dead code, dependencies, docs, and tests            |
+| Finding                                                              | Decision                                                                                     |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Works safely in RouterOS Container                                   | Keep it and add RouterOS coverage                                                            |
+| Works after a bounded adaptation                                     | Adapt it behind the platform contract                                                        |
+| Requires a host service that can be replaced in userspace            | Use the userspace design if it is stable and resource-safe                                   |
+| Requires unavailable host-kernel control or privileged host mutation | Remove the complete feature slice                                                            |
+| Mutates firewall/NAT policy                                          | Allow only through explicit Managed RouterOS Integration, with scoped ownership and rollback |
+| Duplicates another supported workflow                                | Keep one canonical workflow and remove the duplicate                                         |
+| Has no active UI/API/runtime consumer                                | Remove dead code, dependencies, docs, and tests                                              |
 
 Do not remove a feature merely because it came from upstream. Do not retain a
 feature merely because upstream has it.
@@ -246,7 +259,9 @@ runtime services.
 
 These decisions are already accepted and must not be reversed accidentally:
 
-- RouterOS firewall and NAT remain user-managed.
+- RouterOS firewall and NAT are operator-owned by default. Explicit Managed
+  RouterOS Integration may reconcile only Mikrozia-owned inbound exposure
+  objects through the configured RouterOS API.
 - User IP-limit data is not silently cleared when host enforcement is absent.
 - Legacy panel self-update is not a supported runtime path.
 - Panel releases are versioned container images.

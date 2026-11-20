@@ -53,6 +53,7 @@ func NewClientController(g *gin.RouterGroup) *ClientController {
 func (a *ClientController) initRouter(g *gin.RouterGroup) {
 	g.GET("/list", a.list)
 	g.GET("/list/paged", a.listPaged)
+	g.GET("/summary", a.summary)
 	g.GET("/get/:email", a.get)
 	g.GET("/get/subId/:subId", a.getBySubId)
 	g.GET("/get/tgId/:tgId", a.getByTgId)
@@ -121,6 +122,15 @@ func (a *ClientController) listPaged(c *gin.Context) {
 		return
 	}
 	resp, err := a.clientService.ListPaged(&a.inboundService, &a.settingService, params)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.obtain"), err)
+		return
+	}
+	jsonObj(c, resp, nil)
+}
+
+func (a *ClientController) summary(c *gin.Context) {
+	resp, err := a.clientService.SummaryCounts(&a.inboundService, &a.settingService)
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.obtain"), err)
 		return

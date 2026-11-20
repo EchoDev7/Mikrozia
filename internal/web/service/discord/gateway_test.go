@@ -3,12 +3,14 @@ package discord
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -295,6 +297,7 @@ func TestGatewayRequestedHeartbeatDoesNotRaceTicker(t *testing.T) {
 
 	var once sync.Once
 	flooded := make(chan struct{})
+	stopServer := make(chan struct{})
 	upgrader := websocket.Upgrader{}
 	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -302,9 +305,6 @@ func TestGatewayRequestedHeartbeatDoesNotRaceTicker(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		// 10ms, not 1ms: Discord answers every heartbeat and the client now drops a
-		// socket it hears nothing back on, so the ACK needs room to arrive.
-		_ = conn.WriteJSON(GatewayPayload{Op: opHello, D: []byte(`{"heartbeat_interval": 10}`)})
 
 		// Two server goroutines write, so they share one writer: gorilla panics on
 		// concurrent writes, and this test is about the CLIENT's two writers.
@@ -315,39 +315,101 @@ func TestGatewayRequestedHeartbeatDoesNotRaceTicker(t *testing.T) {
 			return conn.WriteJSON(v)
 		}
 
+		// Use the same 50ms interval as gateway_heartbeat_ack_test.go so the client's
+		// ticker fires repeatedly during the test while leaving room for loopback ACKs.
+		if err := writeJSON(GatewayPayload{Op: opHello, D: []byte(`{"heartbeat_interval": 50}`)}); err != nil {
+			t.Errorf("server failed to send hello: %v", err)
+			once.Do(func() { close(flooded) })
+			return
+		}
+
+		// Wait for Identify before driving requested heartbeats so the client has
+		// started both its ticker goroutine and its read loop.
+		var ident GatewayPayload
+		if err := conn.ReadJSON(&ident); err != nil {
+			t.Errorf("server failed to read identify: %v", err)
+			once.Do(func() { close(flooded) })
+			return
+		}
+		if ident.Op != opIdentify {
+			t.Errorf("expected identify opcode %d, got %d", opIdentify, ident.Op)
+			once.Do(func() { close(flooded) })
+			return
+		}
+
 		readErr := make(chan error, 1)
+		gotHB := make(chan struct{}, 1)
+		readerDone := make(chan struct{})
+		var heartbeats atomic.Int64
 		go func() {
+			defer close(readerDone)
 			for {
 				var payload GatewayPayload
 				if err := conn.ReadJSON(&payload); err != nil {
-					readErr <- err
+					select {
+					case <-stopServer:
+					default:
+						readErr <- err
+					}
 					return
 				}
-				// Discord answers every heartbeat; without this the zombie check
-				// closes the socket a millisecond into the flood below.
-				if payload.Op == opHeartbeat {
-					if err := writeJSON(GatewayPayload{Op: opHeartbeatACK}); err != nil {
+				if payload.Op != opHeartbeat {
+					readErr <- fmt.Errorf("unexpected client opcode %d during heartbeat flood", payload.Op)
+					return
+				}
+				// Discord answers every heartbeat; replying before signaling gotHB
+				// keeps opHeartbeatACK ahead of the next requested heartbeat so the
+				// client's zombie detector never fires due to an unpaced TCP backlog.
+				if err := writeJSON(GatewayPayload{Op: opHeartbeatACK}); err != nil {
+					select {
+					case <-stopServer:
+					default:
 						readErr <- err
-						return
 					}
+					return
+				}
+				heartbeats.Add(1)
+				select {
+				case gotHB <- struct{}{}:
+				default:
 				}
 			}
 		}()
+
 		// Op 1 from the server makes the read loop write while the ticker writes too.
-		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
-			if err := writeJSON(GatewayPayload{Op: opHeartbeat}); err != nil {
+		// Pace each request on the client's reply so hundreds of read-loop writes
+		// overlap with multiple 50ms ticker ticks without saturating the TCP buffer.
+		minEnd := time.Now().Add(300 * time.Millisecond)
+		hardDeadline := time.Now().Add(4 * time.Second)
+		for time.Now().Before(minEnd) || heartbeats.Load() < 50 {
+			if time.Now().After(hardDeadline) {
+				t.Errorf("timed out after %d heartbeats", heartbeats.Load())
 				break
 			}
-			// Leave the client room to drain the flood and answer: a saturated
-			// socket delays the ACK this test now depends on.
-			time.Sleep(time.Millisecond)
+			if err := writeJSON(GatewayPayload{Op: opHeartbeat}); err != nil {
+				t.Errorf("server failed to request heartbeat: %v", err)
+				break
+			}
+			select {
+			case err := <-readErr:
+				t.Errorf("server read a broken client frame during the flood: %v", err)
+				goto done
+			case <-gotHB:
+			case <-time.After(time.Second):
+				t.Errorf("timed out waiting for client heartbeat reply after %d heartbeats", heartbeats.Load())
+				goto done
+			}
 		}
 		select {
 		case err := <-readErr:
 			t.Errorf("server read a broken client frame during the flood: %v", err)
 		default:
 		}
+	done:
 		once.Do(func() { close(flooded) })
+		<-stopServer
+		_ = conn.Close()
+		<-readerDone
 	}))
 	defer wsServer.Close()
 
@@ -358,7 +420,10 @@ func TestGatewayRequestedHeartbeatDoesNotRaceTicker(t *testing.T) {
 	if err := gw.Start(ctx); err != nil {
 		t.Fatalf("gw.Start failed: %v", err)
 	}
-	defer gw.Stop()
+	defer func() {
+		close(stopServer)
+		gw.Stop()
+	}()
 
 	select {
 	case <-flooded:

@@ -119,25 +119,25 @@ func (lw *LogWriter) processLineLocked(line string) {
 
 		if strings.Contains(msgBodyLower, "tls handshake error") ||
 			strings.Contains(msgBodyLower, "connection ends") {
-			logger.Debug("XRAY: " + msgBody)
+			logger.XrayDebug(msgBody)
 			lw.lastLine = ""
 			return
 		}
 
 		if strings.Contains(msgBodyLower, "failed") {
-			logger.Error("XRAY: " + msgBody)
+			logger.XrayError(msgBody)
 		} else {
 			switch level {
 			case "Debug":
-				logger.Debug("XRAY: " + msgBody)
+				logger.XrayDebug(msgBody)
 			case "Info":
-				logger.Info("XRAY: " + msgBody)
+				logger.XrayInfo(msgBody)
 			case "Warning":
-				logger.Warning("XRAY: " + msgBody)
+				logger.XrayWarning(msgBody)
 			case "Error":
-				logger.Error("XRAY: " + msgBody)
+				logger.XrayError(msgBody)
 			default:
-				logger.Debug("XRAY: " + msg)
+				logger.XrayDebug(msg)
 			}
 		}
 		lw.lastLine = ""
@@ -146,15 +146,15 @@ func (lw *LogWriter) processLineLocked(line string) {
 
 	if strings.Contains(msgLower, "tls handshake error") ||
 		strings.Contains(msgLower, "connection ends") {
-		logger.Debug("XRAY: " + msg)
+		logger.XrayDebug(msg)
 		lw.lastLine = msg
 		return
 	}
 
 	if strings.Contains(msgLower, "failed") {
-		logger.Error("XRAY: " + msg)
+		logger.XrayError(msg)
 	} else {
-		logger.Debug("XRAY: " + msg)
+		logger.XrayDebug(msg)
 	}
 	lw.lastLine = msg
 }

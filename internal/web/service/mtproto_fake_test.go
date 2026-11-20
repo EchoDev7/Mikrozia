@@ -124,27 +124,36 @@ func waitFakeMtgLog(t *testing.T, logPath, want string) {
 	}
 }
 
-// installFakeMtg points the mtproto manager at a copy of the running test
-// binary posing as mtg (via the MTG_FAKE_CHILD gate in TestMain) and returns
-// the pid file whose line count equals the number of processes spawned so far.
+// installFakeMtg points the mtproto manager at the running test binary posing
+// as mtg (via the MTG_FAKE_CHILD gate in TestMain) and returns the pid file
+// whose line count equals the number of processes spawned so far.
 func installFakeMtg(t *testing.T) string {
 	t.Helper()
+	mtproto.GetManager().StopAll()
 	binDir := t.TempDir()
 	self, err := os.Executable()
 	if err != nil {
 		t.Fatalf("locate test binary: %v", err)
 	}
-	payload, err := os.ReadFile(self)
-	if err != nil {
-		t.Fatalf("read test binary: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(binDir, mtproto.GetBinaryName()), payload, 0o755); err != nil {
-		t.Fatalf("install fake mtg: %v", err)
+	dst := filepath.Join(binDir, mtproto.GetBinaryName())
+	// Symlink avoids copying and re-validating the entire test binary on every
+	// test run under parallel `go test ./...` load while preserving argv[0].
+	if err := os.Symlink(self, dst); err != nil {
+		payload, readErr := os.ReadFile(self)
+		if readErr != nil {
+			t.Fatalf("read test binary: %v", readErr)
+		}
+		if writeErr := os.WriteFile(dst, payload, 0o755); writeErr != nil {
+			t.Fatalf("install fake mtg: %v", writeErr)
+		}
 	}
 	pidFile := filepath.Join(binDir, "mtg-pids.txt")
 	t.Setenv("XUI_BIN_FOLDER", binDir)
 	t.Setenv("MTG_FAKE_CHILD", "1")
 	t.Setenv("MTG_FAKE_PIDFILE", pidFile)
+	// Registered after t.Setenv/t.TempDir so LIFO cleanup stops sidecars before
+	// XUI_BIN_FOLDER and binDir are torn down.
+	t.Cleanup(mtproto.GetManager().StopAll)
 	return pidFile
 }
 

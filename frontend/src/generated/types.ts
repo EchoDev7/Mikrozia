@@ -580,6 +580,20 @@ export interface ClientsSummary {
   total: number;
 }
 
+export interface ClientsSummaryCounts {
+  active: number;
+  depleting: number;
+  disabled: number;
+  ended: number;
+  online: number;
+  total: number;
+}
+
+export interface ContainerMemory {
+  limit?: number | null;
+  used: number;
+}
+
 export interface FallbackParentInfo {
   masterId: number;
   path?: string;
@@ -1003,6 +1017,24 @@ export interface RealityScanResult {
   x25519: boolean;
 }
 
+export interface RouterOSAPIStatus {
+  checkedAt: number;
+  cpuAvg?: number | null;
+  cpuCount?: number | null;
+  cpuFrequencyMhz?: number | null;
+  cpuHistory: number[];
+  cpuLoad?: number | null;
+  cpuPeak?: number | null;
+  memAvg?: number | null;
+  memHistory: number[];
+  memPeak?: number | null;
+  memPercent?: number | null;
+  memTotal?: number | null;
+  memUsed?: number | null;
+  stale: boolean;
+  state: string;
+}
+
 export interface ServerSettings {
   contentPaddingAddition?: string;
   disableCookies: boolean;
@@ -1084,6 +1116,15 @@ export interface TgBotCapabilities {
   inlineEnabled: boolean;
   running: boolean;
   username: string;
+}
+
+export interface TopInbound {
+  enabled: boolean;
+  id: number;
+  port: number;
+  protocol: string;
+  remark: string;
+  traffic: number;
 }
 
 export interface Traffic {

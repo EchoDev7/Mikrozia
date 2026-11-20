@@ -1,5 +1,6 @@
 import { NumberFormatter } from '@/utils';
 import type { StatusInput as ParsedStatusInput } from '@/schemas/status';
+import type { ContainerMemory } from '@/generated/types';
 
 export const USAGE_WARN_PERCENT = 80;
 export const USAGE_CRIT_PERCENT = 90;
@@ -75,6 +76,7 @@ interface StatusInput extends Pick<ParsedStatusInput, 'resourceScope' | 'unavail
   disk?: { current?: number; total?: number };
   loads?: number[];
   mem?: { current?: number; total?: number };
+  containerMem?: ContainerMemory | null;
   netIO?: NetIO;
   netTraffic?: NetTraffic;
   publicIP?: PublicIP;
@@ -103,6 +105,7 @@ export class Status {
   disk: CurTotal = new CurTotal(0, 0);
   loads: number[] = [0, 0, 0];
   mem: CurTotal = new CurTotal(0, 0);
+  containerMem: ContainerMemory | null = null;
   netIO: NetIO = { up: 0, down: 0 };
   netTraffic: NetTraffic = { sent: 0, recv: 0 };
   publicIP: PublicIP = { ipv4: 0, ipv6: 0 };
@@ -127,6 +130,7 @@ export class Status {
     this.disk = new CurTotal(data.disk?.current ?? 0, data.disk?.total ?? 0);
     this.loads = (data.loads || [0, 0, 0]).map((v) => NumberFormatter.toFixed(v, 2));
     this.mem = new CurTotal(data.mem?.current ?? 0, data.mem?.total ?? 0);
+    this.containerMem = data.containerMem ?? null;
     this.netIO = data.netIO ?? this.netIO;
     this.netTraffic = data.netTraffic ?? this.netTraffic;
     this.publicIP = data.publicIP ?? this.publicIP;

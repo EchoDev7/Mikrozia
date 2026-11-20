@@ -36,8 +36,9 @@ func (r *LXCReader) roots() (string, string) {
 }
 
 type lxcMounts struct {
-	sources    map[string]bool
-	cgroupRoot bool
+	sources        map[string]bool
+	cgroupRoot     bool
+	cgroupV1Memory bool
 }
 
 func (r *LXCReader) detect() (lxcMounts, error) {
@@ -60,6 +61,9 @@ func (r *LXCReader) detect() (lxcMounts, error) {
 		valid = true
 		if fs[0] == "cgroup2" && mount[3] == "/" && mount[4] == cg {
 			mounts.cgroupRoot = true
+		}
+		if fs[0] == "cgroup" && mount[3] == "/" && mount[4] == filepath.Join(cg, "memory") {
+			mounts.cgroupV1Memory = true
 		}
 		if fs[0] == "fuse.lxcfs" {
 			switch mount[4] {
@@ -135,24 +139,30 @@ func (r *LXCReader) Read(now time.Time) (*LXCStats, error) {
 	if !mounts.sources["/proc/cpuinfo"] || !mounts.cgroupRoot || !containerInitAtRoot(proc) {
 		r.resetCPU()
 		out.Unavailable = append(out.Unavailable, "cpu")
-		return out, nil
-	}
-	capacity, cpus, err := r.cpuCapacity(proc, cg)
-	out.CPUs = cpus
-	usage, usageErr := readUsage(filepath.Join(cg, "cpu.stat"))
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if err != nil || usageErr != nil {
-		r.sampled = false
-		out.Unavailable = append(out.Unavailable, "cpu")
 	} else {
-		elapsed := now.Sub(r.lastAt).Seconds()
-		if r.sampled && elapsed > 0 && usage >= r.lastCPU && capacity == r.lastCapacity {
-			out.CPU = math.Min(100, float64(usage-r.lastCPU)/1e6/elapsed/capacity*100)
-		} else {
+		capacity, cpus, err := r.cpuCapacity(proc, cg)
+		out.CPUs = cpus
+		usage, usageErr := readUsage(filepath.Join(cg, "cpu.stat"))
+		r.mu.Lock()
+		if err != nil || usageErr != nil {
+			r.sampled = false
 			out.Unavailable = append(out.Unavailable, "cpu")
+		} else {
+			elapsed := now.Sub(r.lastAt).Seconds()
+			if r.sampled && elapsed > 0 && usage >= r.lastCPU && capacity == r.lastCapacity {
+				out.CPU = math.Min(100, float64(usage-r.lastCPU)/1e6/elapsed/capacity*100)
+			} else {
+				out.Unavailable = append(out.Unavailable, "cpu")
+			}
+			r.lastCPU, r.lastAt, r.lastCapacity, r.sampled = usage, now, capacity, true
 		}
-		r.lastCPU, r.lastAt, r.lastCapacity, r.sampled = usage, now, capacity, true
+		r.mu.Unlock()
+	}
+
+	if cm := readContainerMemory(proc, cg, mounts.cgroupRoot, mounts.cgroupV1Memory, containerInitAtRoot(proc)); cm != nil {
+		out.ContainerMem = cm
+	} else {
+		out.Unavailable = append(out.Unavailable, "containerMem")
 	}
 	return out, nil
 }

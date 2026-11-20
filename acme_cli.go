@@ -12,12 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/mhsanaei/3x-ui/v3/internal/acme"
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/global"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"golang.org/x/term"
 )
 
 // acmeUsage prints the help of the "x-ui acme" command group.

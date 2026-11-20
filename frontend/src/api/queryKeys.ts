@@ -2,6 +2,7 @@ export const keys = {
   sponsors: () => ['sponsors'] as const,
   server: {
     status: () => ['server', 'status'] as const,
+    routerOSStatus: () => ['server', 'routerOSStatus'] as const,
   },
   nodes: {
     root: () => ['nodes'] as const,
@@ -28,10 +29,12 @@ export const keys = {
     root: () => ['inbounds'] as const,
     slim: () => ['inbounds', 'slim'] as const,
     options: () => ['inbounds', 'options'] as const,
+    top: () => ['inbounds', 'top'] as const,
   },
   clients: {
     root: () => ['clients'] as const,
     list: (params: unknown) => ['clients', 'list', params] as const,
+    summary: () => ['clients', 'summary'] as const,
     all: () => ['clients', 'all'] as const,
     onlines: () => ['clients', 'onlines'] as const,
     onlinesByGuid: () => ['clients', 'onlinesByGuid'] as const,

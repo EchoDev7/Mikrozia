@@ -14,9 +14,28 @@
 }
 
 .history-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 12px;
   font-size: 14px;
   font-weight: 600;
+  color: var(--ant-color-text);
+}
+
+.history-chart-hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ant-color-text-secondary);
+  cursor: help;
+  font-size: 14px;
+}
+
+.history-chart-hint:hover,
+.history-chart-hint:focus-visible {
   color: var(--ant-color-text);
 }
 

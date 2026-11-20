@@ -16,8 +16,10 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/web/network"
 )
 
-var certificateHookMu sync.RWMutex
-var certificateHook func() error
+var (
+	certificateHookMu sync.RWMutex
+	certificateHook   func() error
+)
 
 func SetCertificateReloadHook(fn func() error) {
 	certificateHookMu.Lock()
@@ -46,7 +48,7 @@ func ServeCertificateReload() (func(), error) {
 		if info.Mode()&os.ModeSocket == 0 {
 			return nil, errors.New("certificate reload path is not a socket")
 		}
-		probe, err := net.DialTimeout("unix", path, time.Second)
+		probe, err := (&net.Dialer{Timeout: time.Second}).DialContext(context.Background(), "unix", path)
 		if err == nil {
 			_ = probe.Close()
 			return nil, errors.New("certificate reload socket is already active")

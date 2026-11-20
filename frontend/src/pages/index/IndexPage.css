@@ -175,15 +175,37 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.ov-kicker-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ov-kicker-hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ov-label);
+  cursor: help;
+  font-size: 12px;
+}
+
+.ov-kicker-hint:hover,
+.ov-kicker-hint:focus-visible {
+  color: var(--ant-color-text);
+}
+
 /* — vitals tiles — */
 
 .ov-vitals {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--ov-gap);
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .ov-vitals {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -239,6 +261,31 @@
   color: var(--ov-label);
 }
 
+.ov-tile-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px var(--ov-pad) 0;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.ov-tile-sub-label {
+  color: var(--ov-label);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-tile-sub-val {
+  flex: none;
+  font-weight: 600;
+  color: var(--ant-color-text);
+  font-variant-numeric: tabular-nums;
+}
+
 .ov-tile-foot {
   display: flex;
   justify-content: space-between;
@@ -252,6 +299,116 @@
 
 .ov-tile-chart {
   margin-top: 6px;
+}
+
+.ov-clients-unavailable {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 34px;
+  color: var(--ov-label);
+}
+
+.ov-clients-list {
+  display: grid;
+  gap: 5px;
+  padding: 10px var(--ov-pad) 12px;
+}
+
+.ov-clients-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ov-label);
+}
+
+.ov-clients-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ov-clients-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ov-clients-val {
+  font-weight: 600;
+  color: var(--ant-color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-top-inbounds-list {
+  display: grid;
+  gap: 6px;
+  padding: 12px var(--ov-pad) 14px;
+}
+
+.ov-top-inbounds-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ov-top-inbounds-placeholder {
+  color: var(--ov-faint);
+}
+
+.ov-top-inbounds-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ov-top-inbounds-rank {
+  width: 14px;
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ov-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-top-inbounds-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ant-color-text);
+}
+
+.ov-top-inbounds-disabled {
+  flex: none;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--ov-line);
+  color: var(--ov-faint);
+}
+
+.ov-top-inbounds-traffic {
+  flex: none;
+  font-weight: 600;
+  color: var(--ant-color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ov-top-inbounds-empty {
+  padding: 16px var(--ov-pad);
+  font-size: 12px;
+  color: var(--ov-label);
 }
 
 /* — throughput + connections — */
@@ -380,21 +537,15 @@
 /* — system strip — */
 
 /* tracks follow SystemStrip's cell order:
-   uptime (xray | os) · panel (memory | threads) · ip addresses */
+   uptime (xray | ct/os) · ip addresses */
 .ov-strip-grid {
   display: grid;
-  grid-template-columns: minmax(max-content, 1.2fr) minmax(max-content, 1.2fr) minmax(0, 1.6fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 1.5fr);
   gap: 16px;
   padding: var(--ov-pad);
 }
 
 @media (max-width: 1439px) {
-  .ov-strip-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1100px) {
   .ov-strip-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -406,7 +557,7 @@
   }
 }
 
-@media (min-width: 1440px) {
+@media (min-width: 561px) {
   .ov-strip-cell + .ov-strip-cell {
     border-inline-start: 1px solid var(--ov-line);
     padding-inline-start: 16px;

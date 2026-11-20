@@ -6,6 +6,25 @@ icon: Variable
 
 Mikrozia 从环境变量中读取运行时配置。在 RouterOS Container 上，请通过 `/container/envs` 定义变量并将其 `envlist` 挂载到容器；本地开发使用 Docker 时，可在 `docker-compose.yml` 或 `docker run -e` 中设置。更改环境变量后，请使用相同的持久挂载（`/etc/x-ui` 与 `/root/cert`）重建容器。
 
+## RouterOS API 状态与遥测
+
+仪表板可以通过容器与路由器之间的内部网络，仅在 TCP/8728 上执行只读的原生
+RouterOS API 查询。这些变量为可选项：要么全部设置，要么全部不设置；部分
+配置无效。Mikrozia 不会启用 API 服务、创建用户或更改路由器设置。
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MIKROZIA_ROUTEROS_API_HOST` | — | RouterOS API 的私有字面 IPv4/IPv6 地址（不接受主机名、zone、回环或链路本地地址）。 |
+| `MIKROZIA_ROUTEROS_API_USERNAME` | — | 专用只读 RouterOS API 帐户名（仅需 `read,api` 权限）。 |
+| `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API 帐户密码。 |
+
+请使用占位值，例如 `172.16.10.1`、`<READ_ONLY_API_USER>` 和
+`<SET_A_SECRET_VALUE>`。密码仅在探测时保留于进程内存，不写入数据库，也不会由
+面板 API 返回。RouterOS `/container/envs` 对路由器管理员可见，并非秘密存储。
+该集成每 15 秒轮询一次 `/system/resource/print`（`uptime`、`cpu-load`、
+`cpu-count`、`cpu-frequency`、`total-memory`、`free-memory`），超时为 4 秒，
+陈旧阈值为 30 秒；RouterOS 容器日志读取与 VETH 遥测仍为延后事项。
+
 ## 管理员凭据
 
 容器环境是面板管理员账号的**权威来源**。既没有固定的 `admin/admin` 默认值，也没有生成一次的首次登录密码。

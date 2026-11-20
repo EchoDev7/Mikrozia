@@ -24,6 +24,14 @@ describe('parseLogLine — application log format', () => {
     expect(r.body).toBe('core: Xray 26.6.1 started');
   });
 
+  it('uses an explicit defaultService when XRAY prefix was stripped', () => {
+    const r = parseLogLine('2026/06/09 00:35:09 WARNING - core: Xray 26.6.1 started', 'XRAY:');
+    expect(r.levelText).toBe('WARNING');
+    expect(r.levelClass).toBe('level-warning');
+    expect(r.service).toBe('XRAY:');
+    expect(r.body).toBe('core: Xray 26.6.1 started');
+  });
+
   it('maps ERROR level to level-error', () => {
     const r = parseLogLine('2026/06/09 00:35:09 ERROR - bind failed');
     expect(r.levelText).toBe('ERROR');

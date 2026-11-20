@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import LogModal from '@/pages/index/LogModal';
@@ -12,11 +12,20 @@ afterEach(() => {
 });
 
 describe('LogModal', () => {
-  it('removes SysLog checkbox, posts only level, and shows RouterOS container guidance', async () => {
-    const postSpy = vi.spyOn(HttpUtil, 'post').mockResolvedValue({
-      success: true,
-      msg: '',
-      obj: ['2026/06/09 00:35:09 INFO - panel started'],
+  it('loads only Panel logs initially and keeps RouterOS Container guidance truthful', async () => {
+    const postSpy = vi.spyOn(HttpUtil, 'post').mockImplementation(async (url) => {
+      if (url.includes('xrayRuntimeLogs')) {
+        return {
+          success: true,
+          msg: '',
+          obj: ['2026/06/09 00:35:09 WARNING - core: Xray 26.6.1 started'],
+        };
+      }
+      return {
+        success: true,
+        msg: '',
+        obj: ['2026/06/09 00:35:09 INFO - panel started'],
+      };
     });
 
     renderWithProviders(<LogModal open onClose={() => {}} />);
@@ -29,20 +38,34 @@ describe('LogModal', () => {
     expect(screen.queryByText('SysLog')).toBeNull();
     expect(screen.queryByRole('checkbox', { name: /syslog/i })).toBeNull();
 
-    expect(screen.getByText('RouterOS Container Logs (stdout/stderr)')).toBeDefined();
     expect(
-      screen.getByText(
-        /Mikrozia does not run these commands or change RouterOS logging automatically\./,
+      screen.getByText('Only in-memory Mikrozia panel application entries are shown.'),
+    ).toBeDefined();
+    expect(screen.getByText('X-UI:')).toBeDefined();
+    expect(screen.queryByText(/stdout\/stderr/)).toBeNull();
+    expect(screen.queryByText(/\/container\/set/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'RouterOS Container' }));
+    expect(
+      await screen.findByText(/no stable configured identity for the Mikrozia container/i),
+    ).toBeDefined();
+    expect(postSpy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Xray' }));
+    expect(await screen.findByText('Xray Runtime Logs')).toBeDefined();
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenCalledWith('/panel/api/server/xrayRuntimeLogs/20', {
+        level: 'info',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        'This tab shows in-memory Xray engine runtime messages. It is different from Xray Access Logs, which record proxy traffic.',
       ),
     ).toBeDefined();
-
-    const setCmd =
-      '/container/set [find where comment="[Mikrozia:container] Container"] logging=yes';
-    const printCmd = '/log/print follow-only where topics~"container"';
-    const pre = screen.getByText((_, node) => node?.tagName === 'PRE');
-    expect(pre.getAttribute('dir')).toBe('ltr');
-    expect(pre.textContent).toContain(setCmd);
-    expect(pre.textContent).toContain(printCmd);
+    expect(screen.queryByText(/Access logs may record client source IP addresses/i)).toBeNull();
+    expect(await screen.findByText('XRAY:')).toBeDefined();
+    expect(screen.queryByText('X-UI:')).toBeNull();
   });
 });
 

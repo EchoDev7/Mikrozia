@@ -1,16 +1,23 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfigProvider, Layout, Modal, Result, Spin, message } from 'antd';
+import { Alert, Button, ConfigProvider, Layout, Modal, Result, Spin, message } from 'antd';
 import {
   CopyOutlined,
   CloudDownloadOutlined,
   DashboardOutlined,
   DatabaseOutlined,
   HddOutlined,
-  SwapOutlined,
 } from '@ant-design/icons';
 
-import { HttpUtil, CPUFormatter, SizeFormatter, ClipboardManager, FileManager } from '@/utils';
+import {
+  HttpUtil,
+  CPUFormatter,
+  SizeFormatter,
+  ClipboardManager,
+  FileManager,
+  PromiseUtil,
+} from '@/utils';
+import { withBasePath } from '@/api/http-init';
 import {
   USAGE_CRIT_COLOR,
   USAGE_CRIT_PERCENT,
@@ -19,6 +26,9 @@ import {
 } from '@/models/status';
 import { useTheme } from '@/hooks/useTheme';
 import { useStatusQuery } from '@/api/queries/useStatusQuery';
+import { useRouterOSAPIStatus } from '@/api/queries/useRouterOSAPIStatus';
+import { useClientsSummary } from '@/api/queries/useClientsSummary';
+import { useTopInbounds } from '@/api/queries/useTopInbounds';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import AppSidebar from '@/layouts/AppSidebar';
 import { LazyMount } from '@/components/utility';
@@ -26,10 +36,12 @@ import SponsorSlot from '@/components/sponsor/SponsorSlot';
 import { setMessageInstance } from '@/utils/messageBus';
 import OverviewActionBar from './OverviewActionBar';
 import VitalTile from './VitalTile';
+import ClientsSummaryTile from './ClientsSummaryTile';
+import TopInboundsTile from './TopInboundsTile';
 import ThroughputCard from './ThroughputCard';
 import ConnectionsCard from './ConnectionsCard';
 import SystemStrip from './SystemStrip';
-import { mean, peak, useOverviewHistory } from './useOverviewHistory';
+import { mean, useOverviewHistory } from './useOverviewHistory';
 import type { PanelUpdateInfo } from '@/generated/types';
 const JsonEditor = lazy(() => import('@/components/form/JsonEditor'));
 const LogModal = lazy(() => import('./LogModal'));
@@ -44,6 +56,7 @@ export default function IndexPage() {
   const { t } = useTranslation();
   const { isDark, isUltra, antdThemeConfig } = useTheme();
   const { status, fetched, fetchError, refresh } = useStatusQuery();
+  const routerOSAPIStatus = useRouterOSAPIStatus();
   const { isMobile } = useMediaQuery();
   const [messageApi, messageContextHolder] = message.useMessage();
   useEffect(() => {
@@ -73,6 +86,8 @@ export default function IndexPage() {
   const [loadingTip, setLoadingTip] = useState(t('loading'));
 
   const history = useOverviewHistory(status, fetched && !fetchError);
+  const clientsSummary = useClientsSummary(fetched && !fetchError);
+  const topInbounds = useTopInbounds(fetched && !fetchError);
 
   useEffect(() => {
     HttpUtil.post<{ accessLogEnable?: boolean }>('/panel/api/setting/defaultSettings').then(
@@ -107,6 +122,31 @@ export default function IndexPage() {
     await refresh();
   }, [refresh]);
 
+  const restartPanel = useCallback(async () => {
+    try {
+      const token = await HttpUtil.get<string>('/csrf-token', undefined, { silent: true });
+      if (!token?.success || typeof token.obj !== 'string' || !token.obj) {
+        throw new Error('Missing CSRF token');
+      }
+      // The shared POST helper can replay a 403; this operation must only be sent once.
+      const response = await fetch(withBasePath('/panel/api/setting/restartPanel'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        redirect: 'error',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': token.obj },
+      });
+      if (!response.ok || (await response.json())?.success !== true) {
+        throw new Error('Panel restart was not accepted');
+      }
+    } catch {
+      messageApi.error(t('somethingWentWrong'));
+      return;
+    }
+    messageApi.success(t('pages.index.restartPanelRequested'));
+    await PromiseUtil.sleep(5000);
+    window.location.reload();
+  }, [messageApi, t]);
+
   async function openConfig() {
     setLoading(true);
     try {
@@ -136,7 +176,6 @@ export default function IndexPage() {
     const items = [
       { name: t('pages.index.cpu'), value: status.cpu.percent },
       { name: t('pages.index.memory'), value: status.mem.percent },
-      { name: t('pages.index.swap'), value: status.swap.percent },
       { name: t('pages.index.storage'), value: status.disk.percent },
     ];
     const list = (xs: typeof items) => xs.map((i) => `${i.name} ${i.value.toFixed(0)}%`).join(', ');
@@ -186,8 +225,12 @@ export default function IndexPage() {
                     isMobile={isMobile}
                     accessLogEnable={accessLogEnable}
                     panelVersion={displayVersion}
+                    routerOSStatus={
+                      routerOSAPIStatus.data ?? { state: 'connecting', checkedAt: 0, stale: false }
+                    }
                     onStopXray={stopXray}
                     onRestartXray={restartXray}
+                    onRestartPanel={restartPanel}
                     onOpenLogs={() => setLogsOpen(true)}
                     onOpenXrayLogs={() => setXrayLogsOpen(true)}
                     onOpenAmneziaWGLogs={() => setAmneziawgLogsOpen(true)}
@@ -209,44 +252,138 @@ export default function IndexPage() {
                   <hr className="ov-rule" />
 
                   <div className="ov-vitals">
-                    <VitalTile
-                      icon={<DashboardOutlined aria-hidden />}
-                      label={t('pages.index.cpu')}
-                      available={status.metricAvailable('cpu')}
-                      percent={status.cpu.percent}
-                      statusColor={status.cpu.color}
-                      detail={
-                        status.resourceScope === 'container'
-                          ? `${status.logicalPro} vCPU`
-                          : `${CPUFormatter.cpuCoreFormat(status.cpuCores)} / ${status.logicalPro}T · ${CPUFormatter.cpuSpeedFormat(status.cpuSpeedMhz)}`
-                      }
-                      footLeft={`${t('pages.index.avg')} ${mean(history.series.cpu).toFixed(0)}%`}
-                      footRight={`${t('pages.index.peak')} ${peak(history.series.cpu).toFixed(0)}%`}
-                      data={history.series.cpu}
-                      isMobile={isMobile}
+                    {(() => {
+                      const ros = routerOSAPIStatus.data;
+                      const rosValid =
+                        !routerOSAPIStatus.isError &&
+                        ros?.state === 'connected' &&
+                        ros.cpuLoad != null;
+                      const rosLoad = rosValid ? (ros.cpuLoad as number) : 0;
+                      const rosColor =
+                        rosLoad >= USAGE_CRIT_PERCENT
+                          ? USAGE_CRIT_COLOR
+                          : rosLoad >= USAGE_WARN_PERCENT
+                            ? USAGE_WARN_COLOR
+                            : '#1677ff';
+                      const rosUnavailableText = routerOSAPIStatus.isError
+                        ? t('pages.index.unavailable')
+                        : !ros || ros.state === 'connecting'
+                          ? undefined
+                          : ros.state === 'not_configured'
+                            ? t('pages.index.routerosApiNotConfigured')
+                            : t('pages.index.unavailable');
+                      const rosDetail =
+                        rosValid && ros.cpuCount != null && ros.cpuCount > 0
+                          ? ros.cpuFrequencyMhz != null && ros.cpuFrequencyMhz > 0
+                            ? `${t('pages.index.logicalCpus', { cpus: ros.cpuCount })} · ${CPUFormatter.cpuSpeedFormat(ros.cpuFrequencyMhz)}`
+                            : t('pages.index.logicalCpus', { cpus: ros.cpuCount })
+                          : '—';
+                      const rosFootLeft =
+                        rosValid && ros.cpuAvg != null
+                          ? `${t('pages.index.avg')} ${ros.cpuAvg.toFixed(0)}%`
+                          : '—';
+                      const rosFootRight =
+                        rosValid && ros.cpuPeak != null
+                          ? `${t('pages.index.peak')} ${ros.cpuPeak}%`
+                          : '—';
+                      const rosSeries = rosValid ? (ros.cpuHistory ?? []) : [];
+                      const containerCpuValue =
+                        status.resourceScope === 'container' && status.metricAvailable('cpu')
+                          ? `${status.cpu.percent.toFixed(1)}%`
+                          : '—';
+
+                      return (
+                        <VitalTile
+                          icon={<DashboardOutlined aria-hidden />}
+                          label={t('pages.index.cpu')}
+                          available={rosValid}
+                          unavailableText={rosUnavailableText}
+                          stale={rosValid && Boolean(ros.stale)}
+                          staleLabel={t('pages.index.stale')}
+                          secondaryLabel={t('pages.index.container')}
+                          secondaryValue={containerCpuValue}
+                          percent={rosLoad}
+                          statusColor={rosColor}
+                          detail={rosDetail}
+                          footLeft={rosFootLeft}
+                          footRight={rosFootRight}
+                          data={rosSeries}
+                          isMobile={isMobile}
+                        />
+                      );
+                    })()}
+                    {(() => {
+                      const ros = routerOSAPIStatus.data;
+                      const rosMemValid =
+                        !routerOSAPIStatus.isError &&
+                        ros?.state === 'connected' &&
+                        ros.memPercent != null &&
+                        ros.memUsed != null &&
+                        ros.memTotal != null &&
+                        ros.memTotal > 0;
+                      const rosMemPct = rosMemValid ? (ros.memPercent as number) : 0;
+                      const rosMemColor =
+                        rosMemPct >= USAGE_CRIT_PERCENT
+                          ? USAGE_CRIT_COLOR
+                          : rosMemPct >= USAGE_WARN_PERCENT
+                            ? USAGE_WARN_COLOR
+                            : '#1677ff';
+                      const rosMemUnavailableText = routerOSAPIStatus.isError
+                        ? t('pages.index.unavailable')
+                        : !ros || ros.state === 'connecting'
+                          ? undefined
+                          : ros.state === 'not_configured'
+                            ? t('pages.index.routerosApiNotConfigured')
+                            : t('pages.index.unavailable');
+                      const rosMemDetail = rosMemValid
+                        ? `${SizeFormatter.sizeFormat(ros.memUsed)} / ${SizeFormatter.sizeFormat(ros.memTotal)}`
+                        : '—';
+                      const rosMemFootLeft =
+                        rosMemValid && ros.memAvg != null
+                          ? `${t('pages.index.avg')} ${ros.memAvg.toFixed(0)}%`
+                          : '—';
+                      const rosMemFootRight =
+                        rosMemValid && ros.memPeak != null
+                          ? `${t('pages.index.peak')} ${ros.memPeak.toFixed(0)}%`
+                          : '—';
+                      const rosMemSeries = rosMemValid ? (ros.memHistory ?? []) : [];
+                      const cm = status.containerMem;
+                      const containerRamValue =
+                        cm != null
+                          ? cm.limit != null && cm.limit > 0
+                            ? `${SizeFormatter.sizeFormat(cm.used)} / ${SizeFormatter.sizeFormat(cm.limit)}`
+                            : `${SizeFormatter.sizeFormat(cm.used)} · ${t('pages.index.noLimit')}`
+                          : '—';
+
+                      return (
+                        <VitalTile
+                          icon={<DatabaseOutlined aria-hidden />}
+                          label={t('pages.index.memory')}
+                          available={rosMemValid}
+                          unavailableText={rosMemUnavailableText}
+                          stale={rosMemValid && Boolean(ros.stale)}
+                          staleLabel={t('pages.index.stale')}
+                          secondaryLabel={t('pages.index.container')}
+                          secondaryValue={containerRamValue}
+                          percent={rosMemPct}
+                          statusColor={rosMemColor}
+                          detail={rosMemDetail}
+                          footLeft={rosMemFootLeft}
+                          footRight={rosMemFootRight}
+                          data={rosMemSeries}
+                          isMobile={isMobile}
+                        />
+                      );
+                    })()}
+                    <ClientsSummaryTile
+                      summary={clientsSummary.data}
+                      isLoading={clientsSummary.isLoading}
+                      isError={clientsSummary.isError}
                     />
-                    <VitalTile
-                      icon={<DatabaseOutlined aria-hidden />}
-                      label={t('pages.index.memory')}
-                      percent={status.mem.percent}
-                      statusColor={status.mem.color}
-                      detail={`${SizeFormatter.sizeFormat(status.mem.current)} / ${SizeFormatter.sizeFormat(status.mem.total)}`}
-                      footLeft={`${t('pages.index.avg')} ${mean(history.series.mem).toFixed(0)}%`}
-                      footRight={`${t('pages.index.peak')} ${peak(history.series.mem).toFixed(0)}%`}
-                      data={history.series.mem}
-                      isMobile={isMobile}
-                    />
-                    <VitalTile
-                      icon={<SwapOutlined aria-hidden />}
-                      label={t('pages.index.swap')}
-                      available={status.metricAvailable('swap')}
-                      percent={status.swap.percent}
-                      statusColor={status.swap.color}
-                      detail={`${SizeFormatter.sizeFormat(status.swap.current)} / ${SizeFormatter.sizeFormat(status.swap.total)}`}
-                      footLeft={`${t('pages.index.avg')} ${mean(history.series.swap).toFixed(1)}%`}
-                      footRight={`${t('pages.index.peak')} ${peak(history.series.swap).toFixed(0)}%`}
-                      data={history.series.swap}
-                      isMobile={isMobile}
+                    <TopInboundsTile
+                      inbounds={topInbounds.data}
+                      isLoading={topInbounds.isLoading}
+                      isError={topInbounds.isError}
                     />
                     <VitalTile
                       icon={<HddOutlined aria-hidden />}
@@ -319,7 +456,7 @@ export default function IndexPage() {
         <LazyMount when={configTextOpen}>
           <Modal
             open={configTextOpen}
-            title={t('pages.index.config')}
+            title={t('pages.index.xrayConfig')}
             width={isMobile ? '100%' : 900}
             style={isMobile ? { top: 20, maxWidth: 'calc(100vw - 16px)' } : { top: 20 }}
             onCancel={() => setConfigTextOpen(false)}
@@ -343,6 +480,12 @@ export default function IndexPage() {
               </Button>,
             ]}
           >
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              title={t('pages.index.xrayConfigSensitiveWarning')}
+            />
             <JsonEditor
               value={configText}
               onChange={setConfigText}

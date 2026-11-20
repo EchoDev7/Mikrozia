@@ -22,8 +22,11 @@ function parseVersionParts(version: string): [number, number, number] | null {
 export function formatPanelVersion(version: string | undefined | null): string {
   const v = (version || '').trim();
   if (!v) return '';
+  if (/^Mikrozia\s+/i.test(v)) return v;
   const normalized = v.replace(/^v/i, '');
-  return /^\d/.test(normalized) ? `v${normalized}` : v;
+  if (normalized === 'dev' || normalized === 'dev+') return `Mikrozia ${v}`;
+  const productVersion = normalized.replace(/-mikrozia$/, '');
+  return /^\d/.test(productVersion) ? `Mikrozia v${productVersion}` : `Mikrozia ${v}`;
 }
 
 export function isPanelUpdateAvailable(latest: string, current: string): boolean {
