@@ -2534,6 +2534,40 @@ export const SCHEMAS: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "ContainerLogEntry": {
+    "description": "ContainerLogEntry is a single record from RouterOS /container/log.",
+    "properties": {
+      "message": {
+        "type": "string"
+      },
+      "time": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "message",
+      "time"
+    ],
+    "type": "object"
+  },
+  "ContainerLogsSnapshot": {
+    "properties": {
+      "entries": {
+        "items": {
+          "$ref": "#/components/schemas/ContainerLogEntry"
+        },
+        "type": "array"
+      },
+      "state": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "entries",
+      "state"
+    ],
+    "type": "object"
+  },
   "ContainerMemory": {
     "properties": {
       "limit": {
@@ -2548,6 +2582,44 @@ export const SCHEMAS: Record<string, unknown> = {
     },
     "required": [
       "used"
+    ],
+    "type": "object"
+  },
+  "ContainerRestartResult": {
+    "properties": {
+      "state": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "state"
+    ],
+    "type": "object"
+  },
+  "ContainerSnapshot": {
+    "properties": {
+      "interface": {
+        "type": "string"
+      },
+      "logging": {
+        "type": "boolean"
+      },
+      "restartAvailable": {
+        "type": "boolean"
+      },
+      "state": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "interface",
+      "logging",
+      "restartAvailable",
+      "state",
+      "status"
     ],
     "type": "object"
   },

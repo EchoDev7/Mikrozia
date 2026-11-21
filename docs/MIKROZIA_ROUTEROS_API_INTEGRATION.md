@@ -1,7 +1,8 @@
 # Mikrozia RouterOS API Integration Reference
 
-Status: read-only dashboard health and resource telemetry implemented; RouterOS
-Container log reads and RouterOS VETH telemetry remain deferred prerequisites.
+Status: dashboard health, resource telemetry, bounded RouterOS Container log
+reads, and opt-in single-container restart implemented; RouterOS VETH telemetry
+remains deferred.
 
 ## Purpose and scope
 
@@ -24,18 +25,24 @@ authoritative in the official documentation linked below.
   RouterOS CLI commands.
 - The integration uses direct internal plain native `api` on TCP/8728 only for
   the isolated container-router network. It does not use TLS-wrapped API, REST,
-  an extra agent, or RouterOS write commands.
+  or an extra agent. Resource and log queries are read-only; container restart
+  is a separate, explicitly configured operation.
 - The current dashboard integration performs one read-only authenticated
   `/system/resource/print` query to verify API health and collect RouterOS
   resource telemetry (`uptime`, `cpu-load`, `cpu-count`, `cpu-frequency`,
   `total-memory`, `free-memory`). It does not modify router configuration.
-- The only configuration source is `MIKROZIA_ROUTEROS_API_HOST`,
+- The resource connection configuration source is `MIKROZIA_ROUTEROS_API_HOST`,
   `MIKROZIA_ROUTEROS_API_USERNAME`, and `MIKROZIA_ROUTEROS_API_PASSWORD` in the
   container environment. All three must be non-empty (or all three unset). The
   host must be a validated literal private IPv4 or IPv6 address (no hostnames,
   zones, loopback, or link-local addresses); the client uses only TCP/8728.
 - RouterOS firewall, NAT, routing, access-control, users, services and logging
   remain operator-owned. No managed integration is implemented by this task.
+- Container restart is disabled until the operator provides an exact unique
+  container comment and a separate operational API account through
+  `MIKROZIA_ROUTEROS_RESTART_USERNAME` and
+  `MIKROZIA_ROUTEROS_RESTART_PASSWORD`. The panel never uses the read-only
+  resource account for a write command.
 - Missing, invalid, unreachable, or unauthorized configuration produces a
   truthful status; it never falls back to guessed RouterOS metrics.
 
@@ -89,23 +96,53 @@ lines report container-scoped CPU (unavailable when host-scoped) and cgroup
 v1/v2 Container RAM (`used / limit`, `used · No limit`, or `—`), never falling
 back to guessed host metrics when unavailable.
 
+The `Container History` CPU and RAM charts use separate `containerCpu` and
+`containerMem` series. They accept only cgroup-scoped samples; RAM requires a
+finite cgroup limit to calculate a percentage. Earlier host-backed history is
+not relabeled as container history. Other tabs retain their documented scopes:
+container network sockets, container root filesystem usage, Xray online
+clients, and kernel-reported disk I/O with a host-scope warning.
+
 The top bar distinguishes `not_configured`, `invalid_configuration`,
 `connecting`, `connected`, `authentication_failed`, `permission_denied`, and
 unreachable/query/reply failure states (`unreachable`, `query_failed`,
 `invalid_reply`). A previous result is marked stale when its age exceeds the 30s
 threshold. Password, username and endpoint are excluded from the response.
 
-RouterOS Container log reads and RouterOS VETH telemetry remain deferred
-prerequisites: no stable configured Mikrozia container identity exists, and the
-panel will not guess one. It does not enable RouterOS logging or change
-`/container`, `/interface/veth`, or `/log`.
+RouterOS Container logs use a separate, optional read path. The operator sets
+`MIKROZIA_ROUTEROS_CONTAINER_COMMENT` to the exact unique comment of the
+Mikrozia container (the installation guide uses
+`[Mikrozia:container] Container`). The panel queries `/container/print` for
+that comment and accepts exactly one record with a nonempty `name` and `.id`.
+It then reads `/container/log/print` with the verified name and checks the
+`container` field on every returned record. The endpoint returns at most 100
+recent records, and the RouterOS request has a four-second deadline. If the
+identity is missing or ambiguous, logging is disabled, or permissions are
+insufficient, the UI shows a specific unavailable state. It never enables
+logging or changes RouterOS settings. WinBox on RouterOS 7.25.1 confirmed
+`/container/log/print` records carry `time`, `container`, and `message`.
+
+Restart Container checks the unique comment with the read-only account, then
+rechecks the same `.id`, `name`, comment, and running status with the separate
+operational account immediately before issuing exactly one
+`/container/restart =.id=<verified-id>` sentence. There is no automatic retry.
+The panel runs inside that container, so the API connection may close before
+RouterOS acknowledges the command. In that case the response is `uncertain`,
+and the UI says so and reloads later. A confirmed `!done` is `accepted`.
+Missing credentials, duplicate or changed identity, a stopped container, or a
+permission error fail closed. No other RouterOS object is touched.
+
+RouterOS native API does not provide a per-command container-restart-only user
+policy. The operator must restrict the operational account and API service to
+the internal container IP and handle its credentials as sensitive; the panel
+does not create that account or widen RouterOS service access.
 
 ## Explicit non-goals for this task
 
 - No TLS-wrapped API, REST API, managed RouterOS integration, panel credential
   store, or firewall/NAT/routing/address-list/access-control mutation.
-- No RouterOS VETH counters, container state, or RouterOS container-log reads
-  (deferred prerequisites).
+- No RouterOS VETH counters, automatic logging configuration, or automatic
+  RouterOS API user/service changes.
 - No automatic API service enablement, RouterOS user creation, or logging change.
 
 ## Explicit non-goals for the first dashboard implementation
@@ -119,9 +156,9 @@ panel will not guess one. It does not enable RouterOS logging or change
 
 ## Remaining future design and verification gates
 
-1. Any expansion to RouterOS metrics or log reads requires an explicit stable
-   container identity, narrowly allowlisted commands, tests, and a new bounded
-   task. It must remain read-only and must not automate RouterOS policy.
+1. Live CHR acceptance must confirm that the dedicated read-only API account
+   can query `/container/print` and `/container/log/print` for the configured
+   container comment, and that UI records match WinBox Container Log.
 2. Live CHR health-query acceptance requires a separately authorized test with
    the exact environment variables configured by the owner.
 

@@ -61,6 +61,8 @@ it('sorts history timestamps and preserves missing secondary samples as chart ga
   });
 
   renderWithProviders(<SystemHistoryModal open status={new Status()} onClose={() => {}} />);
+
+  await waitFor(() => expect(get).toHaveBeenCalledWith('/panel/api/server/history/containerCpu/2'));
   expect(screen.queryByRole('tab', { name: 'Connections' })).toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'Container Sockets' }));
   expect(await screen.findByText('Container Sockets (TCP / UDP)')).toBeDefined();
@@ -93,13 +95,14 @@ it('shows scope hints for RAM and Disk I/O while keeping all 6 tabs intact', asy
 
   fireEvent.click(screen.getByRole('tab', { name: 'RAM' }));
   expect(await screen.findByText('Memory Usage')).toBeDefined();
+  await waitFor(() => expect(get).toHaveBeenCalledWith('/panel/api/server/history/containerMem/2'));
   const ramHint = screen.getByRole('button', {
-    name: 'Shows memory visible to the panel. If the container limit is not exposed by the runtime, this can reflect host memory.',
+    name: 'Shows cgroup-scoped container memory usage as a percentage of a finite limit. With no limit or no readable cgroup data, no sample is plotted.',
   });
   fireEvent.click(ramHint);
   expect(
     await screen.findByRole('tooltip', {
-      name: 'Shows memory visible to the panel. If the container limit is not exposed by the runtime, this can reflect host memory.',
+      name: 'Shows cgroup-scoped container memory usage as a percentage of a finite limit. With no limit or no readable cgroup data, no sample is plotted.',
     }),
   ).toBeDefined();
 

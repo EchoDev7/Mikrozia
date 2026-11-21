@@ -24,9 +24,11 @@ interface OverviewActionBarProps {
   accessLogEnable: boolean;
   panelVersion: string;
   routerOSStatus: { state: string; checkedAt: number; stale: boolean };
+  containerStatus: { state: string; status: string; restartAvailable: boolean };
   onStopXray: () => void;
   onRestartXray: () => void;
   onRestartPanel: () => Promise<void>;
+  onRestartContainer: () => Promise<void>;
   onOpenLogs: () => void;
   onOpenXrayLogs: () => void;
   onOpenAmneziaWGLogs: () => void;
@@ -55,9 +57,11 @@ export default function OverviewActionBar({
   accessLogEnable,
   panelVersion,
   routerOSStatus,
+  containerStatus,
   onStopXray,
   onRestartXray,
   onRestartPanel,
+  onRestartContainer,
   onOpenLogs,
   onOpenXrayLogs,
   onOpenAmneziaWGLogs,
@@ -98,6 +102,15 @@ export default function OverviewActionBar({
       okText: t('pages.settings.restartPanel'),
       cancelText: t('cancel'),
       onOk: onRestartPanel,
+    });
+  };
+  const confirmContainer = () => {
+    Modal.confirm({
+      title: t('pages.index.restartContainerConfirmTitle'),
+      content: t('pages.index.restartContainerConfirmDesc'),
+      okText: t('pages.index.restartContainer'),
+      cancelText: t('cancel'),
+      onOk: onRestartContainer,
     });
   };
 
@@ -230,17 +243,20 @@ export default function OverviewActionBar({
               { key: 'panel', label: t('pages.settings.restartPanel'), onClick: confirmPanel },
               {
                 key: 'container',
-                disabled: true,
-                ...containerAccessibility,
+                disabled: !containerStatus.restartAvailable,
+                onClick: containerStatus.restartAvailable ? confirmContainer : undefined,
+                ...(!containerStatus.restartAvailable ? containerAccessibility : {}),
                 label: (
                   <>
                     {t('pages.index.restartContainer')}
-                    <div
-                      id={containerHintId}
-                      style={{ maxWidth: 230, whiteSpace: 'normal', fontSize: 12 }}
-                    >
-                      {t('pages.index.restartContainerUnavailable')}
-                    </div>
+                    {!containerStatus.restartAvailable && (
+                      <div
+                        id={containerHintId}
+                        style={{ maxWidth: 230, whiteSpace: 'normal', fontSize: 12 }}
+                      >
+                        {t('pages.index.restartContainerUnavailable')}
+                      </div>
+                    )}
                   </>
                 ),
               },

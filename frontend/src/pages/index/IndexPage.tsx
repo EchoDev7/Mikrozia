@@ -27,6 +27,8 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useStatusQuery } from '@/api/queries/useStatusQuery';
 import { useRouterOSAPIStatus } from '@/api/queries/useRouterOSAPIStatus';
+import { useRouterOSContainerStatus } from '@/api/queries/useRouterOSContainerStatus';
+import { ContainerRestartResultSchema } from '@/generated/zod';
 import { useClientsSummary } from '@/api/queries/useClientsSummary';
 import { useTopInbounds } from '@/api/queries/useTopInbounds';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -57,6 +59,7 @@ export default function IndexPage() {
   const { isDark, isUltra, antdThemeConfig } = useTheme();
   const { status, fetched, fetchError, refresh } = useStatusQuery();
   const routerOSAPIStatus = useRouterOSAPIStatus();
+  const routerOSContainerStatus = useRouterOSContainerStatus();
   const { isMobile } = useMediaQuery();
   const [messageApi, messageContextHolder] = message.useMessage();
   useEffect(() => {
@@ -147,6 +150,55 @@ export default function IndexPage() {
     window.location.reload();
   }, [messageApi, t]);
 
+  const restartContainer = useCallback(async () => {
+    let csrfToken = '';
+    try {
+      const token = await HttpUtil.get<string>('/csrf-token', undefined, { silent: true });
+      if (token?.success && typeof token.obj === 'string') csrfToken = token.obj;
+    } catch {
+      // A missing CSRF token means no lifecycle request is sent.
+    }
+    if (!csrfToken) {
+      messageApi.error(t('somethingWentWrong'));
+      return;
+    }
+    let uncertain = false;
+    try {
+      const response = await fetch(withBasePath('/panel/api/server/restartRouterosContainer'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        redirect: 'error',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrfToken },
+      });
+      if (!response.ok) {
+        messageApi.error(t('pages.index.restartContainerFailed'));
+        return;
+      }
+      const body = await response.json();
+      const result = ContainerRestartResultSchema.safeParse(body?.obj);
+      if (body?.success !== true || !result.success) {
+        messageApi.error(t('pages.index.restartContainerFailed'));
+        return;
+      }
+      if (result.data.state === 'uncertain') uncertain = true;
+      else if (result.data.state !== 'accepted') {
+        messageApi.error(t('pages.index.restartContainerFailed'));
+        return;
+      }
+    } catch {
+      uncertain = true;
+    }
+    messageApi.info(
+      t(
+        uncertain
+          ? 'pages.index.restartContainerUncertain'
+          : 'pages.index.restartContainerRequested',
+      ),
+    );
+    await PromiseUtil.sleep(10000);
+    window.location.reload();
+  }, [messageApi, t]);
+
   async function openConfig() {
     setLoading(true);
     try {
@@ -228,9 +280,17 @@ export default function IndexPage() {
                     routerOSStatus={
                       routerOSAPIStatus.data ?? { state: 'connecting', checkedAt: 0, stale: false }
                     }
+                    containerStatus={
+                      routerOSContainerStatus.data ?? {
+                        state: 'connecting',
+                        status: '',
+                        restartAvailable: false,
+                      }
+                    }
                     onStopXray={stopXray}
                     onRestartXray={restartXray}
                     onRestartPanel={restartPanel}
+                    onRestartContainer={restartContainer}
                     onOpenLogs={() => setLogsOpen(true)}
                     onOpenXrayLogs={() => setXrayLogsOpen(true)}
                     onOpenAmneziaWGLogs={() => setAmneziawgLogsOpen(true)}

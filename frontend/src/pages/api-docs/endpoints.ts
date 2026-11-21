@@ -655,6 +655,33 @@ export const sections: readonly Section[] = [
         responseSchema: 'RouterOSAPIStatus',
       },
       {
+        method: 'GET',
+        path: '/panel/api/server/routerosContainerStatus',
+        summary: 'Read status of the uniquely marked Mikrozia RouterOS container.',
+        responseSchema: 'ContainerSnapshot',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/server/routerosContainerLogs/:count',
+        summary: 'Read recent RouterOS log entries for the uniquely marked Mikrozia container.',
+        responseSchema: 'ContainerLogsSnapshot',
+        params: [
+          {
+            name: 'count',
+            in: 'path',
+            type: 'number',
+            desc: 'Number of trailing records, 1 to 100.',
+          },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/server/restartRouterosContainer',
+        summary:
+          'Restart only the uniquely identified Mikrozia container through native RouterOS API. Requires a separate operational account.',
+        responseSchema: 'ContainerRestartResult',
+      },
+      {
         method: 'POST',
         path: '/panel/api/server/logs/:count',
         summary: 'Return the last N lines of the panel\u2019s own log.',

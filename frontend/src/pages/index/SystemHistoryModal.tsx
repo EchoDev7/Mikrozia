@@ -45,17 +45,18 @@ interface MetricDef {
 
 const METRICS: MetricDef[] = [
   {
-    key: 'cpu',
+    key: 'containerCpu',
     tab: 'CPU',
     tabKey: 'pages.index.cpu',
     title: 'pages.index.historyTitleCpu',
+    hint: 'pages.index.historyHintCpu',
     icon: <DashboardOutlined aria-hidden />,
     valueMax: 100,
     unit: '%',
     stroke: '',
   },
   {
-    key: 'mem',
+    key: 'containerMem',
     tab: 'RAM',
     tabKey: 'pages.index.memory',
     title: 'pages.index.historyTitleMem',
@@ -224,7 +225,7 @@ async function loadBucket(metric: (typeof METRICS)[number], bucket: number): Pro
 export default function SystemHistoryModal({ open, status, onClose }: SystemHistoryModalProps) {
   const { t } = useTranslation();
   const { isMobile } = useMediaQuery();
-  const [activeKey, setActiveKey] = useState('cpu');
+  const [activeKey, setActiveKey] = useState('containerCpu');
   const [bucket, setBucket] = useState(2);
   const [{ points, points2, points3, labels, timestamps }, setChart] =
     useState<HistoryChart>(EMPTY_CHART);
@@ -262,7 +263,7 @@ export default function SystemHistoryModal({ open, status, onClose }: SystemHist
   const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setActiveKey('cpu');
+    if (open) setActiveKey('containerCpu');
   }
 
   useEffect(() => {

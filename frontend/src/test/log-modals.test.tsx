@@ -12,7 +12,43 @@ afterEach(() => {
 });
 
 describe('LogModal', () => {
-  it('loads only Panel logs initially and keeps RouterOS Container guidance truthful', async () => {
+  it('loads Panel logs initially and reads only the verified RouterOS Container logs on its tab', async () => {
+    const getSpy = vi.spyOn(HttpUtil, 'get').mockImplementation(async (url) => {
+      if (url === '/panel/api/server/routerosAPIStatus') {
+        return {
+          success: true,
+          msg: '',
+          obj: {
+            state: 'connected',
+            checkedAt: 1,
+            stale: false,
+            cpuLoad: 0,
+            cpuCount: 1,
+            cpuFrequencyMhz: 1000,
+            cpuAvg: 0,
+            cpuPeak: 0,
+            cpuHistory: [],
+            memUsed: null,
+            memTotal: null,
+            memPercent: null,
+            memAvg: null,
+            memPeak: null,
+            memHistory: [],
+          },
+        };
+      }
+      if (url === '/panel/api/server/routerosContainerLogs/20') {
+        return {
+          success: true,
+          msg: '',
+          obj: {
+            state: 'connected',
+            entries: [{ time: '2026-11-21 03:00:00', message: 'container started' }],
+          },
+        };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    });
     const postSpy = vi.spyOn(HttpUtil, 'post').mockImplementation(async (url) => {
       if (url.includes('xrayRuntimeLogs')) {
         return {
@@ -46,9 +82,10 @@ describe('LogModal', () => {
     expect(screen.queryByText(/\/container\/set/)).toBeNull();
 
     fireEvent.click(screen.getByRole('tab', { name: 'RouterOS Container' }));
-    expect(
-      await screen.findByText(/no stable configured identity for the Mikrozia container/i),
-    ).toBeDefined();
+    expect(await screen.findByText('container started')).toBeDefined();
+    expect(getSpy).toHaveBeenCalledWith('/panel/api/server/routerosContainerLogs/20', undefined, {
+      silent: true,
+    });
     expect(postSpy).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Xray' }));

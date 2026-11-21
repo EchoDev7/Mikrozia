@@ -20,13 +20,16 @@ func lxcFixture(t *testing.T) *LXCReader {
 	root := t.TempDir()
 	r := &LXCReader{ProcRoot: filepath.Join(root, "proc"), CgroupRoot: filepath.Join(root, "cgroup")}
 	fixtures := map[string]string{
-		filepath.Join(r.ProcRoot, "self/mountinfo"): lxcMountFixture + "4 0 0:28 / " + r.CgroupRoot + " rw - cgroup2 cgroup rw\n",
-		filepath.Join(r.ProcRoot, "1/cgroup"):       "0::/init.scope\n",
-		filepath.Join(r.ProcRoot, "meminfo"):        "MemTotal: 2097152 kB\nMemAvailable: 1966080 kB\nSwapTotal: 524288 kB\nSwapFree: 505384 kB\n",
-		filepath.Join(r.ProcRoot, "cpuinfo"):        "processor : 0\ncpu cores : 16\n\nprocessor : 1\ncpu cores : 16\n",
-		filepath.Join(r.ProcRoot, "uptime"):         "52624.93 52624.93\n",
-		filepath.Join(r.CgroupRoot, "cpu.stat"):     "usage_usec 222772076\nuser_usec 101515374\n",
-		filepath.Join(r.CgroupRoot, "cpu.max"):      "max 100000\n",
+		filepath.Join(r.ProcRoot, "self/mountinfo"):          lxcMountFixture + "4 0 0:28 / " + r.CgroupRoot + " rw - cgroup2 cgroup rw\n",
+		filepath.Join(r.ProcRoot, "1/cgroup"):                "0::/init.scope\n",
+		filepath.Join(r.ProcRoot, "meminfo"):                 "MemTotal: 2097152 kB\nMemAvailable: 1966080 kB\nSwapTotal: 524288 kB\nSwapFree: 505384 kB\n",
+		filepath.Join(r.ProcRoot, "cpuinfo"):                 "processor : 0\ncpu cores : 16\n\nprocessor : 1\ncpu cores : 16\n",
+		filepath.Join(r.ProcRoot, "uptime"):                  "52624.93 52624.93\n",
+		filepath.Join(r.CgroupRoot, "cpu.stat"):              "usage_usec 222772076\nuser_usec 101515374\n",
+		filepath.Join(r.CgroupRoot, "cpu.max"):               "max 100000\n",
+		filepath.Join(r.CgroupRoot, "cpuset.cpus.effective"): "0-1\n",
+		filepath.Join(r.CgroupRoot, "memory.current"):        "75497472\n",
+		filepath.Join(r.CgroupRoot, "memory.max"):            "1073741824\n",
 	}
 	for path, content := range fixtures {
 		fixtureWrite(t, path, content)
@@ -138,12 +141,16 @@ func TestLXCInvalidMetricsNeverUseHostFallback(t *testing.T) {
 		{"uptime", "-1 0\n", "uptime"},
 		{"uptime", "18446744073709551616 0\n", "uptime"},
 		{"uptime", "", "uptime"},
-		{"cpuinfo", "cpu cores : 16\n", "cpu"},
-		{"cpuinfo", "processor : 0\nprocessor : 0\n", "cpu"},
+		{"cpuset.cpus.effective", "", "cpu"},
+		{"cpuset.cpus.effective", "0-1,1\n", "cpu"},
 	} {
 		t.Run(tc.metric+"/"+tc.content, func(t *testing.T) {
 			r := lxcFixture(t)
-			fixtureWrite(t, filepath.Join(r.ProcRoot, tc.path), tc.content)
+			path := filepath.Join(r.ProcRoot, tc.path)
+			if tc.path == "cpuset.cpus.effective" {
+				path = filepath.Join(r.CgroupRoot, tc.path)
+			}
+			fixtureWrite(t, path, tc.content)
 			got, err := r.Read(time.Unix(100, 0))
 			if err != nil || got == nil || !slices.Contains(got.Unavailable, tc.metric) {
 				t.Fatalf("invalid sample=%+v err=%v", got, err)
@@ -217,6 +224,35 @@ func TestNativeMetricsKeepOriginalPath(t *testing.T) {
 	}
 }
 
+func TestHostCgroupV2NeverClaimsContainerScopeWithoutRouterOSIdentity(t *testing.T) {
+	r := routerOSContainerFixture(t)
+	fixtureWrite(t, filepath.Join(r.ProcRoot, "1/cgroup"), "0::/\n")
+	got, err := r.Read(time.Unix(100, 0))
+	if err != nil || got != nil || r.UseScopedHistory() {
+		t.Fatalf("host cgroup became container scope: sample=%+v err=%v", got, err)
+	}
+}
+
+func TestRouterOSContainerRequiresMatchingSelfMembership(t *testing.T) {
+	r := routerOSContainerFixture(t)
+	fixtureWrite(t, filepath.Join(r.ProcRoot, "self/cgroup"), "0::/system.slice\n")
+	got, err := r.Read(time.Unix(100, 0))
+	if err != nil || got != nil || r.UseScopedHistory() {
+		t.Fatalf("unverified process became container scope: %+v err=%v", got, err)
+	}
+}
+
+func TestLXCFSFallsBackToItsVerifiedCPUInfoWhenCPUSetIsUnavailable(t *testing.T) {
+	r := lxcFixture(t)
+	os.Remove(filepath.Join(r.CgroupRoot, "cpuset.cpus.effective"))
+	r.Read(time.Unix(100, 0))
+	fixtureWrite(t, filepath.Join(r.CgroupRoot, "cpu.stat"), "usage_usec 223772076\n")
+	got, err := r.Read(time.Unix(101, 0))
+	if err != nil || got.CPU != 50 || got.CPUs != 2 || slices.Contains(got.Unavailable, "cpu") {
+		t.Fatalf("LXCFS fallback=%+v err=%v", got, err)
+	}
+}
+
 func TestUnreadableScopeNeverSelectsNativeHostMetrics(t *testing.T) {
 	for _, bad := range []string{"missing", "malformed"} {
 		t.Run(bad, func(t *testing.T) {
@@ -270,5 +306,118 @@ func TestLXCCPUAcceptsContainerInitAtNamespaceRoot(t *testing.T) {
 	got, err := r.Read(time.Unix(101, 0))
 	if err != nil || got.CPU != 50 || slices.Contains(got.Unavailable, "cpu") {
 		t.Fatalf("root init sample=%+v err=%v", got, err)
+	}
+}
+
+func routerOSContainerFixture(t *testing.T) *LXCReader {
+	t.Helper()
+	root := t.TempDir()
+	r := &LXCReader{ProcRoot: filepath.Join(root, "proc"), CgroupRoot: filepath.Join(root, "cgroup")}
+	fixtures := map[string]string{
+		filepath.Join(r.ProcRoot, "self/mountinfo"):          "36 35 0:13 / " + r.CgroupRoot + " rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup2 rw\n",
+		filepath.Join(r.ProcRoot, "1/cgroup"):                "0::/init\n",
+		filepath.Join(r.ProcRoot, "self/cgroup"):             "0::/init\n",
+		filepath.Join(r.CgroupRoot, "cpu.stat"):              "usage_usec 1000000\n",
+		filepath.Join(r.CgroupRoot, "cpu.max"):               "max 100000\n",
+		filepath.Join(r.CgroupRoot, "cpuset.cpus.effective"): "0-1\n",
+		filepath.Join(r.CgroupRoot, "memory.current"):        "75497472\n",
+		filepath.Join(r.CgroupRoot, "memory.max"):            "1073741824\n",
+	}
+	for path, content := range fixtures {
+		fixtureWrite(t, path, content)
+	}
+	return r
+}
+
+func TestRouterOSContainerCgroupV2ProvidesCPUAndMemoryWithoutLXCFS(t *testing.T) {
+	r := routerOSContainerFixture(t)
+	first, err := r.Read(time.Unix(100, 0))
+	if err != nil || first == nil || first.Scope != "container" || !slices.Contains(first.Unavailable, "cpu") || !slices.Contains(first.Unavailable, "swap") || !slices.Contains(first.Unavailable, "uptime") {
+		t.Fatalf("first=%+v err=%v", first, err)
+	}
+	if first.ContainerMem == nil || first.ContainerMem.Used != 75497472 || first.ContainerMem.Limit == nil || *first.ContainerMem.Limit != 1073741824 {
+		t.Fatalf("memory=%+v", first.ContainerMem)
+	}
+	fixtureWrite(t, filepath.Join(r.CgroupRoot, "cpu.stat"), "usage_usec 2000000\n")
+	second, err := r.Read(time.Unix(101, 0))
+	if err != nil || second.CPU != 50 || second.CPUs != 2 || slices.Contains(second.Unavailable, "cpu") {
+		t.Fatalf("second=%+v err=%v", second, err)
+	}
+}
+
+func TestRouterOSContainerCgroupV2QuotaAndInvalidFilesFailSafe(t *testing.T) {
+	r := routerOSContainerFixture(t)
+	fixtureWrite(t, filepath.Join(r.CgroupRoot, "cpu.max"), "50000 100000\n")
+	r.Read(time.Unix(100, 0))
+	fixtureWrite(t, filepath.Join(r.CgroupRoot, "cpu.stat"), "usage_usec 1250000\n")
+	got, err := r.Read(time.Unix(101, 0))
+	if err != nil || got.CPU != 50 || slices.Contains(got.Unavailable, "cpu") {
+		t.Fatalf("quota=%+v err=%v", got, err)
+	}
+	fixtureWrite(t, filepath.Join(r.CgroupRoot, "cpuset.cpus.effective"), "0-1,1\n")
+	got, err = r.Read(time.Unix(102, 0))
+	if err != nil || !slices.Contains(got.Unavailable, "cpu") || got.CPU != 0 {
+		t.Fatalf("invalid cpuset=%+v err=%v", got, err)
+	}
+	fixtureWrite(t, filepath.Join(r.CgroupRoot, "memory.current"), "invalid\n")
+	got, err = r.Read(time.Unix(103, 0))
+	if err != nil || got.ContainerMem != nil || !slices.Contains(got.Unavailable, "containerMem") {
+		t.Fatalf("invalid memory=%+v err=%v", got, err)
+	}
+}
+
+func TestParseCPUSetCount(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  int
+		ok    bool
+	}{
+		{value: "0-1,4,6-7", want: 5, ok: true},
+		{value: "0", want: 1, ok: true},
+		{value: "", ok: false},
+		{value: "1-0", ok: false},
+		{value: "0-1,1", ok: false},
+		{value: "0,,1", ok: false},
+		{value: "0-18446744073709551614", ok: false},
+		{value: "0-18446744073709551615", ok: false},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			got, err := parseCPUSetCount(tc.value)
+			if (err == nil) != tc.ok || got != tc.want {
+				t.Fatalf("parseCPUSetCount(%q) = %d, %v", tc.value, got, err)
+			}
+		})
+	}
+}
+
+func TestRouterOSContainerRejectsHostDataOnMissingOrInvalidMetrics(t *testing.T) {
+	for _, name := range []string{"cpu.stat", "cpu.max", "cpuset.cpus.effective", "memory.current", "memory.max"} {
+		for _, missing := range []bool{false, true} {
+			t.Run(name+"/missing="+strconv.FormatBool(missing), func(t *testing.T) {
+				r := routerOSContainerFixture(t)
+				fixtureWrite(t, filepath.Join(r.ProcRoot, "stat"), "cpu 999 0 0 1\n")
+				fixtureWrite(t, filepath.Join(r.ProcRoot, "meminfo"), "MemTotal: 999999 kB\nSwapTotal: 999999 kB\nSwapFree: 0 kB\n")
+				r.Read(time.Unix(100, 0))
+				path := filepath.Join(r.CgroupRoot, name)
+				if missing {
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					fixtureWrite(t, path, "invalid\n")
+				}
+				got, err := r.Read(time.Unix(101, 0))
+				if err != nil || got == nil || got.Scope != "container" || got.SwapTotal != 0 || !slices.Contains(got.Unavailable, "swap") || !slices.Contains(got.Unavailable, "uptime") {
+					t.Fatalf("unexpected scope or host data: %+v, %v", got, err)
+				}
+				if strings.HasPrefix(name, "memory") {
+					if got.ContainerMem != nil || !slices.Contains(got.Unavailable, "containerMem") {
+						t.Fatalf("invalid memory became available: %+v", got)
+					}
+				} else if got.CPU != 0 || !slices.Contains(got.Unavailable, "cpu") {
+					t.Fatalf("invalid CPU became available: %+v", got)
+				}
+			})
+		}
 	}
 }

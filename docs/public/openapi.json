@@ -2560,6 +2560,95 @@
         ],
         "type": "object"
       },
+      "ContainerLogEntry": {
+        "description": "ContainerLogEntry is a single record from RouterOS /container/log.",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "time"
+        ],
+        "type": "object"
+      },
+      "ContainerLogsSnapshot": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerLogEntry"
+            },
+            "type": "array"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entries",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ContainerMemory": {
+        "properties": {
+          "limit": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "used": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used"
+        ],
+        "type": "object"
+      },
+      "ContainerRestartResult": {
+        "properties": {
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "ContainerSnapshot": {
+        "properties": {
+          "interface": {
+            "type": "string"
+          },
+          "logging": {
+            "type": "boolean"
+          },
+          "restartAvailable": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "interface",
+          "logging",
+          "restartAvailable",
+          "state",
+          "status"
+        ],
+        "type": "object"
+      },
       "FallbackParentInfo": {
         "description": "FallbackParentInfo carries everything the frontend needs to rewrite a\nchild inbound's client link: where to connect (the master's address\nand port) and which path matched on the master's fallbacks array.\nThe frontend already has the master inbound in its dbInbounds list,\nso we only ship identifiers + the match path here.",
         "properties": {
@@ -4505,6 +4594,60 @@
             "format": "int64",
             "type": "integer"
           },
+          "cpuAvg": {
+            "nullable": true,
+            "type": "number"
+          },
+          "cpuCount": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "cpuFrequencyMhz": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "cpuHistory": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "cpuLoad": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "cpuPeak": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "memAvg": {
+            "nullable": true,
+            "type": "number"
+          },
+          "memHistory": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "memPeak": {
+            "nullable": true,
+            "type": "number"
+          },
+          "memPercent": {
+            "nullable": true,
+            "type": "number"
+          },
+          "memTotal": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "memUsed": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
           "stale": {
             "example": false,
             "type": "boolean"
@@ -4516,6 +4659,8 @@
         },
         "required": [
           "checkedAt",
+          "cpuHistory",
+          "memHistory",
           "stale",
           "state"
         ],
@@ -4867,6 +5012,45 @@
           "inlineEnabled",
           "running",
           "username"
+        ],
+        "type": "object"
+      },
+      "TopInbound": {
+        "description": "TopInbound is the bounded projection returned by GET /panel/api/inbounds/top.\nIt carries only non-secret display fields and cumulative up + down traffic.",
+        "properties": {
+          "enabled": {
+            "example": true,
+            "type": "boolean"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "port": {
+            "example": 443,
+            "type": "integer"
+          },
+          "protocol": {
+            "example": "vless",
+            "type": "string"
+          },
+          "remark": {
+            "example": "VLESS-443",
+            "type": "string"
+          },
+          "traffic": {
+            "example": 3145728,
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "id",
+          "port",
+          "protocol",
+          "remark",
+          "traffic"
         ],
         "type": "object"
       },
@@ -5529,6 +5713,54 @@
                       "wgDns": "",
                       "wgMtu": 0,
                       "wgPublicKey": ""
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/inbounds/top": {
+      "get": {
+        "tags": [
+          "Inbounds"
+        ],
+        "summary": "Return up to 5 inbounds belonging to the authenticated user ranked by cumulative traffic (up + down) descending, then id ascending. Excludes settings, streamSettings, clientStats, and secrets.",
+        "operationId": "get_panel_api_inbounds_top",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TopInbound"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": [
+                    {
+                      "enabled": true,
+                      "id": 1,
+                      "port": 443,
+                      "protocol": "vless",
+                      "remark": "VLESS-443",
+                      "traffic": 3145728
                     }
                   ]
                 }
@@ -7326,8 +7558,159 @@
                   "success": true,
                   "obj": {
                     "checkedAt": 0,
+                    "cpuAvg": null,
+                    "cpuCount": null,
+                    "cpuFrequencyMhz": null,
+                    "cpuHistory": [
+                      0
+                    ],
+                    "cpuLoad": null,
+                    "cpuPeak": null,
+                    "memAvg": null,
+                    "memHistory": [
+                      0
+                    ],
+                    "memPeak": null,
+                    "memPercent": null,
+                    "memTotal": null,
+                    "memUsed": null,
                     "stale": false,
                     "state": "not_configured"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/server/routerosContainerStatus": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Read status of the uniquely marked Mikrozia RouterOS container.",
+        "operationId": "get_panel_api_server_routerosContainerStatus",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "$ref": "#/components/schemas/ContainerSnapshot"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "interface": "",
+                    "logging": false,
+                    "restartAvailable": false,
+                    "state": "",
+                    "status": ""
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/server/routerosContainerLogs/{count}": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Read recent RouterOS log entries for the uniquely marked Mikrozia container.",
+        "operationId": "get_panel_api_server_routerosContainerLogs_count",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "path",
+            "required": true,
+            "description": "Number of trailing records, 1 to 100.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "$ref": "#/components/schemas/ContainerLogsSnapshot"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "entries": [
+                      {
+                        "message": "",
+                        "time": ""
+                      }
+                    ],
+                    "state": ""
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/server/restartRouterosContainer": {
+      "post": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Restart only the uniquely identified Mikrozia container through native RouterOS API. Requires a separate operational account.",
+        "operationId": "post_panel_api_server_restartRouterosContainer",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "$ref": "#/components/schemas/ContainerRestartResult"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "state": ""
                   }
                 }
               }

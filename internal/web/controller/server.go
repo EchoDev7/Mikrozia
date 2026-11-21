@@ -29,11 +29,12 @@ var filenameRegex = regexp.MustCompile(`^[a-zA-Z0-9_\-.]+$`)
 type ServerController struct {
 	BaseController
 
-	serverService      service.ServerService
-	settingService     service.SettingService
-	panelService       panel.PanelService
-	xrayMetricsService service.XrayMetricsService
-	routerOSAPIService service.RouterOSAPIService
+	serverService            service.ServerService
+	settingService           service.SettingService
+	panelService             panel.PanelService
+	xrayMetricsService       service.XrayMetricsService
+	routerOSAPIService       service.RouterOSAPIService
+	routerOSContainerService service.RouterOSContainerService
 }
 
 // NewServerController creates a new ServerController, initializes routes, and starts background tasks.
@@ -49,6 +50,8 @@ func NewServerController(g *gin.RouterGroup) *ServerController {
 func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/status", a.status)
 	g.GET("/routerosAPIStatus", a.routerosAPIStatus)
+	g.GET("/routerosContainerStatus", a.routerosContainerStatus)
+	g.GET("/routerosContainerLogs/:count", a.routerosContainerLogs)
 	g.GET("/cpuHistory/:bucket", a.getCpuHistoryBucket)
 	g.GET("/history/:metric/:bucket", a.getMetricHistoryBucket)
 	g.GET("/xrayMetricsState", a.getXrayMetricsState)
@@ -70,6 +73,7 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 
 	g.POST("/stopXrayService", a.stopXrayService)
 	g.POST("/restartXrayService", a.restartXrayService)
+	g.POST("/restartRouterosContainer", a.restartRouterosContainer)
 	g.POST("/logs/:count", a.getLogs)
 	g.POST("/xrayRuntimeLogs/:count", a.getXrayRuntimeLogs)
 	g.POST("/xraylogs/:count", a.getXrayLogs)
@@ -110,6 +114,26 @@ func (a *ServerController) status(c *gin.Context) { jsonObj(c, a.serverService.C
 func (a *ServerController) routerosAPIStatus(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	jsonObj(c, a.routerOSAPIService.Status(), nil)
+}
+
+func (a *ServerController) routerosContainerStatus(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	jsonObj(c, a.routerOSContainerService.Status(c.Request.Context()), nil)
+}
+
+func (a *ServerController) routerosContainerLogs(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	count, err := strconv.Atoi(c.Param("count"))
+	if err != nil || count < 1 || count > 100 {
+		jsonMsg(c, "invalid count", fmt.Errorf("unsupported count"))
+		return
+	}
+	jsonObj(c, a.routerOSContainerService.Logs(c.Request.Context(), count), nil)
+}
+
+func (a *ServerController) restartRouterosContainer(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	jsonObj(c, a.routerOSContainerService.Restart(c.Request.Context()), nil)
 }
 
 func parseHistoryBucket(c *gin.Context) (int, bool) {

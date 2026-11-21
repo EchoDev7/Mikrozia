@@ -624,11 +624,37 @@ export const ClientsSummaryCountsSchema = z.object({
 });
 export type ClientsSummaryCounts = z.infer<typeof ClientsSummaryCountsSchema>;
 
+export const ContainerLogEntrySchema = z.object({
+  message: z.string(),
+  time: z.string(),
+});
+export type ContainerLogEntry = z.infer<typeof ContainerLogEntrySchema>;
+
+export const ContainerLogsSnapshotSchema = z.object({
+  entries: z.array(z.lazy(() => ContainerLogEntrySchema)),
+  state: z.string(),
+});
+export type ContainerLogsSnapshot = z.infer<typeof ContainerLogsSnapshotSchema>;
+
 export const ContainerMemorySchema = z.object({
   limit: z.number().int().nullable().optional(),
   used: z.number().int(),
 });
 export type ContainerMemory = z.infer<typeof ContainerMemorySchema>;
+
+export const ContainerRestartResultSchema = z.object({
+  state: z.string(),
+});
+export type ContainerRestartResult = z.infer<typeof ContainerRestartResultSchema>;
+
+export const ContainerSnapshotSchema = z.object({
+  interface: z.string(),
+  logging: z.boolean(),
+  restartAvailable: z.boolean(),
+  state: z.string(),
+  status: z.string(),
+});
+export type ContainerSnapshot = z.infer<typeof ContainerSnapshotSchema>;
 
 export const FallbackParentInfoSchema = z.object({
   masterId: z.number().int(),

@@ -7,6 +7,7 @@ import { HttpUtil, FileManager, PromiseUtil } from '@/utils';
 import { activateOnKey } from '@/utils/a11y';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useRouterOSAPIStatus } from '@/api/queries/useRouterOSAPIStatus';
+import { useRouterOSContainerLogs } from '@/api/queries/useRouterOSContainerLogs';
 import { parseLogLine } from './logParse';
 import './LogModal.css';
 
@@ -28,6 +29,12 @@ export default function LogModal({ open, onClose }: LogModalProps) {
   const [tab, setTab] = useState('panel');
   const [xrayLogs, setXrayLogs] = useState<string[]>([]);
   const routerOSQuery = useRouterOSAPIStatus(open && tab === 'routeros');
+  const routerOSLogsQuery = useRouterOSContainerLogs(
+    Math.min(Number(rows), 100),
+    open && tab === 'routeros',
+    autoUpdate,
+  );
+  const refetchRouterOSLogs = routerOSLogsQuery.refetch;
   const routerOSState =
     routerOSQuery.data?.state ?? (routerOSQuery.isError ? 'unreachable' : 'connecting');
   const routerOSStale = routerOSQuery.data?.stale ?? false;
@@ -63,9 +70,13 @@ export default function LogModal({ open, onClose }: LogModalProps) {
   }, [rows, level, tab, open]);
 
   const refresh = useCallback(() => {
+    if (tab === 'routeros') {
+      void refetchRouterOSLogs();
+      return;
+    }
     setLoading(true);
     void runRefresh();
-  }, [runRefresh]);
+  }, [runRefresh, refetchRouterOSLogs, tab]);
 
   const refreshRef = useRef(refresh);
   useEffect(() => {
@@ -82,7 +93,7 @@ export default function LogModal({ open, onClose }: LogModalProps) {
   }
 
   useEffect(() => {
-    if (open) void runRefresh();
+    if (open && tab !== 'routeros') void runRefresh();
   }, [open, runRefresh, tab]);
 
   useEffect(() => {
@@ -91,7 +102,13 @@ export default function LogModal({ open, onClose }: LogModalProps) {
     return () => clearInterval(id);
   }, [open, autoUpdate]);
 
-  const shownLogs = tab === 'xray' ? xrayLogs : logs;
+  const containerEntries = routerOSLogsQuery.data?.entries ?? [];
+  const shownLogs =
+    tab === 'routeros'
+      ? containerEntries.map((entry) => `${entry.time} ${entry.message}`)
+      : tab === 'xray'
+        ? xrayLogs
+        : logs;
   const parsedLogs = useMemo(
     () => shownLogs.map((line) => parseLogLine(line, tab === 'xray' ? 'XRAY:' : 'X-UI:')),
     [shownLogs, tab],
@@ -100,7 +117,11 @@ export default function LogModal({ open, onClose }: LogModalProps) {
   function download() {
     FileManager.downloadTextFile(
       shownLogs.join('\n'),
-      tab === 'xray' ? 'xray-runtime.log' : 'mikrozia-panel.log',
+      tab === 'routeros'
+        ? 'routeros-container.log'
+        : tab === 'xray'
+          ? 'xray-runtime.log'
+          : 'mikrozia-panel.log',
     );
   }
 
@@ -108,7 +129,7 @@ export default function LogModal({ open, onClose }: LogModalProps) {
     <>
       {t('pages.index.logs')}
       <SyncOutlined
-        spin={loading}
+        spin={loading || (tab === 'routeros' && routerOSLogsQuery.isFetching)}
         className="reload-icon"
         role="button"
         tabIndex={0}
@@ -190,12 +211,65 @@ export default function LogModal({ open, onClose }: LogModalProps) {
           </Form.Item>
         </Form>
       ) : (
-        <Alert
-          type={routerOSState === 'connected' && !routerOSStale ? 'success' : 'info'}
-          showIcon
-          title={`${t('pages.index.routerosStatusPrefix')}: ${t(routerOSStale ? 'pages.index.routerosStale' : (routerOSStateKeys[routerOSState] ?? 'pages.index.routerosUnreachable'))}`}
-          description={t('pages.index.routerosLogsUnavailableGuidance')}
-        />
+        <>
+          <Form layout="inline" className="log-toolbar">
+            <Form.Item>
+              <Select
+                aria-label={t('pages.index.logLines')}
+                value={rows}
+                size="small"
+                style={{ width: 100 }}
+                onChange={setRows}
+                options={['20', '50', '100'].map((value) => ({ value, label: value }))}
+              />
+            </Form.Item>
+            <Form.Item>
+              <Checkbox checked={autoUpdate} onChange={(e) => setAutoUpdate(e.target.checked)}>
+                {t('pages.index.autoUpdate')}
+              </Checkbox>
+            </Form.Item>
+            <Form.Item className="download-item">
+              <Button
+                type="primary"
+                onClick={download}
+                disabled={containerEntries.length === 0}
+                icon={<DownloadOutlined aria-hidden />}
+                aria-label={t('download')}
+              />
+            </Form.Item>
+          </Form>
+          <Alert
+            type={routerOSState === 'connected' && !routerOSStale ? 'success' : 'info'}
+            showIcon
+            style={{ marginBottom: 12 }}
+            title={`${t('pages.index.routerosStatusPrefix')}: ${t(routerOSStale ? 'pages.index.routerosStale' : (routerOSStateKeys[routerOSState] ?? 'pages.index.routerosUnreachable'))}`}
+          />
+          {routerOSLogsQuery.data?.state !== 'connected' && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              title={t(
+                routerOSLogsQuery.data?.state === 'logging_disabled'
+                  ? 'pages.index.routerosContainerLoggingDisabled'
+                  : routerOSLogsQuery.data?.state === 'identity_unverified'
+                    ? 'pages.index.routerosContainerIdentityUnverified'
+                    : 'pages.index.routerosLogsUnavailableGuidance',
+              )}
+            />
+          )}
+          <div className={`log-container ${isMobile ? 'log-container-mobile' : ''}`}>
+            {containerEntries.length === 0 ? (
+              <div className="log-empty">{t('pages.index.routerosContainerLogsEmpty')}</div>
+            ) : (
+              containerEntries.map((entry, index) => (
+                <div className="log-line" key={`${entry.time}-${index}`}>
+                  <span className="log-stamp">{entry.time}</span> - <span>{entry.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </>
       )}
 
       {tab === 'panel' && (

@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { formatPanelVersion } from '@/lib/panel-version';
 
 import { Status } from '@/models/status';
@@ -10,6 +11,40 @@ import { renderWithProviders } from './test-utils';
 const noop = () => {};
 
 describe('OverviewActionBar version display', () => {
+  it('enables only the verified Container restart and requires confirmation', async () => {
+    const restartContainer = vi.fn();
+    renderWithProviders(
+      <OverviewActionBar
+        status={new Status()}
+        isMobile={false}
+        accessLogEnable={false}
+        panelVersion="v1.0.2-mikrozia"
+        routerOSStatus={{ state: 'connected', checkedAt: 1, stale: false }}
+        containerStatus={{ state: 'connected', status: 'running', restartAvailable: true }}
+        onStopXray={noop}
+        onRestartXray={noop}
+        onRestartPanel={async () => {}}
+        onRestartContainer={restartContainer}
+        onOpenLogs={noop}
+        onOpenXrayLogs={noop}
+        onOpenAmneziaWGLogs={noop}
+        onOpenConfig={noop}
+        onOpenBackup={noop}
+        onOpenSystemHistory={noop}
+        onOpenXrayMetrics={noop}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+    const item = await screen.findByRole('menuitem', { name: 'Restart Container' });
+    expect(item).not.toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(item);
+    expect(
+      await screen.findByText(/Only the uniquely identified Mikrozia container/),
+    ).toBeDefined();
+    expect(restartContainer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(restartContainer).not.toHaveBeenCalled();
+  });
   it('renders panel and xray version as read-only text and has no update button', () => {
     const status = new Status();
     status.xray.version = '26.10.21';
@@ -21,9 +56,11 @@ describe('OverviewActionBar version display', () => {
         accessLogEnable={false}
         panelVersion="v1-mikrozia"
         routerOSStatus={{ state: 'connecting', checkedAt: 0, stale: false }}
+        containerStatus={{ state: 'not_configured', status: '', restartAvailable: false }}
         onStopXray={noop}
         onRestartXray={noop}
         onRestartPanel={async () => {}}
+        onRestartContainer={async () => {}}
         onOpenLogs={noop}
         onOpenXrayLogs={noop}
         onOpenAmneziaWGLogs={noop}
@@ -51,9 +88,11 @@ describe('OverviewActionBar version display', () => {
         accessLogEnable={false}
         panelVersion="v1.0.1-mikrozia"
         routerOSStatus={{ state: 'connected', checkedAt: 1, stale: false }}
+        containerStatus={{ state: 'not_configured', status: '', restartAvailable: false }}
         onStopXray={stop}
         onRestartXray={restart}
         onRestartPanel={async () => {}}
+        onRestartContainer={async () => {}}
         onOpenLogs={noop}
         onOpenXrayLogs={noop}
         onOpenAmneziaWGLogs={noop}

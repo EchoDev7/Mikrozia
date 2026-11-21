@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -17,6 +17,7 @@ vi.mock('@/components/viz/Sparkline', () => ({ default: () => null }));
 const xrayPath = '/panel/api/server/restartXrayService';
 const panelPath = '/panel/api/setting/restartPanel';
 const stopPath = '/panel/api/server/stopXrayService';
+const containerPath = '/panel/api/server/restartRouterosContainer';
 const accepted = 'Panel restart request submitted.';
 const fetchSpy = vi.fn<typeof fetch>();
 const statusResult = { status: new Status(), fetched: true, refresh: vi.fn() };
@@ -58,6 +59,18 @@ describe('Dashboard lifecycle menus', () => {
           },
         });
       }
+      if (url === '/panel/api/server/routerosContainerStatus') {
+        return Response.json({
+          success: true,
+          obj: {
+            state: 'not_configured',
+            status: '',
+            interface: '',
+            logging: false,
+            restartAvailable: false,
+          },
+        });
+      }
       return Response.json({ success: true, obj: {} });
     });
     vi.stubGlobal('fetch', fetchSpy);
@@ -80,11 +93,51 @@ describe('Dashboard lifecycle menus', () => {
       items.map((item) => item.getAttribute('aria-label') || item.textContent?.trim()),
     ).toEqual(['Restart Xray', 'Restart Panel', 'Restart Container']);
     expect(items[2]).toHaveAttribute('aria-disabled', 'true');
-    expect(items[2]).toHaveAccessibleDescription(/secure container identification.*RouterOS API/i);
+    expect(items[2]).toHaveAccessibleDescription(/unique container comment.*RouterOS API account/i);
     fireEvent.click(items[2]);
     fireEvent.keyDown(items[2], { key: 'Enter' });
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(writes()).toHaveLength(0);
+  });
+
+  it('sends one confirmed Container restart request without retry', async () => {
+    cleanup();
+    const originalFetch = fetchSpy.getMockImplementation()!;
+    fetchSpy.mockImplementation(async (url, options) => {
+      if (url === '/panel/api/server/routerosContainerStatus') {
+        return Response.json({
+          success: true,
+          obj: {
+            state: 'connected',
+            status: 'running',
+            interface: 'veth-mikrozia',
+            logging: true,
+            restartAvailable: true,
+          },
+        });
+      }
+      if (url === containerPath && options?.method === 'POST') {
+        return Response.json({ success: true, obj: { state: 'accepted' } });
+      }
+      return originalFetch(url, options);
+    });
+    renderWithProviders(
+      <MemoryRouter>
+        <IndexPage />
+      </MemoryRouter>,
+    );
+    const delay = vi.spyOn(PromiseUtil, 'sleep').mockImplementation(() => new Promise(() => {}));
+    const menu = await openMenu();
+    const item = within(menu).getByRole('menuitem', { name: 'Restart Container' });
+    await waitFor(() => expect(item).not.toHaveAttribute('aria-disabled', 'true'));
+    fireEvent.click(item);
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(writes()).toHaveLength(0);
+    expect(dialog.getByText(/Only the uniquely identified Mikrozia container/)).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('button', { name: 'Restart Container' }));
+    await waitFor(() => expect(writes().map(([url]) => url)).toEqual([containerPath]));
+    expect(new Headers(writes()[0][1]?.headers).get('X-CSRF-Token')).toBe('test-csrf');
+    expect(delay).toHaveBeenCalledWith(10000);
   });
 
   const actions = [

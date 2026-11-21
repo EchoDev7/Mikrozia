@@ -515,6 +515,150 @@ Mikrozia استفاده می‌کند: پیش از اعمال Snapshot سازگ�
 6. نسخه جدید را Start و بررسی کنید.
 7. فقط پس از اطمینان، درباره حذف RootFS قدیمی تصمیم بگیرید.
 
+### 15.1 Runbook تأییدشدهٔ ارتقا (نمونهٔ واقعی `v1.0.2-mikrozia`)
+
+ترتیب زیر روی یک CHR واقعی اجرا و تأیید شده است. هیچ دستوری در آن Mount پایدار
+را حذف، بازسازی یا تغییر نمی‌دهد و هیچ قاعدهٔ Firewall/NAT/Routing اضافه نمی‌کند.
+
+**Preflight (فقط‌خواندنی):** وضعیت `container`، `veth`، `mounts`، `envs`،
+`ip address`، `ip service` و نسخهٔ RouterOS را ثبت کنید. مرز دو چیز را روشن کنید:
+
+- حذف **Container** فقط تعریف اجرا (و `root-dir` نسخه‌ای) را برمی‌دارد.
+- حذف **Data** یعنی از بین بردن `src` مربوط به Mountهای `MIKROZIA_DATA` و
+  `MIKROZIA_CERT`؛ این کار در ارتقا هرگز انجام نمی‌شود.
+
+**پشتیبان غیرمخرب:**
+
+```routeros
+/system/backup/save name=mikrozia-pre-upgrade
+```
+
+**Stop و ساخت Container جدید با Tag ثابت:**
+
+```routeros
+/container/stop [find where comment="[Mikrozia:container] Container"]
+/container/add remote-image="majlot/mikrozia:v1.0.2-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.2-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M shm-size=64M logging=yes start-on-boot=yes check-certificate=yes comment="[Mikrozia:container] Container"
+```
+
+تا پایان Extract (`/log/print follow-only where topics~"container"`) صبر کنید.
+سپس فقط تعریف نسخهٔ قبلی را حذف و نسخهٔ جدید را Start کنید:
+
+```routeros
+/container/remove [find where name="mikrozia:v1.0.1-mikrozia"]
+/container/start [find where name="mikrozia:v1.0.2-mikrozia"]
+/container/print
+```
+
+> از Tag شناور (`v1-mikrozia`) برای نصب یا ارتقای پذیرش‌شده استفاده نکنید؛ Tag
+> نسخه‌دار ثابت، تنها مرجع قابل بازتولید است.
+
+### 15.2 اتصال فقط‌خواندنی به RouterOS API (داخلی)
+
+Prerequisites: یک کاربر اختصاصی با حداقل Policy و سرویس `api` محدود به آدرس داخلی
+VETH. هیچ `api-ssl`، REST، قاعدهٔ Firewall یا دسترسی WAN لازم نیست.
+
+```routeros
+/user/group/add name=mikrozia-api policy=read,api
+/user/add name=mikrozia-api group=mikrozia-api password=<STRONG_RANDOM_SECRET>
+/ip/service/set [find name=api] disabled=no address=<CONTAINER_VETH_IP>
+```
+
+Secret را روی خط فرمان یا در Log چاپ نکنید؛ می‌توانید مقدار را در همان یک خط
+تولید و مستقیم در Environment بنویسید تا در خروجی نمایش داده نشود. سپس سه متغیر
+زیر را به `MIKROZIA_ENV` اضافه کنید (mount/env مشترک است و بین نسخه‌ها منتقل می‌شود):
+
+```routeros
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROUTEROS_API_HOST value="<ROUTER_INTERNAL_GATEWAY_IP>"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROUTEROS_API_USERNAME value="mikrozia-api"
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROUTEROS_API_PASSWORD value=<STRONG_RANDOM_SECRET>
+```
+
+Host باید یک IPv4 خصوصی تحت‌اللفظی باشد (آدرس داخلی سمت روتر، همان Gateway
+VETH)؛ Hostname، loopback و آدرس عمومی پذیرفته نمی‌شود. تنها سرویس مصرف‌شده
+TCP/8728 است. برای اعمال تنظیمات فقط همان Container را restart کنید، نه RouterOS:
+
+```routeros
+/container/restart [find where name="mikrozia:v1.0.2-mikrozia"]
+```
+
+### 15.3 Checklist پذیرش داشبورد پس از ارتقا
+
+1. ورود به پنل انجام می‌شود و نسخهٔ نمایشی `Mikrozia v1.0.2` است.
+2. نوار بالا `RouterOS API: Connected` را نشان می‌دهد (نه `connecting` یا
+   `authentication_failed`).
+3. `CPU` و `RAM` مصرف زندهٔ RouterOS و مقدار Avg/Peak را نشان می‌دهند.
+4. خط `Container` در CPU/RAM فقط وقتی داده دارد پر می‌شود؛ `—` یعنی مقدار
+   container-scoped در دسترس نیست، نه صفر.
+5. `Clients`، `Top Inbounds`، `Storage` و `Uptime` بدون خطا نمایش داده می‌شوند.
+6. `Overall Speed` ممکن است `0 B/s` باشد؛ `Unavailable` تنها با دلیل ثبت‌شده
+   مجاز است. در RouterOS Container نام اینترفیس داخل فضای نام `veth-…` است و
+   داشبورد این نام را تنها در Scope اثبات‌شدهٔ container می‌شمارد؛ در غیر این
+   صورت `netIO` را `Unavailable` اعلام می‌کند تا ترافیک حدسی نشان ندهد.
+7. تب `RouterOS Container` در Logs فقط وضعیت API را نشان می‌دهد و خواندن Log
+   کانتینر از RouterOS همچنان deferred است.
+8. `Restart`/`Stop` را در پذیرش اجرا نکنید؛ فقط وجود و حالت منوها بررسی شود.
+9. در Log پنل هیچ خطای credential/API، loop یا retry غیرعادی نباشد.
+10. کاربران، Inboundها، تنظیمات، گواهی و دادهٔ Subscription باقی مانده باشند
+    (`/etc/x-ui/x-ui.db` و `/root/cert` از همان Mountهای قبلی خوانده می‌شوند).
+
+### 15.4 فعال‌سازی اختیاری `Overall Speed` در RouterOS Container
+
+اگر بند 6 بالا `Unavailable` نشان داد، می‌توانید نام دقیق اینترفیس شبکهٔ همین
+Container را صریح اعلام کنید (هیچ دستور جدید RouterOS API یا firewall لازم نیست):
+
+```routeros
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_CONTAINER_INTERFACE value="<CONTAINER_INTERFACE_NAME>" comment="[Mikrozia:container] Environment"
+```
+
+- مقدار، فقط **نام** اینترفیسی است که داخل namespace همین Container دیده
+  می‌شود (در نصب این راهنما `veth-mikrozia`)، با الگوی
+  `^[A-Za-z0-9._-]{1,63}$`. نام `lo`/`lo0` و هر مقدار نامعتبر رد می‌شود.
+- خالی یا تنظیم‌نشده یعنی رفتار قبلی؛ هیچ تغییری در جمع‌آوری پیش‌فرض رخ نمی‌دهد.
+- این مقدار فقط وقتی به‌کار می‌رود که با قواعد پیش‌فرض **هیچ** اینترفیس
+  قابل‌شمارشی نمانده باشد. روی میزبان با NIC فیزیکی (Scope نامشخص) اثری ندارد،
+  پس دوبار‌شماری `veth*` ممکن نیست.
+- اگر اینترفیس با آن نام پیدا نشود، `netIO` باز هم `Unavailable` می‌ماند؛
+  fallback به `lo`، WAN یا مجموع RouterOS وجود ندارد.
+- جهت داده: `Upload` = TX و `Download` = RX همان اینترفیس. با restart شدن
+  Container شمارنده‌ها صفر می‌شوند و نمونهٔ بعدی از baseline جدید محاسبه
+  می‌شود؛ نرخ منفی یا جهش ساخته نمی‌شود.
+- پس از افزودن env فقط همان Container را restart کنید، نه RouterOS.
+
+### 15.5 آماده‌سازی لاگ کانتینر و Restart Container برای `v1.0.3-mikrozia`
+
+این قابلیت‌ها تا زمانی که Image `v1.0.3-mikrozia` نصب و روی CHR پذیرفته نشده است، در
+نسخهٔ فعلی `v1.0.2-mikrozia` فعال نیستند. نخست روی CHR، comment کانتینر را
+با `/container/print` به‌صورت **فیلدهای انتخابی** بررسی کنید؛ از `print detail`
+بدون محدودیت فیلد استفاده نکنید، چون envهای حاوی رمز را نمایش می‌دهد.
+
+برای خواندن لاگ، `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` را برابر comment یکتای
+همان کانتینر در `MIKROZIA_ENV` تنظیم کنید. پنل با حساب فقط‌خواندنی موجود، ابتدا
+`/container/print` و سپس `/container/log/print` را می‌خواند و فقط رکوردهایی را
+نمایش می‌دهد که فیلد `container` آن‌ها با `name` کانتینر شناسایی‌شده برابر است.
+اگر `logging=no` باشد، فعال‌کردن آن تصمیم جداگانهٔ اپراتور در RouterOS است؛
+پنل تنظیمات لاگ را تغییر نمی‌دهد.
+
+برای فعال‌سازی **اختیاری** Restart Container، حساب RouterOS API جداگانه‌ای
+با Policyهای لازم برای خواندن و اجرای `/container/restart` بسازید و نام/رمز آن
+را در `MIKROZIA_ROUTEROS_RESTART_USERNAME` و
+`MIKROZIA_ROUTEROS_RESTART_PASSWORD` قرار دهید. Policyهای `read,write,api`
+پیش‌نیاز مورد انتظارند، اما RouterOS دسترسی را به همین یک فرمان محدود نمی‌کند؛
+دسترسی API را فقط از IP داخلی Container مجاز کنید و مجوز حساب را روی CHR
+آزمایش کنید. از حساب `admin` یا همان حساب فقط‌خواندنی استفاده نکنید. رمز را
+در خروجی دستور، اسکرین‌شات یا مستندات ثبت نکنید.
+
+پس از نصب Image بعدی، پیش از نخستین Restart عملیاتی این موارد را بررسی کنید:
+
+1. `RouterOS API: Connected` و تب لاگ، رکوردهای همان کانتینر را مطابق WinBox
+   نشان می‌دهند؛ `logging=no` به‌روشنی نمایش داده می‌شود.
+2. گزینهٔ `Restart Container` فقط با هویت یکتا، وضعیت `running` و حساب عملیاتی
+   مجزا فعال است؛ لغو Dialog هیچ فرمانی ارسال نمی‌کند.
+3. پس از تأیید، فقط یک درخواست ارسال می‌شود. اگر اتصال پنل پیش از پاسخ قطع شد،
+   نتیجه «نامعلوم» است و درخواست خودکار تکرار نمی‌شود. پس از بازگشت پنل، نسخه، Xray،
+   داده‌های `/etc/x-ui` و گواهی‌های `/root/cert` بررسی شوند.
+4. `Container History` برای CPU و RAM فقط نمونه‌های cgroup خود Container را
+   نشان می‌دهد؛ نبود داده، مصرف میزبان را با برچسب Container جایگزین نمی‌کند.
+
 از Update داخلی پنل برای جایگزین‌کردن فایل‌های RootFS استفاده نکنید؛ Image باید واحد قابل انتشار و بازتولیدپذیر باقی بماند.
 
 ## 16. انتشار هر نسخه در Docker Hub
@@ -674,7 +818,7 @@ Container جدید بدون Mount صحیح `/etc/x-ui` ساخته شده است.
 
 ```routeros
 /container/set [find where comment="[Mikrozia:container] Container"] logging=yes
-/log/print follow-only where topics~"container"
+/container/log/print detail
 ```
 
 - **حریم خصوصی لاگ دسترسی Xray**: لاگ دسترسی Xray می‌تواند IP مبدأ کلاینت‌ها، مقصدها و ایمیل حساب‌ها را ثبت کند؛ پیش از فعال‌سازی یا اشتراک‌گذاری، دسترسی به پنل را محدود و سیاست نگهداری لاگ را بررسی کنید.

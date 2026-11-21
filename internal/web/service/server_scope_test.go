@@ -33,6 +33,8 @@ func TestContainerStatusOnlyOverridesCPUSwapAndUptime(t *testing.T) {
 		filepath.Join(proc, "net/dev"):        "Inter-| Receive | Transmit\n face |bytes packets errs drop fifo frame compressed multicast|bytes packets errs drop fifo colls carrier compressed\n  veth0: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
 		filepath.Join(cg, "cpu.stat"):         "usage_usec 222772076\n",
 		filepath.Join(cg, "cpu.max"):          "max 100000\n",
+		filepath.Join(cg, "memory.current"):   "75497472\n",
+		filepath.Join(cg, "memory.max"):       "1073741824\n",
 		filepath.Join(cg, "io.stat"):          "259:0 rbytes=999999999 wbytes=999999999\n",
 	}
 	for path, content := range fixtures {
@@ -74,7 +76,7 @@ func TestContainerStatusOnlyOverridesCPUSwapAndUptime(t *testing.T) {
 		t.Fatal(err)
 	}
 	native := svc.GetStatus(previous)
-	if native.ResourceScope != "" || len(native.UnavailableMetrics) != 0 || native.CpuSpeedMhz != 5000 || native.Mem != got.Mem || !reflect.DeepEqual(native.Loads, got.Loads) || native.DiskTraffic != got.DiskTraffic {
+	if native.ResourceScope != "" || !slices.Equal(native.UnavailableMetrics, []string{"netIO"}) || native.CpuSpeedMhz != 5000 || native.Mem != got.Mem || !reflect.DeepEqual(native.Loads, got.Loads) || native.DiskTraffic != got.DiskTraffic {
 		t.Fatalf("native regression: %+v", native)
 	}
 }
@@ -88,6 +90,46 @@ func TestScopedResourcesLeaveUnrelatedStatusUntouched(t *testing.T) {
 	applyLXCStats(status, &sys.LXCStats{Scope: "container", CPUs: 2, SwapUsed: 8, SwapTotal: 512, Uptime: 15})
 	if status.Mem != before.Mem || status.DiskTraffic != before.DiskTraffic || status.DiskIO != before.DiskIO || !reflect.DeepEqual(status.Loads, before.Loads) {
 		t.Fatalf("unrelated status overwritten: %+v", status)
+	}
+}
+
+func TestRouterOSCgroupSampleReplacesHostCPUAndExposesContainerMemory(t *testing.T) {
+	root := t.TempDir()
+	proc, cg := filepath.Join(root, "proc"), filepath.Join(root, "cg")
+	for name, value := range map[string]string{
+		filepath.Join(proc, "self/mountinfo"):      "1 0 0:28 / " + cg + " rw - cgroup2 cgroup rw\n",
+		filepath.Join(proc, "1/cgroup"):            "0::/init\n",
+		filepath.Join(proc, "self/cgroup"):         "0::/init\n",
+		filepath.Join(cg, "cpu.stat"):              "usage_usec 1000000\n",
+		filepath.Join(cg, "cpu.max"):               "max 100000\n",
+		filepath.Join(cg, "cpuset.cpus.effective"): "0-1\n",
+		filepath.Join(cg, "memory.current"):        "75497472\n",
+		filepath.Join(cg, "memory.max"):            "1073741824\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, []byte(value), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := sys.LXCReader{ProcRoot: proc, CgroupRoot: cg}
+	for i := range 2 {
+		if err := os.WriteFile(filepath.Join(cg, "cpu.stat"), []byte([]string{"usage_usec 1000000\n", "usage_usec 2000000\n"}[i]), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sample, err := r.Read(time.Unix(int64(100+i), 0))
+		if err != nil || sample == nil {
+			t.Fatalf("sample=%+v err=%v", sample, err)
+		}
+		status := &Status{Cpu: 99}
+		applyLXCStats(status, sample)
+		if status.ResourceScope != "container" || status.ContainerMem == nil || status.ContainerMem.Used != 75497472 || status.ContainerMem.Limit == nil || *status.ContainerMem.Limit != 1073741824 || status.MetricAvailable("swap") || status.MetricAvailable("uptime") {
+			t.Fatalf("status=%+v", status)
+		}
+		if i == 0 && status.MetricAvailable("cpu") || i == 1 && (!status.MetricAvailable("cpu") || status.Cpu != 50) {
+			t.Fatalf("CPU sample %d: %+v", i, status)
+		}
 	}
 }
 

@@ -3,6 +3,8 @@ export const keys = {
   server: {
     status: () => ['server', 'status'] as const,
     routerOSStatus: () => ['server', 'routerOSStatus'] as const,
+    routerOSContainerLogs: (count: number) => ['server', 'routerOSContainerLogs', count] as const,
+    routerOSContainerStatus: () => ['server', 'routerOSContainerStatus'] as const,
   },
   nodes: {
     root: () => ['nodes'] as const,

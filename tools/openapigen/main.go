@@ -120,6 +120,10 @@ func run(root, outDir string) error {
 			),
 		},
 		{
+			Path:        resolveRel(root, "internal/routeros"),
+			StructAllow: setOf("ContainerSnapshot", "ContainerLogEntry", "ContainerLogsSnapshot", "ContainerRestartResult"),
+		},
+		{
 			Path:        resolveRel(root, "internal/util/sys"),
 			StructAllow: setOf("ContainerMemory"),
 		},

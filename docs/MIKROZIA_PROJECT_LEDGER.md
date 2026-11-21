@@ -1036,6 +1036,86 @@ commit, tag, push, Docker Hub publish, or CHR deployment.
 - No Docker Hub image publication or GitHub release.
 - No live CHR/RouterOS deployment or configuration change.
 
+## Live CHR deployment and acceptance: `v1.0.2-mikrozia` (P1-DEPLOY-01)
+
+### Goal
+
+Replace the existing Mikrozia container on the owner's CHR with the immutable
+`majlot/mikrozia:v1.0.2-mikrozia` image, preserve all persistent data, connect the
+panel to the internal RouterOS native API (read-only), and accept the Dashboard
+visually. No Git, GitHub, Docker Hub, or RouterOS network-policy change was made.
+
+### Deployed state (2026-11-20, redacted)
+
+| Item            | Result                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| RouterOS        | `7.25.1` on CHR (`Amazon EC2 t3.small`), container package available                                 |
+| Image tag       | `majlot/mikrozia:v1.0.2-mikrozia` (pinned; `v1-mikrozia` deliberately unused)                        |
+| Container       | `mikrozia:v1.0.2-mikrozia`, new per-release `root-dir`, `RUNNING`                                    |
+| Old container   | Definition only removed after the new one started; previous `root-dir` left on disk                  |
+| Persistent data | unchanged: `MIKROZIA_DATA` → `/etc/x-ui`, `MIKROZIA_CERT` → `/root/cert`                             |
+| Panel           | login OK, shows `Mikrozia v1.0.2`, Xray `Running v26.10.21`                                          |
+| Data verified   | same `x-ui.db`, same cert directory, inbound and clients preserved                                   |
+| RouterOS API    | internal `api` on TCP/8728 only, restricted to the container VETH address                            |
+| API identity    | dedicated user with `read,api` only; no write/policy/sensitive/ssh/winbox                            |
+| Dashboard       | `RouterOS API: Connected`; live CPU/RAM with Avg/Peak; Clients, Top Inbounds, Storage, Uptime render |
+
+### Accepted limitations (truthful states, not defects to hide)
+
+- `Overall Speed` renders `Unavailable` in this deployment. Reason: inside the
+  RouterOS container the interface is named `veth-…`, and the panel counts that
+  name only inside a proven container scope; otherwise it labels `netIO`
+  unavailable instead of guessing host traffic. No code change was made.
+- CPU/RAM `Container` lines render `—` because container-scoped cgroup series are
+  not exposed in this RouterOS container runtime; RouterOS lines are primary.
+- RouterOS container log reads remain deferred prerequisites (no stable configured
+  container identity is assumed by the panel).
+- Xray logs show repeated client-side TLS handshake failures from an external peer;
+  these are client certificate mismatches, not panel/API errors.
+
+### Explicit exclusions (respected)
+
+- No commit, tag, push, release, or image publish in this task.
+- No Firewall/NAT/masquerade/routing/address-list change; existing operator NAT was
+  left untouched.
+- No RouterOS reboot, no other container touched, no data/cert/mount deleted.
+
+## Local candidate preparation: `v1.0.3-mikrozia` (2026-11-21)
+
+The candidate adds exact-comment RouterOS container discovery, bounded read-only
+`/container/log/print` access, and an optional separately credentialed
+`/container/restart` path. Restart rechecks ID, name, comment, and running
+status immediately before one command; a lost reply is reported as uncertain
+without retry. Container History CPU/RAM uses only verified cgroup samples;
+host fallback is not plotted as container data. The pre-existing container
+network-interface fix remains in this worktree.
+
+`MIKROZIA_VERSION` was advanced locally from `v1.0.2-mikrozia` to
+`v1.0.3-mikrozia`. The local `amd64` image is tagged
+`mikrozia:v1.0.3-local`; this is not a published release tag. An isolated
+localhost preview was upgraded with the same temporary database and certificate
+mounts, retained its login, and displayed `Mikrozia v1.0.3`. The Restart menu,
+RouterOS log fallback, and Container History scope were inspected visually.
+
+Verification: `make test-go` exit `0`; full Vitest `225/225` files and
+`2068/2068` tests exit `0`; frontend format/lint/typecheck/build exit `0`;
+`golangci-lint v2.15.0` initially reported `0 issues.`; docs tests
+`104/104`, build `275/275`, and format check exit `0`; full Python suite on
+the final local image `119/119` exit `0`. Two stale Python assertions were
+corrected after their initial failure. The first full Vitest attempt was
+blocked by sandbox loopback `EPERM`; the identical run with loopback access
+passed. The first docs build stalled in sandbox and the repeated local build
+passed. Final lint after a new restart uncertainty test and race validation
+are recorded in the task report rather than inferred from these earlier gates.
+
+Live acceptance remains separate: the installed CHR still runs
+`v1.0.2-mikrozia`. The new image has not been installed there, the optional
+RouterOS operational account has not been configured, and no real container
+restart was sent. Before publishing, verify read-only container logs against
+WinBox, cgroup history on CHR, permissions for the operational account, and
+one explicitly authorized restart with persistent data checks. No commit,
+push, tag, Docker Hub publication, or CHR mutation was performed here.
+
 ## New-task template
 
 Add an entry when the project manager authorizes a new bounded task:

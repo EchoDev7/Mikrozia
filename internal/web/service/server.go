@@ -670,8 +670,14 @@ func (s *ServerService) AppendStatusSample(t time.Time, status *Status) {
 		return
 	}
 	appendScopedMetric(status, "cpu", t, status.Cpu)
+	if status.ResourceScope == "container" && status.MetricAvailable("cpu") {
+		systemMetrics.append("containerCpu", t, status.Cpu)
+	}
 	if status.Mem.Total > 0 {
 		systemMetrics.append("mem", t, float64(status.Mem.Current)*100.0/float64(status.Mem.Total))
+	}
+	if status.ResourceScope == "container" && status.ContainerMem != nil && status.ContainerMem.Limit != nil && *status.ContainerMem.Limit > 0 {
+		systemMetrics.append("containerMem", t, float64(status.ContainerMem.Used)*100.0/float64(*status.ContainerMem.Limit))
 	}
 	if status.Swap.Total > 0 {
 		appendScopedMetric(status, "swap", t, float64(status.Swap.Current)*100.0/float64(status.Swap.Total))
@@ -1150,8 +1156,17 @@ func collectNetIO(ioStats []net.IOCountersStat, err error, status *Status, lastS
 		totalPktRecv += iface.PacketsRecv
 	}
 	if usable == 0 {
-		markMetricUnavailable(status, "netIO")
-		return
+		// An explicit name is considered only after the default rules find no NIC.
+		// It selects one exact counter in this process's network namespace.
+		selected, ok := selectExplicitContainerInterface(ioStats, status)
+		if !ok {
+			markMetricUnavailable(status, "netIO")
+			return
+		}
+		totalSent = selected.BytesSent
+		totalRecv = selected.BytesRecv
+		totalPktSent = selected.PacketsSent
+		totalPktRecv = selected.PacketsRecv
 	}
 	status.NetTraffic.Sent = totalSent
 	status.NetTraffic.Recv = totalRecv
@@ -1173,6 +1188,24 @@ func collectNetIO(ioStats []net.IOCountersStat, err error, status *Status, lastS
 			status.NetIO.PktDown = uint64(float64(status.NetTraffic.PktRecv-lastStatus.NetTraffic.PktRecv) / seconds)
 		}
 	}
+}
+
+// selectExplicitContainerInterface resolves one exact counter in the local netns.
+// Proven container scope keeps its existing automatic veth behavior.
+func selectExplicitContainerInterface(ioStats []net.IOCountersStat, status *Status) (net.IOCountersStat, bool) {
+	if status == nil || status.ResourceScope == "container" {
+		return net.IOCountersStat{}, false
+	}
+	name := config.GetMikroziaContainerInterface()
+	if name == "" {
+		return net.IOCountersStat{}, false
+	}
+	for _, iface := range ioStats {
+		if iface.Name == name {
+			return iface, true
+		}
+	}
+	return net.IOCountersStat{}, false
 }
 
 // isVirtualInterfaceInScope returns true for loopback and virtual/tunnel interfaces

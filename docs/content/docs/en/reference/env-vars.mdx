@@ -51,6 +51,9 @@ change router settings.
 | `MIKROZIA_ROUTEROS_API_HOST` | — | Literal private IPv4/IPv6 address of the RouterOS API endpoint (no hostnames, zones, loopback, or link-local addresses). |
 | `MIKROZIA_ROUTEROS_API_USERNAME` | — | Dedicated read-only RouterOS API account name (`read,api` policies only). |
 | `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API account password. |
+| `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | Exact unique comment of the Mikrozia RouterOS container; enables read-only Container Log lookup. |
+| `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | Separate operational RouterOS API username for the optional Restart Container command. Requires RouterOS read, write, and api policies; keep access on the internal container IP only. |
+| `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | Password for the separate optional operational account. Never reuse the read-only account. |
 
 Example values are placeholders only:
 
@@ -66,7 +69,19 @@ is visible to router administrators and is not a secret store. Restrict access
 to the router configuration. The integration polls `/system/resource/print`
 (`uptime`, `cpu-load`, `cpu-count`, `cpu-frequency`, `total-memory`,
 `free-memory`) every 15s with a 4s timeout and 30s stale threshold; RouterOS
-Container log reads and VETH telemetry remain deferred prerequisites.
+Container log reads and RouterOS-side VETH telemetry remain deferred prerequisites.
+
+## Container network metrics
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MIKROZIA_CONTAINER_INTERFACE` | — | Exact interface name used for Dashboard Overall Speed when automatic collection finds no usable interface. Allowed pattern: `^[A-Za-z0-9._-]{1,63}$`; `lo` and `lo0` are rejected. |
+
+When set, Mikrozia reads only that interface from its own container network
+namespace (`/proc/net/dev`). It never queries RouterOS interface counters. A
+missing or invalid name leaves Overall Speed unavailable, with no fallback to
+another interface. Upload is TX and Download is RX. On hosts where automatic
+collection already finds a usable NIC, this variable has no effect.
 
 <Callout type="warn">
   **The RouterOS Container Environment is a configuration store, not a secret

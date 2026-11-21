@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -80,7 +81,11 @@ func (r *LXCReader) detect() (lxcMounts, error) {
 
 func (r *LXCReader) UseScopedHistory() bool {
 	mounts, err := r.detect()
-	return len(mounts.sources) > 0 || err != nil
+	if err != nil || len(mounts.sources) > 0 {
+		return true
+	}
+	proc, _ := r.roots()
+	return mounts.cgroupRoot && routerOSContainerInit(proc)
 }
 
 func (r *LXCReader) resetCPU() {
@@ -92,18 +97,19 @@ func (r *LXCReader) resetCPU() {
 // LXCFS supplies container swap and uptime; sysinfo bypasses those mounts.
 func (r *LXCReader) Read(now time.Time) (*LXCStats, error) {
 	mounts, err := r.detect()
-	if len(mounts.sources) == 0 && err == nil {
-		r.resetCPU()
-		return nil, nil
-	}
-	out := &LXCStats{Scope: "container"}
 	if err != nil {
 		r.resetCPU()
-		out.Scope = "unknown"
+		out := &LXCStats{Scope: "unknown"}
 		out.Unavailable = []string{"cpu", "swap", "uptime"}
 		return out, fmt.Errorf("cannot determine metric scope: %w", err)
 	}
 	proc, cg := r.roots()
+	routerOSContainer := mounts.cgroupRoot && routerOSContainerInit(proc)
+	if len(mounts.sources) == 0 && !routerOSContainer {
+		r.resetCPU()
+		return nil, nil
+	}
+	out := &LXCStats{Scope: "container"}
 	if mounts.sources["/proc/meminfo"] {
 		mem, err := readLXCBytes(filepath.Join(proc, "meminfo"))
 		total, tok := mem["SwapTotal"]
@@ -136,11 +142,11 @@ func (r *LXCReader) Read(now time.Time) (*LXCStats, error) {
 	} else {
 		out.Unavailable = append(out.Unavailable, "uptime")
 	}
-	if !mounts.sources["/proc/cpuinfo"] || !mounts.cgroupRoot || !containerInitAtRoot(proc) {
+	if !mounts.cgroupRoot || (!routerOSContainer && (!mounts.sources["/proc/cpuinfo"] || !containerInitAtRoot(proc))) {
 		r.resetCPU()
 		out.Unavailable = append(out.Unavailable, "cpu")
 	} else {
-		capacity, cpus, err := r.cpuCapacity(proc, cg)
+		capacity, cpus, err := r.cpuCapacity(proc, cg, mounts.sources["/proc/cpuinfo"] && !routerOSContainer)
 		out.CPUs = cpus
 		usage, usageErr := readUsage(filepath.Join(cg, "cpu.stat"))
 		r.mu.Lock()
@@ -159,7 +165,7 @@ func (r *LXCReader) Read(now time.Time) (*LXCStats, error) {
 		r.mu.Unlock()
 	}
 
-	if cm := readContainerMemory(proc, cg, mounts.cgroupRoot, mounts.cgroupV1Memory, containerInitAtRoot(proc)); cm != nil {
+	if cm := readContainerMemory(proc, cg, mounts.cgroupRoot, mounts.cgroupV1Memory, routerOSContainer || containerInitAtRoot(proc)); cm != nil {
 		out.ContainerMem = cm
 	} else {
 		out.Unavailable = append(out.Unavailable, "containerMem")
@@ -179,6 +185,17 @@ func containerInitAtRoot(proc string) bool {
 	default:
 		return false
 	}
+}
+
+// RouterOS Container exposes its cgroup v2 root as /init without LXCFS.
+func routerOSContainerInit(proc string) bool {
+	for _, member := range []string{"1/cgroup", "self/cgroup"} {
+		data, err := os.ReadFile(filepath.Join(proc, member))
+		if err != nil || strings.TrimSpace(string(data)) != "0::/init" {
+			return false
+		}
+	}
+	return true
 }
 
 func readLXCBytes(path string) (map[string]uint64, error) {
@@ -212,29 +229,22 @@ func readLXCBytes(path string) (map[string]uint64, error) {
 	return values, nil
 }
 
-func (r *LXCReader) cpuCapacity(proc, cg string) (float64, int, error) {
-	data, err := os.ReadFile(filepath.Join(proc, "cpuinfo"))
+// Only verified LXCFS may use cpuinfo when the cgroup CPU set is absent.
+// RouterOS capacity always comes from cgroup v2.
+func (r *LXCReader) cpuCapacity(proc, cg string, allowLXCFSFallback bool) (float64, int, error) {
+	cpuset, err := os.ReadFile(filepath.Join(cg, "cpuset.cpus.effective"))
+	cpus := 0
+	if err == nil {
+		cpus, err = parseCPUSetCount(string(cpuset))
+	}
+	if err != nil && allowLXCFSFallback && errors.Is(err, os.ErrNotExist) {
+		cpus, err = cpuCountFromInfo(filepath.Join(proc, "cpuinfo"))
+	}
 	if err != nil {
 		return 0, 0, err
 	}
-	ids := map[uint64]bool{}
-	for _, line := range strings.Split(string(data), "\n") {
-		key, value, ok := strings.Cut(line, ":")
-		if !ok || strings.TrimSpace(key) != "processor" {
-			continue
-		}
-		id, e := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
-		if e != nil || ids[id] {
-			return 0, 0, errors.New("invalid CPU list")
-		}
-		ids[id] = true
-	}
-	cpus := len(ids)
-	if cpus == 0 {
-		return 0, 0, errors.New("empty CPU list")
-	}
 	capacity := float64(cpus)
-	data, err = os.ReadFile(filepath.Join(cg, "cpu.max"))
+	data, err := os.ReadFile(filepath.Join(cg, "cpu.max"))
 	if err != nil {
 		return 0, cpus, err
 	}
@@ -254,6 +264,74 @@ func (r *LXCReader) cpuCapacity(proc, cg string) (float64, int, error) {
 		capacity = math.Min(capacity, float64(quota)/float64(period))
 	}
 	return capacity, cpus, nil
+}
+
+func cpuCountFromInfo(path string) (int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	ids := map[uint64]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if ok && strings.TrimSpace(key) == "processor" {
+			id, parseErr := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+			if parseErr != nil || ids[id] {
+				return 0, errors.New("invalid CPU list")
+			}
+			ids[id] = true
+		}
+	}
+	if len(ids) == 0 {
+		return 0, errors.New("missing CPU count")
+	}
+	return len(ids), nil
+}
+
+type cpuInterval struct{ start, end uint64 }
+
+func parseCPUSetCount(value string) (int, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, errors.New("empty CPU set")
+	}
+	intervals := make([]cpuInterval, 0, strings.Count(value, ",")+1)
+	for _, token := range strings.Split(value, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			return 0, errors.New("invalid CPU set")
+		}
+		startText, endText, isRange := strings.Cut(token, "-")
+		if isRange && strings.Contains(endText, "-") {
+			return 0, errors.New("invalid CPU range")
+		}
+		start, err := strconv.ParseUint(startText, 10, 64)
+		if err != nil {
+			return 0, errors.New("invalid CPU ID")
+		}
+		end := start
+		if isRange {
+			end, err = strconv.ParseUint(endText, 10, 64)
+			if err != nil || end < start {
+				return 0, errors.New("invalid CPU range")
+			}
+		}
+		intervals = append(intervals, cpuInterval{start: start, end: end})
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i].start < intervals[j].start })
+	var total uint64
+	for i, interval := range intervals {
+		if i > 0 && interval.start <= intervals[i-1].end {
+			return 0, errors.New("overlapping CPU ranges")
+		}
+		count := interval.end - interval.start + 1
+		maxInt := uint64(^uint(0) >> 1)
+		if count == 0 || count > maxInt || total > maxInt-count {
+			return 0, errors.New("CPU set too large")
+		}
+		total += count
+	}
+	return int(total), nil
 }
 
 func readUsage(path string) (uint64, error) {

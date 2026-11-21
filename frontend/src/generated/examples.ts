@@ -634,9 +634,32 @@ export const EXAMPLES: Record<string, unknown> = {
     "online": 1,
     "total": 2000
   },
+  "ContainerLogEntry": {
+    "message": "",
+    "time": ""
+  },
+  "ContainerLogsSnapshot": {
+    "entries": [
+      {
+        "message": "",
+        "time": ""
+      }
+    ],
+    "state": ""
+  },
   "ContainerMemory": {
     "limit": null,
     "used": 0
+  },
+  "ContainerRestartResult": {
+    "state": ""
+  },
+  "ContainerSnapshot": {
+    "interface": "",
+    "logging": false,
+    "restartAvailable": false,
+    "state": "",
+    "status": ""
   },
   "FallbackParentInfo": {
     "masterId": 0,

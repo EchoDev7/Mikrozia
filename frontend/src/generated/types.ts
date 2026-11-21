@@ -589,9 +589,31 @@ export interface ClientsSummaryCounts {
   total: number;
 }
 
+export interface ContainerLogEntry {
+  message: string;
+  time: string;
+}
+
+export interface ContainerLogsSnapshot {
+  entries: ContainerLogEntry[];
+  state: string;
+}
+
 export interface ContainerMemory {
   limit?: number | null;
   used: number;
+}
+
+export interface ContainerRestartResult {
+  state: string;
+}
+
+export interface ContainerSnapshot {
+  interface: string;
+  logging: boolean;
+  restartAvailable: boolean;
+  state: string;
+  status: string;
 }
 
 export interface FallbackParentInfo {

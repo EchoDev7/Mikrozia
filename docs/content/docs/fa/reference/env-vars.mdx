@@ -22,6 +22,9 @@ RouterOS Container آن‌ها را در `/container/envs` تعریف کرده �
 | `MIKROZIA_ROUTEROS_API_HOST` | — | نشانی عددی خصوصی (literal private IPv4/IPv6) روتر برای API (بدون نام میزبان، zone، loopback یا link-local). |
 | `MIKROZIA_ROUTEROS_API_USERNAME` | — | نام حساب اختصاصی فقط‌خواندنی RouterOS API (فقط دسترسی‌های `read,api`). |
 | `MIKROZIA_ROUTEROS_API_PASSWORD` | — | رمز حساب RouterOS API. |
+| `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | comment یکتای دقیق کانتینر Mikrozia در RouterOS؛ خواندن فقط‌خواندنی لاگ کانتینر را فعال می‌کند. |
+| `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | نام حساب عملیاتی جداگانهٔ RouterOS API برای Restart Container اختیاری. به مجوزهای read، write و api نیاز دارد؛ دسترسی را فقط به IP داخلی کانتینر محدود کنید. |
+| `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | رمز حساب عملیاتی جداگانه و اختیاری؛ از حساب فقط‌خواندنی استفاده نکنید. |
 
 از مقادیر جایگزین مانند `172.16.10.1`، `<READ_ONLY_API_USER>` و
 `<SET_A_SECRET_VALUE>` استفاده کنید. رمز فقط هنگام بررسی در حافظهٔ فرایند
@@ -30,7 +33,20 @@ RouterOS Container آن‌ها را در `/container/envs` تعریف کرده �
 این یکپارچه‌سازی هر ۱۵ ثانیه با مهلت ۴ ثانیه و آستانهٔ کهنگی ۳۰ ثانیه دستور
 فقط‌خواندنی `/system/resource/print` را برای فیلدهای `uptime`، `cpu-load`،
 `cpu-count`، `cpu-frequency`، `total-memory` و `free-memory` می‌خواند؛ خواندن
-لاگ‌های کانتینر RouterOS و آمار VETH همچنان در مراحل آینده قرار دارند.
+لاگ‌های کانتینر RouterOS و آمار VETH سمت RouterOS همچنان در مراحل آینده قرار دارند.
+
+## معیارهای شبکهٔ کانتینر
+
+| متغیر | پیش‌فرض | توضیح |
+| --- | --- | --- |
+| `MIKROZIA_CONTAINER_INTERFACE` | — | نام دقیق اینترفیس برای Overall Speed داشبورد، وقتی جمع‌آوری خودکار هیچ اینترفیس قابل‌استفاده‌ای پیدا نمی‌کند. الگوی مجاز `^[A-Za-z0-9._-]{1,63}$` است؛ `lo` و `lo0` رد می‌شوند. |
+
+با تنظیم این مقدار، Mikrozia فقط همان اینترفیس را از namespace شبکهٔ خود
+کانتینر (`/proc/net/dev`) می‌خواند و هیچ شمارندهٔ اینترفیسی را از RouterOS API
+دریافت نمی‌کند. نام نامعتبر یا ناموجود، Overall Speed را بدون fallback به
+اینترفیس دیگر در حالت Unavailable نگه می‌دارد. Upload برابر TX و Download برابر
+RX است. روی میزبانی که جمع‌آوری خودکار از قبل یک NIC قابل‌استفاده پیدا کرده، این
+متغیر اثری ندارد.
 
 ## اطلاعات ورود مدیر
 

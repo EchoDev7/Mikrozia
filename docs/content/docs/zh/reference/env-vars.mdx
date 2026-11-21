@@ -17,13 +17,27 @@ RouterOS API 查询。这些变量为可选项：要么全部设置，要么全�
 | `MIKROZIA_ROUTEROS_API_HOST` | — | RouterOS API 的私有字面 IPv4/IPv6 地址（不接受主机名、zone、回环或链路本地地址）。 |
 | `MIKROZIA_ROUTEROS_API_USERNAME` | — | 专用只读 RouterOS API 帐户名（仅需 `read,api` 权限）。 |
 | `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API 帐户密码。 |
+| `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | Mikrozia RouterOS 容器的准确唯一备注；用于只读查询容器日志。 |
+| `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | 可选 Restart Container 操作使用的独立 RouterOS API 用户名。需要 read、write 和 api 权限；仅允许容器内部 IP 访问。 |
+| `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | 独立可选操作账户的密码。不要复用只读账户。 |
 
 请使用占位值，例如 `172.16.10.1`、`<READ_ONLY_API_USER>` 和
 `<SET_A_SECRET_VALUE>`。密码仅在探测时保留于进程内存，不写入数据库，也不会由
 面板 API 返回。RouterOS `/container/envs` 对路由器管理员可见，并非秘密存储。
 该集成每 15 秒轮询一次 `/system/resource/print`（`uptime`、`cpu-load`、
 `cpu-count`、`cpu-frequency`、`total-memory`、`free-memory`），超时为 4 秒，
-陈旧阈值为 30 秒；RouterOS 容器日志读取与 VETH 遥测仍为延后事项。
+陈旧阈值为 30 秒；RouterOS 容器日志读取与 RouterOS 侧 VETH 遥测仍为延后事项。
+
+## 容器网络指标
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MIKROZIA_CONTAINER_INTERFACE` | — | 自动采集找不到可用接口时，Dashboard Overall Speed 使用的精确接口名称。允许的格式为 `^[A-Za-z0-9._-]{1,63}$`；拒绝 `lo` 与 `lo0`。 |
+
+设置后，Mikrozia 只从自身容器网络命名空间（`/proc/net/dev`）读取该接口，
+不会通过 RouterOS API 查询接口计数器。名称缺失或无效时，Overall Speed
+保持不可用，且不会回退到其他接口。Upload 对应 TX，Download 对应 RX。
+如果主机上的自动采集已经找到可用 NIC，则该变量不会产生影响。
 
 ## 管理员凭据
 

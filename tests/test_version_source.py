@@ -186,7 +186,8 @@ class PublishWorkflowContractTest(unittest.TestCase):
     def test_smoke_build_reuses_the_release_tag_and_checks_runtime_output(self):
         self.assertIn("MIKROZIA_VERSION=${{ env.RELEASE_TAG }}", self.content)
         self.assertIn("-entrypoint /app/x-ui", self.content)
-        self.assertIn('test "$runtime_mikrozia_ver" = "$RELEASE_TAG"', self.content)
+        self.assertIn('expected_runtime_mikrozia_ver="Mikrozia ${RELEASE_TAG%-mikrozia}"', self.content)
+        self.assertIn('test "$runtime_mikrozia_ver" = "$expected_runtime_mikrozia_ver"', self.content)
         self.assertIn("org.opencontainers.image.version", self.content)
 
 
