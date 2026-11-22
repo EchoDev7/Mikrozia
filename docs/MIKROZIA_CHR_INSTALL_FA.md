@@ -631,8 +631,10 @@ Container را صریح اعلام کنید (هیچ دستور جدید RouterOS
 با `/container/print` به‌صورت **فیلدهای انتخابی** بررسی کنید؛ از `print detail`
 بدون محدودیت فیلد استفاده نکنید، چون envهای حاوی رمز را نمایش می‌دهد.
 
-برای خواندن لاگ، `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` را برابر comment یکتای
-همان کانتینر در `MIKROZIA_ENV` تنظیم کنید. پنل با حساب فقط‌خواندنی موجود، ابتدا
+برای خواندن لاگ در RouterOS 7.25.1، `MIKROZIA_ROS_CONTAINER_COMMENT` را برابر
+comment یکتای همان کانتینر در `MIKROZIA_ENV` تنظیم کنید. نام بلند
+`MIKROZIA_ROUTEROS_CONTAINER_COMMENT` در این RouterOS به فرایند کانتینر تحویل
+نمی‌شود. پنل با حساب فقط‌خواندنی موجود، ابتدا
 `/container/print` و سپس `/container/log/print` را می‌خواند و فقط رکوردهایی را
 نمایش می‌دهد که فیلد `container` آن‌ها با `name` کانتینر شناسایی‌شده برابر است.
 اگر `logging=no` باشد، فعال‌کردن آن تصمیم جداگانهٔ اپراتور در RouterOS است؛
@@ -640,8 +642,8 @@ Container را صریح اعلام کنید (هیچ دستور جدید RouterOS
 
 برای فعال‌سازی **اختیاری** Restart Container، حساب RouterOS API جداگانه‌ای
 با Policyهای لازم برای خواندن و اجرای `/container/restart` بسازید و نام/رمز آن
-را در `MIKROZIA_ROUTEROS_RESTART_USERNAME` و
-`MIKROZIA_ROUTEROS_RESTART_PASSWORD` قرار دهید. Policyهای `read,write,api`
+را در `MIKROZIA_ROS_RESTART_USERNAME` و
+`MIKROZIA_ROS_RESTART_PASSWORD` قرار دهید. Policyهای `read,write,api`
 پیش‌نیاز مورد انتظارند، اما RouterOS دسترسی را به همین یک فرمان محدود نمی‌کند؛
 دسترسی API را فقط از IP داخلی Container مجاز کنید و مجوز حساب را روی CHR
 آزمایش کنید. از حساب `admin` یا همان حساب فقط‌خواندنی استفاده نکنید. رمز را

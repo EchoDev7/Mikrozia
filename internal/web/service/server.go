@@ -191,17 +191,52 @@ func (s *ServerService) LastStatus() *Status {
 	return s.lastStatus
 }
 
+func (s *ServerService) applyLiveXrayStatus(status *Status) {
+	if s.xrayService.IsXrayRunning() {
+		status.Xray.State = Running
+		status.Xray.ErrorMsg = s.xrayService.GetHeldBackConfig()
+	} else {
+		if err := s.xrayService.GetXrayErr(); err != nil {
+			status.Xray.State = Error
+		} else {
+			status.Xray.State = Stop
+		}
+		status.Xray.ErrorMsg = s.xrayService.GetXrayResult()
+	}
+	status.Xray.Version = s.xrayService.GetXrayVersion()
+}
+
+func (s *ServerService) syncCachedXrayStatus() {
+	s.lastStatusMu.Lock()
+	defer s.lastStatusMu.Unlock()
+	if s.lastStatus == nil {
+		return
+	}
+	cp := *s.lastStatus
+	s.applyLiveXrayStatus(&cp)
+	s.lastStatus = &cp
+}
+
+func (s *ServerService) reconcileStatusXray(status *Status) *Status {
+	live := *status
+	s.applyLiveXrayStatus(&live)
+	if live.Xray == status.Xray {
+		return status
+	}
+	return &live
+}
+
 // CurrentStatus never reports "no status yet": the @2s ticker leaves LastStatus
 // nil for the first seconds after a restart, and a master probing a node then
 // reads the empty snapshot as an offline panel.
 func (s *ServerService) CurrentStatus() *Status {
 	if status := s.LastStatus(); status != nil {
-		return status
+		return s.reconcileStatusXray(status)
 	}
 	s.coldStatusMu.Lock()
 	defer s.coldStatusMu.Unlock()
 	if status := s.LastStatus(); status != nil {
-		return status
+		return s.reconcileStatusXray(status)
 	}
 	return s.RefreshStatus()
 }
@@ -607,21 +642,7 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 	status.PublicIP.IPv4, status.PublicIP.IPv6 = s.publicIPs()
 
 	// Xray status
-	if s.xrayService.IsXrayRunning() {
-		status.Xray.State = Running
-		// A core that runs but was refused the new config is a fault the
-		// operator only ever sees here and in the node list.
-		status.Xray.ErrorMsg = s.xrayService.GetHeldBackConfig()
-	} else {
-		err := s.xrayService.GetXrayErr()
-		if err != nil {
-			status.Xray.State = Error
-		} else {
-			status.Xray.State = Stop
-		}
-		status.Xray.ErrorMsg = s.xrayService.GetXrayResult()
-	}
-	status.Xray.Version = s.xrayService.GetXrayVersion()
+	s.applyLiveXrayStatus(status)
 
 	var amneziawgCount int64
 	if err := database.GetDB().Model(model.Inbound{}).
@@ -795,6 +816,7 @@ func (s *ServerService) sampleCPUUtilization() (float64, error) {
 }
 
 func (s *ServerService) StopXrayService() error {
+	defer s.syncCachedXrayStatus()
 	err := s.xrayService.StopXray()
 	if err != nil {
 		logger.Error("stop xray failed:", err)
@@ -804,6 +826,7 @@ func (s *ServerService) StopXrayService() error {
 }
 
 func (s *ServerService) RestartXrayService() error {
+	defer s.syncCachedXrayStatus()
 	err := s.xrayService.RestartXray(true)
 	if err != nil {
 		logger.Error("start xray failed:", err)

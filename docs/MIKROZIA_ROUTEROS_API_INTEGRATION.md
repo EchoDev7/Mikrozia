@@ -122,6 +122,16 @@ insufficient, the UI shows a specific unavailable state. It never enables
 logging or changes RouterOS settings. WinBox on RouterOS 7.25.1 confirmed
 `/container/log/print` records carry `time`, `container`, and `message`.
 
+RouterOS 7.25.1 does not pass the 35-character canonical environment-variable
+name into the container process. On that release, use the equivalent shorter
+`MIKROZIA_ROS_CONTAINER_COMMENT`; the canonical name remains first priority
+where it is available.
+
+The optional Restart Container credentials also require the shorter
+`MIKROZIA_ROS_RESTART_USERNAME` and `MIKROZIA_ROS_RESTART_PASSWORD` aliases
+on RouterOS 7.25.1. Canonical credentials take priority when their complete
+pair is available; partial canonical configuration fails closed.
+
 Restart Container checks the unique comment with the read-only account, then
 rechecks the same `.id`, `name`, comment, and running status with the separate
 operational account immediately before issuing exactly one

@@ -867,6 +867,10 @@ func (s *Server) RestartXray() error {
 	return s.xrayService.RestartXray(true)
 }
 
+func (s *Server) IsXrayManuallyStopped() bool {
+	return s.xrayService.IsManuallyStopped()
+}
+
 // ReloadTLS replaces only the HTTP listener, leaving the scheduler and its current job alive.
 func (s *Server) ReloadTLS() error {
 	cert, err := s.settingService.GetCertFile()

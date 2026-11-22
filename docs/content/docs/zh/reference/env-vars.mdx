@@ -18,15 +18,22 @@ RouterOS API 查询。这些变量为可选项：要么全部设置，要么全�
 | `MIKROZIA_ROUTEROS_API_USERNAME` | — | 专用只读 RouterOS API 帐户名（仅需 `read,api` 权限）。 |
 | `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API 帐户密码。 |
 | `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | Mikrozia RouterOS 容器的准确唯一备注；用于只读查询容器日志。 |
+| `MIKROZIA_ROS_CONTAINER_COMMENT` | — | RouterOS Container 的短别名。在 RouterOS 7.25.1 上请使用它，因为长名称不会传递给容器进程。 |
 | `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | 可选 Restart Container 操作使用的独立 RouterOS API 用户名。需要 read、write 和 api 权限；仅允许容器内部 IP 访问。 |
 | `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | 独立可选操作账户的密码。不要复用只读账户。 |
+| `MIKROZIA_ROS_RESTART_USERNAME` / `MIKROZIA_ROS_RESTART_PASSWORD` | — | 两个 Restart Container 凭据的短别名。在 RouterOS 7.25.1 上请使用这一对。 |
 
 请使用占位值，例如 `172.16.10.1`、`<READ_ONLY_API_USER>` 和
 `<SET_A_SECRET_VALUE>`。密码仅在探测时保留于进程内存，不写入数据库，也不会由
 面板 API 返回。RouterOS `/container/envs` 对路由器管理员可见，并非秘密存储。
 该集成每 15 秒轮询一次 `/system/resource/print`（`uptime`、`cpu-load`、
 `cpu-count`、`cpu-frequency`、`total-memory`、`free-memory`），超时为 4 秒，
-陈旧阈值为 30 秒；RouterOS 容器日志读取与 RouterOS 侧 VETH 遥测仍为延后事项。
+陈旧阈值为 30 秒；RouterOS 侧 VETH 遥测仍为延后事项。读取容器日志通过专用只读
+RouterOS API 账户与精确唯一的容器备注完成，而可选的 Restart Container 仅通过
+独立操作账户执行。
+
+当同时存在规范名称与短别名 `MIKROZIA_ROS_*` 时，规范环境变量优先，短别名仅作
+回退使用。在 RouterOS 中修改 `/container/envs` 后，请重启容器以使新环境生效。
 
 ## 容器网络指标
 

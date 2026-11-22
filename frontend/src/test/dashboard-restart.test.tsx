@@ -149,27 +149,22 @@ describe('Dashboard lifecycle menus', () => {
     ],
   ] as const;
 
-  it('lists Stop choices in order and explains unavailable actions without sending a POST', async () => {
+  it('lists Stop Xray and the unavailable Stop Panel action without sending a POST', async () => {
     expect(screen.getByRole('button', { name: 'Restart' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Stop' })).toHaveTextContent('Stop');
     expect(screen.queryByRole('button', { name: 'Stop Xray' })).toBeNull();
     const items = within(await openMenu('Stop')).getAllByRole('menuitem');
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(2);
     expect(items[0]).toHaveAccessibleName('Stop Xray');
     expect(items[0]).not.toHaveAttribute('aria-disabled', 'true');
-    expect(items[1]).toHaveAccessibleName('Stop Panel');
-    expect(items[1]).toHaveAccessibleDescription(
+    expect(items[1]).toHaveTextContent('Stop Panel');
+    expect(items[1]).toHaveTextContent(
       'Stopping the panel is not available yet because it would make the panel unreachable. Use Restart Panel when needed.',
     );
-    expect(items[2]).toHaveAccessibleName('Stop Container');
-    expect(items[2]).toHaveAccessibleDescription(
-      'Container stop requires verified RouterOS container identity and lifecycle authorization. It is not available yet.',
-    );
-    for (const item of items.slice(1)) {
-      expect(item).toHaveAttribute('aria-disabled', 'true');
-      fireEvent.click(item);
-      fireEvent.keyDown(item, { key: 'Enter' });
-    }
+    expect(items[1]).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(items[1]);
+    fireEvent.keyDown(items[1], { key: 'Enter' });
+    expect(screen.queryByRole('menuitem', { name: 'Stop Container' })).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(writes()).toHaveLength(0);
   });

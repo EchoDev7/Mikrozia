@@ -140,9 +140,11 @@ func (j *NodeTrafficSyncJob) Run() {
 	}
 	if clientsDisabled {
 		if restartOnDisable, settingErr := j.settingService.GetRestartXrayOnClientDisable(); settingErr == nil && restartOnDisable {
-			if err := j.xrayService.RestartXray(true); err != nil {
-				logger.Warning("node traffic sync: restart xray after disabling clients failed:", err)
-				j.xrayService.SetToNeedRestart()
+			if !j.xrayService.IsManuallyStopped() {
+				if err := j.xrayService.RestartXray(true); err != nil {
+					logger.Warning("node traffic sync: restart xray after disabling clients failed:", err)
+					j.xrayService.SetToNeedRestart()
+				}
 			}
 		} else if settingErr != nil {
 			logger.Warning("node traffic sync: get RestartXrayOnClientDisable failed:", settingErr)

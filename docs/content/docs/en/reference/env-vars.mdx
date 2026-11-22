@@ -52,8 +52,10 @@ change router settings.
 | `MIKROZIA_ROUTEROS_API_USERNAME` | — | Dedicated read-only RouterOS API account name (`read,api` policies only). |
 | `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API account password. |
 | `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | Exact unique comment of the Mikrozia RouterOS container; enables read-only Container Log lookup. |
+| `MIKROZIA_ROS_CONTAINER_COMMENT` | — | RouterOS Container alias for `MIKROZIA_ROUTEROS_CONTAINER_COMMENT`. Use this shorter name on RouterOS 7.25.1, which does not pass the longer name to the container process. |
 | `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | Separate operational RouterOS API username for the optional Restart Container command. Requires RouterOS read, write, and api policies; keep access on the internal container IP only. |
 | `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | Password for the separate optional operational account. Never reuse the read-only account. |
+| `MIKROZIA_ROS_RESTART_USERNAME` / `MIKROZIA_ROS_RESTART_PASSWORD` | — | RouterOS Container aliases for the two Restart Container credentials. Use this shorter pair on RouterOS 7.25.1. |
 
 Example values are placeholders only:
 
@@ -68,8 +70,15 @@ the database or returned by the panel API. RouterOS Container `/container/envs`
 is visible to router administrators and is not a secret store. Restrict access
 to the router configuration. The integration polls `/system/resource/print`
 (`uptime`, `cpu-load`, `cpu-count`, `cpu-frequency`, `total-memory`,
-`free-memory`) every 15s with a 4s timeout and 30s stale threshold; RouterOS
-Container log reads and RouterOS-side VETH telemetry remain deferred prerequisites.
+`free-memory`) every 15s with a 4s timeout and 30s stale threshold; RouterOS-side
+VETH telemetry remains deferred. Container log reads use the dedicated read-only
+RouterOS API account together with the exact unique container comment, while
+optional Restart Container requires a separate operational RouterOS API account.
+
+When both canonical and short `MIKROZIA_ROS_*` alias variables are available,
+the canonical name takes precedence and the short alias is fallback only. After
+changing `/container/envs` in RouterOS, restart the container to apply the
+updated environment.
 
 ## Container network metrics
 

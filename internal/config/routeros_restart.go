@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+const (
+	routerOSRestartUsernameEnv    = "MIKROZIA_ROUTEROS_RESTART_USERNAME"
+	routerOSRestartPasswordEnv    = "MIKROZIA_ROUTEROS_RESTART_PASSWORD"
+	routerOSRestartUsernameROSEnv = "MIKROZIA_ROS_RESTART_USERNAME"
+	routerOSRestartPasswordROSEnv = "MIKROZIA_ROS_RESTART_PASSWORD"
+)
+
 type RouterOSRestartConfig struct {
 	State    string `json:"state"`
 	Username string `json:"-"`
@@ -13,8 +20,12 @@ type RouterOSRestartConfig struct {
 
 // GetRouterOSRestartConfig requires a separate operator-supplied API account.
 func GetRouterOSRestartConfig() RouterOSRestartConfig {
-	user := os.Getenv("MIKROZIA_ROUTEROS_RESTART_USERNAME")
-	password := os.Getenv("MIKROZIA_ROUTEROS_RESTART_PASSWORD")
+	user := os.Getenv(routerOSRestartUsernameEnv)
+	password := os.Getenv(routerOSRestartPasswordEnv)
+	if user == "" && password == "" {
+		user = os.Getenv(routerOSRestartUsernameROSEnv)
+		password = os.Getenv(routerOSRestartPasswordROSEnv)
+	}
 	c := RouterOSRestartConfig{State: "not_configured"}
 	if user == "" && password == "" {
 		return c

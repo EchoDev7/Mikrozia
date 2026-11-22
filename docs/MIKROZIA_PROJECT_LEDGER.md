@@ -1116,6 +1116,27 @@ WinBox, cgroup history on CHR, permissions for the operational account, and
 one explicitly authorized restart with persistent data checks. No commit,
 push, tag, Docker Hub publication, or CHR mutation was performed here.
 
+## Release preparation: `v1.0.4-mikrozia` (2026-11-22, DASH-RELEASE-01..04)
+
+Owner-authorized release of `v1.0.4-mikrozia` (`majlot/mikrozia:v1.0.4-mikrozia`
+and floating `majlot/mikrozia:v1-mikrozia` on `linux/amd64`, `linux/arm64/v8`,
+and `linux/arm/v7`):
+
+- **Truthful Stop Xray:** immediate live Xray state reconciliation in
+  `ServerService.CurrentStatus()`, `StopXrayService()`, and `RestartXrayService()`;
+  fail-closed `isManuallyStopped` handling; guards in `NodeTrafficSyncJob` and
+  `tunnelmonitor` so a manually stopped core is not automatically restarted.
+- **Stop Container retirement:** `Stop Container` removed from `OverviewActionBar`
+  and all 14 translation catalogs (`Stop Panel` remains disabled; `Restart Container`
+  readiness preserved).
+- **RouterOS 7.25.1 short env aliases:** `MIKROZIA_ROS_CONTAINER_COMMENT`,
+  `MIKROZIA_ROS_RESTART_USERNAME`, and `MIKROZIA_ROS_RESTART_PASSWORD` supported
+  strictly as fallback when canonical `MIKROZIA_ROUTEROS_*` names are unset, with
+  fail-closed rejection of partial canonical or alias configurations.
+- **Documentation & tests:** `env-vars.mdx` aligned across `en`, `fa`, `ru`, and `zh`;
+  regression coverage added for Stop Xray, RouterOS aliases, Container Logs, and the
+  Restart Container availability matrix.
+
 ## New-task template
 
 Add an entry when the project manager authorizes a new bounded task:

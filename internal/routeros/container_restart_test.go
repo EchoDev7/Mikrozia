@@ -11,14 +11,43 @@ import (
 func TestRestartContainerRechecksIdentityBeforeSingleCommand(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
-		id        string
-		status    string
+		rows      [][]string
 		wantState string
 		wantWrite bool
 	}{
-		{"verified", "*A", "running", "accepted", true},
-		{"changed id", "*B", "running", "identity_unverified", false},
-		{"stopped", "*A", "stopped", "not_running", false},
+		{
+			name:      "verified",
+			rows:      [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1", "=comment=[Mikrozia:container] Container", "=status=running"}},
+			wantState: "accepted",
+			wantWrite: true,
+		},
+		{
+			name:      "changed id",
+			rows:      [][]string{{"!re", "=.id=*B", "=name=mikrozia:v1", "=comment=[Mikrozia:container] Container", "=status=running"}},
+			wantState: "identity_unverified",
+			wantWrite: false,
+		},
+		{
+			name:      "changed name",
+			rows:      [][]string{{"!re", "=.id=*A", "=name=mikrozia:v2", "=comment=[Mikrozia:container] Container", "=status=running"}},
+			wantState: "identity_unverified",
+			wantWrite: false,
+		},
+		{
+			name: "duplicate comment",
+			rows: [][]string{
+				{"!re", "=.id=*A", "=name=mikrozia:v1", "=comment=[Mikrozia:container] Container", "=status=running"},
+				{"!re", "=.id=*B", "=name=mikrozia:v1-copy", "=comment=[Mikrozia:container] Container", "=status=running"},
+			},
+			wantState: "identity_unverified",
+			wantWrite: false,
+		},
+		{
+			name:      "stopped",
+			rows:      [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1", "=comment=[Mikrozia:container] Container", "=status=stopped"}},
+			wantState: "not_running",
+			wantWrite: false,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client, server := net.Pipe()
@@ -30,7 +59,9 @@ func TestRestartContainerRechecksIdentityBeforeSingleCommand(t *testing.T) {
 				_, _ = readSentence(r)
 				_ = writeSentence(server, []string{"!done"})
 				_, _ = readSentence(r)
-				_ = writeSentence(server, []string{"!re", "=.id=" + tc.id, "=name=mikrozia:v1", "=comment=[Mikrozia:container] Container", "=status=" + tc.status})
+				for _, row := range tc.rows {
+					_ = writeSentence(server, row)
+				}
 				_ = writeSentence(server, []string{"!done"})
 				if tc.wantWrite {
 					command, _ := readSentence(r)

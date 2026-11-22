@@ -92,3 +92,168 @@ func TestRouterOSContainerRestartRequiresOperationalAccountAndVerifiedTarget(t *
 		t.Fatalf("ambiguous: %+v called=%d", got, called)
 	}
 }
+
+func TestRouterOSContainerRestartAvailabilityMatrix(t *testing.T) {
+	cases := []struct {
+		name             string
+		apiHost          string
+		apiUser          string
+		apiPass          string
+		canonComment     string
+		aliasComment     string
+		canonRestartUser string
+		canonRestartPass string
+		aliasRestartUser string
+		aliasRestartPass string
+		lookupSnap       routeros.ContainerSnapshot
+		wantState        string
+		wantAvailable    bool
+	}{
+		{
+			name:             "all canonical ready and running",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			canonComment:     "[Mikrozia:container] Container",
+			canonRestartUser: "operator",
+			canonRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "running", Logging: true},
+			wantState:        "connected",
+			wantAvailable:    true,
+		},
+		{
+			name:             "short aliases ready and running",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			aliasRestartUser: "operator",
+			aliasRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "running"},
+			wantState:        "connected",
+			wantAvailable:    true,
+		},
+		{
+			name:          "api not configured",
+			aliasComment:  "[Mikrozia:container] Container",
+			wantState:     "not_configured",
+			wantAvailable: false,
+		},
+		{
+			name:             "api unreachable",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			aliasRestartUser: "operator",
+			aliasRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "unreachable"},
+			wantState:        "unreachable",
+			wantAvailable:    false,
+		},
+		{
+			name:             "comment missing",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasRestartUser: "operator",
+			aliasRestartPass: "write-secret",
+			wantState:        "not_configured",
+			wantAvailable:    false,
+		},
+		{
+			name:             "duplicate or unverified identity",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			aliasRestartUser: "operator",
+			aliasRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "identity_unverified"},
+			wantState:        "identity_unverified",
+			wantAvailable:    false,
+		},
+		{
+			name:             "container stopped",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			aliasRestartUser: "operator",
+			aliasRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "stopped"},
+			wantState:        "connected",
+			wantAvailable:    false,
+		},
+		{
+			name:          "restart account not configured",
+			apiHost:       "172.16.10.1",
+			apiUser:       "reader",
+			apiPass:       "read-secret",
+			aliasComment:  "[Mikrozia:container] Container",
+			lookupSnap:    routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "running"},
+			wantState:     "connected",
+			wantAvailable: false,
+		},
+		{
+			name:             "canonical restart half-config blocks alias",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			canonRestartUser: "partial",
+			aliasRestartUser: "operator",
+			aliasRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "running"},
+			wantState:        "connected",
+			wantAvailable:    false,
+		},
+		{
+			name:             "alias restart half-config rejected",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			aliasRestartUser: "operator",
+			lookupSnap:       routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "running"},
+			wantState:        "connected",
+			wantAvailable:    false,
+		},
+		{
+			name:             "same username as read-only rejected",
+			apiHost:          "172.16.10.1",
+			apiUser:          "reader",
+			apiPass:          "read-secret",
+			aliasComment:     "[Mikrozia:container] Container",
+			aliasRestartUser: "reader",
+			aliasRestartPass: "write-secret",
+			lookupSnap:       routeros.ContainerSnapshot{State: "connected", ID: "*A", Name: "mikrozia:v1", Status: "running"},
+			wantState:        "connected",
+			wantAvailable:    false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MIKROZIA_ROUTEROS_API_HOST", tc.apiHost)
+			t.Setenv("MIKROZIA_ROUTEROS_API_USERNAME", tc.apiUser)
+			t.Setenv("MIKROZIA_ROUTEROS_API_PASSWORD", tc.apiPass)
+			t.Setenv("MIKROZIA_ROUTEROS_CONTAINER_COMMENT", tc.canonComment)
+			t.Setenv("MIKROZIA_ROS_CONTAINER_COMMENT", tc.aliasComment)
+			t.Setenv("MIKROZIA_ROUTEROS_RESTART_USERNAME", tc.canonRestartUser)
+			t.Setenv("MIKROZIA_ROUTEROS_RESTART_PASSWORD", tc.canonRestartPass)
+			t.Setenv("MIKROZIA_ROS_RESTART_USERNAME", tc.aliasRestartUser)
+			t.Setenv("MIKROZIA_ROS_RESTART_PASSWORD", tc.aliasRestartPass)
+
+			s := RouterOSContainerService{
+				lookup: func(context.Context, string, string, string, string) routeros.ContainerSnapshot {
+					return tc.lookupSnap
+				},
+			}
+			got := s.Status(context.Background())
+			if got.State != tc.wantState || got.RestartAvailable != tc.wantAvailable {
+				t.Fatalf("Status() = {State:%q RestartAvailable:%v}, want {State:%q RestartAvailable:%v}", got.State, got.RestartAvailable, tc.wantState, tc.wantAvailable)
+			}
+		})
+	}
+}

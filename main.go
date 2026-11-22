@@ -185,6 +185,9 @@ func runWebServer() {
 		stopTunnelHealthMonitor = cancel
 
 		monitor, err := tunnelmonitor.New(monitorCfg, func(_ context.Context) error {
+			if server.IsXrayManuallyStopped() {
+				return nil
+			}
 			logger.Warning("Tunnel health monitor threshold reached, restarting xray-core")
 			return coordinator.Run("tunnel monitor Xray restart", func() error { return server.RestartXray() })
 		})

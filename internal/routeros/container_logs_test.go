@@ -18,6 +18,7 @@ func TestContainerLogsExactNameAndBoundedTail(t *testing.T) {
 		{"valid", [][]string{{"!re", "=time=2026-11-21 03:00:00", "=container=mikrozia:v1", "=message=first"}, {"!re", "=time=2026-11-21 03:00:01", "=container=mikrozia:v1", "=message=second"}}, "connected", 1},
 		{"wrong container", [][]string{{"!re", "=time=now", "=container=other", "=message=secret"}}, "identity_unverified", 0},
 		{"missing time", [][]string{{"!re", "=container=mikrozia:v1", "=message=message"}}, "identity_unverified", 0},
+		{"permission denied", [][]string{{"!trap", "=category=9", "=message=not enough permissions"}}, "permission_denied", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client, server := net.Pipe()

@@ -227,6 +227,9 @@ func (a *ServerController) stopXrayService(c *gin.Context) {
 	}
 	jsonMsg(c, I18nWeb(c, "pages.xray.stopSuccess"), err)
 	websocket.BroadcastXrayState("stop", "")
+	if status := a.serverService.LastStatus(); status != nil {
+		websocket.BroadcastStatus(status)
+	}
 	websocket.BroadcastNotification(
 		I18nWeb(c, "pages.xray.stopSuccess"),
 		"Xray service has been stopped",
@@ -244,6 +247,9 @@ func (a *ServerController) restartXrayService(c *gin.Context) {
 	}
 	jsonMsg(c, I18nWeb(c, "pages.xray.restartSuccess"), err)
 	websocket.BroadcastXrayState("running", "")
+	if status := a.serverService.LastStatus(); status != nil {
+		websocket.BroadcastStatus(status)
+	}
 	websocket.BroadcastNotification(
 		I18nWeb(c, "pages.xray.restartSuccess"),
 		"Xray service has been restarted successfully",

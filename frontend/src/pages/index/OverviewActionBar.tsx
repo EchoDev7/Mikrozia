@@ -72,7 +72,6 @@ export default function OverviewActionBar({
 }: OverviewActionBarProps) {
   const { t } = useTranslation();
   const containerHintId = useId();
-  const stopHintId = useId();
   const containerAccessibility = {
     'aria-label': t('pages.index.restartContainer'),
     'aria-describedby': containerHintId,
@@ -285,27 +284,18 @@ export default function OverviewActionBar({
                 label: t('pages.index.stopXray'),
                 onClick: () => confirmXray('stop'),
               },
-              ...(['Panel', 'Container'] as const).map((target) => {
-                const label = t(`pages.index.stop${target}`);
-                const hintId = `${stopHintId}-${target}`;
-                return {
-                  key: target,
-                  disabled: true,
-                  'aria-label': label,
-                  'aria-describedby': hintId,
-                  label: (
-                    <>
-                      {label}
-                      <div
-                        id={hintId}
-                        style={{ maxWidth: 230, whiteSpace: 'normal', fontSize: 12 }}
-                      >
-                        {t(`pages.index.stop${target}Unavailable`)}
-                      </div>
-                    </>
-                  ),
-                };
-              }),
+              {
+                key: 'panel',
+                disabled: true,
+                label: (
+                  <>
+                    {t('pages.index.stopPanel')}
+                    <div style={{ maxWidth: 230, whiteSpace: 'normal', fontSize: 12 }}>
+                      {t('pages.index.stopPanelUnavailable')}
+                    </div>
+                  </>
+                ),
+              },
             ],
           }}
         >

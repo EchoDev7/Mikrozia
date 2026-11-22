@@ -1776,17 +1776,33 @@ func addOutboundReconciling(api *xray.XrayAPI, outbound []byte) error {
 	return api.AddOutbound(outbound)
 }
 
+// IsManuallyStopped reports whether Xray was explicitly stopped from the panel.
+func (s *XrayService) IsManuallyStopped() bool {
+	return isManuallyStopped.Load()
+}
+
 // StopXray stops the running Xray process.
 func (s *XrayService) StopXray() error {
 	lock.Lock()
 	defer lock.Unlock()
-	isManuallyStopped.Store(true)
 	logger.Debug("Attempting to stop Xray...")
 	process := currentXrayProcess()
-	if process != nil && process.IsRunning() {
-		return process.Stop()
+	if process == nil || !process.IsRunning() {
+		isManuallyStopped.Store(true)
+		return ErrXrayNotRunning
 	}
-	return ErrXrayNotRunning
+	isManuallyStopped.Store(true)
+	if err := process.Stop(); err != nil {
+		if process.IsRunning() {
+			isManuallyStopped.Store(false)
+		}
+		return err
+	}
+	if process.IsRunning() {
+		isManuallyStopped.Store(false)
+		return errors.New("xray process is still running after stop")
+	}
+	return nil
 }
 
 // SetToNeedRestart marks that Xray needs to be restarted.

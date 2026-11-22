@@ -23,8 +23,10 @@ RouterOS Container آن‌ها را در `/container/envs` تعریف کرده �
 | `MIKROZIA_ROUTEROS_API_USERNAME` | — | نام حساب اختصاصی فقط‌خواندنی RouterOS API (فقط دسترسی‌های `read,api`). |
 | `MIKROZIA_ROUTEROS_API_PASSWORD` | — | رمز حساب RouterOS API. |
 | `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | comment یکتای دقیق کانتینر Mikrozia در RouterOS؛ خواندن فقط‌خواندنی لاگ کانتینر را فعال می‌کند. |
+| `MIKROZIA_ROS_CONTAINER_COMMENT` | — | نام کوتاه معادل برای RouterOS Container است. در RouterOS 7.25.1 از این نام استفاده کنید، چون نام بلند به فرایند کانتینر تحویل داده نمی‌شود. |
 | `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | نام حساب عملیاتی جداگانهٔ RouterOS API برای Restart Container اختیاری. به مجوزهای read، write و api نیاز دارد؛ دسترسی را فقط به IP داخلی کانتینر محدود کنید. |
 | `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | رمز حساب عملیاتی جداگانه و اختیاری؛ از حساب فقط‌خواندنی استفاده نکنید. |
+| `MIKROZIA_ROS_RESTART_USERNAME` / `MIKROZIA_ROS_RESTART_PASSWORD` | — | نام‌های کوتاه معادل برای دو credential مربوط به Restart Container هستند. در RouterOS 7.25.1 از این جفت استفاده کنید. |
 
 از مقادیر جایگزین مانند `172.16.10.1`، `<READ_ONLY_API_USER>` و
 `<SET_A_SECRET_VALUE>` استفاده کنید. رمز فقط هنگام بررسی در حافظهٔ فرایند
@@ -32,8 +34,15 @@ RouterOS Container آن‌ها را در `/container/envs` تعریف کرده �
 `/container/envs` برای مدیران روتر قابل مشاهده‌اند و مخزن امن اسرار نیستند.
 این یکپارچه‌سازی هر ۱۵ ثانیه با مهلت ۴ ثانیه و آستانهٔ کهنگی ۳۰ ثانیه دستور
 فقط‌خواندنی `/system/resource/print` را برای فیلدهای `uptime`، `cpu-load`،
-`cpu-count`، `cpu-frequency`، `total-memory` و `free-memory` می‌خواند؛ خواندن
-لاگ‌های کانتینر RouterOS و آمار VETH سمت RouterOS همچنان در مراحل آینده قرار دارند.
+`cpu-count`، `cpu-frequency`، `total-memory` و `free-memory` می‌خواند؛ آمار
+VETH سمت RouterOS همچنان در مراحل آینده قرار دارد. خواندن لاگ کانتینر با همان
+حساب فقط‌خواندنی RouterOS API و comment یکتای کانتینر انجام می‌شود، اما
+Restart Container اختیاری فقط با حساب عملیاتی جداگانه مجاز است.
+
+اگر هم نام اصلی (canonical) و هم alias کوتاه `MIKROZIA_ROS_*` موجود باشند، نام
+اصلی اولویت دارد و alias کوتاه فقط به‌عنوان fallback استفاده می‌شود. پس از تغییر
+`/container/envs` در RouterOS، همان کانتینر را restart کنید تا محیط جدید اعمال
+شود.
 
 ## معیارهای شبکهٔ کانتینر
 
