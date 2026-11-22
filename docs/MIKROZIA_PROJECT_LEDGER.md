@@ -1137,6 +1137,32 @@ and `linux/arm/v7`):
   regression coverage added for Stop Xray, RouterOS aliases, Container Logs, and the
   Restart Container availability matrix.
 
+## Release preparation: `v1.0.5-mikrozia` (2026-11-22, Patch Release)
+
+Owner-authorized patch release of `v1.0.5-mikrozia` (`majlot/mikrozia:v1.0.5-mikrozia`
+and floating `majlot/mikrozia:v1-mikrozia` on `linux/amd64`, `linux/arm64/v8`,
+and `linux/arm/v7`):
+
+- **Root cause & code fix (`internal/routeros/container.go`):** In RouterOS 7.25.1
+  Native API `/container/print`, the `logging` property returns `"true"` instead
+  of `"yes"`, causing `Logs → RouterOS Container` to falsely report
+  `logging_disabled` while RouterOS API was connected and container logging was
+  active. Added `routerOSBool(value)` accepting only explicit `"yes"` and
+  `"true"` (while `"no"`, `"false"`, empty, or invalid values remain `false`),
+  preserving single-container exact-comment identity verification without any
+  fallback or RouterOS mutation.
+- **Regression coverage (`internal/routeros/container_test.go`):** Preserved
+  `logging=yes` and identity checks (zero, wrong comment, duplicate comment) and
+  added cases for `logging=true`, `logging=false`, `logging=no`, and empty
+  `logging=`.
+- **Installation/upgrade docs (`docs/MIKROZIA_CHR_INSTALL_FA.md`):** Updated the
+  upgrade runbook to use explicit `<VERSIONED_TAG>` and `<PREVIOUS_VERSIONED_TAG>`
+  placeholders, clarified that only the previous container definition is removed
+  while `MIKROZIA_DATA` and `MIKROZIA_CERT` mounts are preserved, warned against
+  unfiltered `print detail` exposing sensitive envs, recorded the RouterOS 7.25.1
+  short alias `MIKROZIA_ROS_CONTAINER_COMMENT` command followed by restarting
+  only that container, and removed the stale deferred status for Container Logs.
+
 ## New-task template
 
 Add an entry when the project manager authorizes a new bounded task:

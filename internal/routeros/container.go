@@ -59,7 +59,11 @@ func (c Client) ContainerSnapshot(parent context.Context, host, username, passwo
 		return ContainerSnapshot{State: "identity_unverified"}
 	}
 	row := rows[0]
-	return ContainerSnapshot{State: "connected", ID: row[".id"], Name: row["name"], Status: row["status"], Interface: row["interface"], Logging: row["logging"] == "yes"}
+	return ContainerSnapshot{State: "connected", ID: row[".id"], Name: row["name"], Status: row["status"], Interface: row["interface"], Logging: routerOSBool(row["logging"])}
+}
+
+func routerOSBool(value string) bool {
+	return value == "yes" || value == "true"
 }
 
 func readContainerRecords(r *bufio.Reader) (string, []map[string]string) {

@@ -10,14 +10,19 @@ import (
 
 func TestContainerSnapshotRequiresOneExactMarkedContainer(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		rows [][]string
-		want string
+		name        string
+		rows        [][]string
+		want        string
+		wantLogging bool
 	}{
-		{"one", [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1.0.2-mikrozia", "=comment=[Mikrozia:container] Container", "=status=running", "=interface=veth-mikrozia", "=logging=yes"}}, "connected"},
-		{"none", nil, "identity_unverified"},
-		{"duplicate", [][]string{{"!re", "=.id=*A", "=comment=[Mikrozia:container] Container"}, {"!re", "=.id=*B", "=comment=[Mikrozia:container] Container"}}, "identity_unverified"},
-		{"wrong comment", [][]string{{"!re", "=.id=*A", "=comment=other"}}, "identity_unverified"},
+		{"yes logging", [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1.0.2-mikrozia", "=comment=[Mikrozia:container] Container", "=status=running", "=interface=veth-mikrozia", "=logging=yes"}}, "connected", true},
+		{"true logging from RouterOS API", [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1.0.2-mikrozia", "=comment=[Mikrozia:container] Container", "=status=running", "=interface=veth-mikrozia", "=logging=true"}}, "connected", true},
+		{"disabled logging false", [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1.0.2-mikrozia", "=comment=[Mikrozia:container] Container", "=status=running", "=interface=veth-mikrozia", "=logging=false"}}, "connected", false},
+		{"disabled logging no", [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1.0.2-mikrozia", "=comment=[Mikrozia:container] Container", "=status=running", "=interface=veth-mikrozia", "=logging=no"}}, "connected", false},
+		{"empty logging", [][]string{{"!re", "=.id=*A", "=name=mikrozia:v1.0.2-mikrozia", "=comment=[Mikrozia:container] Container", "=status=running", "=interface=veth-mikrozia", "=logging="}}, "connected", false},
+		{"none", nil, "identity_unverified", false},
+		{"duplicate", [][]string{{"!re", "=.id=*A", "=comment=[Mikrozia:container] Container"}, {"!re", "=.id=*B", "=comment=[Mikrozia:container] Container"}}, "identity_unverified", false},
+		{"wrong comment", [][]string{{"!re", "=.id=*A", "=comment=other"}}, "identity_unverified", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client, server := net.Pipe()
@@ -40,7 +45,7 @@ func TestContainerSnapshotRequiresOneExactMarkedContainer(t *testing.T) {
 			if got.State != tc.want {
 				t.Fatalf("state=%q, want %q", got.State, tc.want)
 			}
-			if got.State == "connected" && (got.ID != "*A" || got.Name != "mikrozia:v1.0.2-mikrozia" || got.Status != "running" || got.Interface != "veth-mikrozia" || !got.Logging) {
+			if got.State == "connected" && (got.ID != "*A" || got.Name != "mikrozia:v1.0.2-mikrozia" || got.Status != "running" || got.Interface != "veth-mikrozia" || got.Logging != tc.wantLogging) {
 				t.Fatalf("snapshot=%+v", got)
 			}
 			wantCommand := []string{"/container/print", "=.proplist=.id,name,comment,status,interface,logging", "?comment=[Mikrozia:container] Container"}

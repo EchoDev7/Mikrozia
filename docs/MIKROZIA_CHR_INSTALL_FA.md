@@ -515,7 +515,7 @@ Mikrozia استفاده می‌کند: پیش از اعمال Snapshot سازگ�
 6. نسخه جدید را Start و بررسی کنید.
 7. فقط پس از اطمینان، درباره حذف RootFS قدیمی تصمیم بگیرید.
 
-### 15.1 Runbook تأییدشدهٔ ارتقا (نمونهٔ واقعی `v1.0.2-mikrozia`)
+### 15.1 Runbook تأییدشدهٔ ارتقا (Tag ثابت)
 
 ترتیب زیر روی یک CHR واقعی اجرا و تأیید شده است. هیچ دستوری در آن Mount پایدار
 را حذف، بازسازی یا تغییر نمی‌دهد و هیچ قاعدهٔ Firewall/NAT/Routing اضافه نمی‌کند.
@@ -537,17 +537,22 @@ Mikrozia استفاده می‌کند: پیش از اعمال Snapshot سازگ�
 
 ```routeros
 /container/stop [find where comment="[Mikrozia:container] Container"]
-/container/add remote-image="majlot/mikrozia:v1.0.2-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.2-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M shm-size=64M logging=yes start-on-boot=yes check-certificate=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="majlot/mikrozia:<VERSIONED_TAG>" interface=veth-mikrozia root-dir=containers/mikrozia/root-<VERSIONED_TAG> mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M shm-size=64M logging=yes start-on-boot=yes check-certificate=yes comment="[Mikrozia:container] Container"
 ```
 
 تا پایان Extract (`/log/print follow-only where topics~"container"`) صبر کنید.
 سپس فقط تعریف نسخهٔ قبلی را حذف و نسخهٔ جدید را Start کنید:
 
 ```routeros
-/container/remove [find where name="mikrozia:v1.0.1-mikrozia"]
-/container/start [find where name="mikrozia:v1.0.2-mikrozia"]
+/container/remove [find where name="mikrozia:<PREVIOUS_VERSIONED_TAG>"]
+/container/start [find where name="mikrozia:<VERSIONED_TAG>"]
 /container/print
 ```
+
+`<VERSIONED_TAG>` و `<PREVIOUS_VERSIONED_TAG>` را پیش از اجرا با Tagهای کامل
+و ثابت جایگزین کنید؛ علامت‌های `<...>` خود RouterOS متغیر نیستند. هرگز دستور
+`remove` را با comment یا root-dir کلی اجرا نکنید، چون فقط باید تعریف نسخهٔ
+قبلی حذف شود، نه Mountهای داده و گواهی.
 
 > از Tag شناور (`v1-mikrozia`) برای نصب یا ارتقای پذیرش‌شده استفاده نکنید؛ Tag
 > نسخه‌دار ثابت، تنها مرجع قابل بازتولید است.
@@ -578,12 +583,12 @@ VETH)؛ Hostname، loopback و آدرس عمومی پذیرفته نمی‌شو�
 TCP/8728 است. برای اعمال تنظیمات فقط همان Container را restart کنید، نه RouterOS:
 
 ```routeros
-/container/restart [find where name="mikrozia:v1.0.2-mikrozia"]
+/container/restart [find where name="mikrozia:<VERSIONED_TAG>"]
 ```
 
 ### 15.3 Checklist پذیرش داشبورد پس از ارتقا
 
-1. ورود به پنل انجام می‌شود و نسخهٔ نمایشی `Mikrozia v1.0.2` است.
+1. ورود به پنل انجام می‌شود و نسخهٔ نمایشی دقیقاً با Tag نصب‌شده هم‌خوان است.
 2. نوار بالا `RouterOS API: Connected` را نشان می‌دهد (نه `connecting` یا
    `authentication_failed`).
 3. `CPU` و `RAM` مصرف زندهٔ RouterOS و مقدار Avg/Peak را نشان می‌دهند.
@@ -594,8 +599,9 @@ TCP/8728 است. برای اعمال تنظیمات فقط همان Container ر
    مجاز است. در RouterOS Container نام اینترفیس داخل فضای نام `veth-…` است و
    داشبورد این نام را تنها در Scope اثبات‌شدهٔ container می‌شمارد؛ در غیر این
    صورت `netIO` را `Unavailable` اعلام می‌کند تا ترافیک حدسی نشان ندهد.
-7. تب `RouterOS Container` در Logs فقط وضعیت API را نشان می‌دهد و خواندن Log
-   کانتینر از RouterOS همچنان deferred است.
+7. تب `RouterOS Container` در Logs، پس از تنظیم comment کوتاهِ بند 15.5،
+   رکوردهای همان Container را نشان می‌دهد؛ اگر `logging=no` یا API فقط‌خواندنی
+   مجاز نباشد، به‌جای دادهٔ حدسی، وضعیت unavailable نمایش داده می‌شود.
 8. `Restart`/`Stop` را در پذیرش اجرا نکنید؛ فقط وجود و حالت منوها بررسی شود.
 9. در Log پنل هیچ خطای credential/API، loop یا retry غیرعادی نباشد.
 10. کاربران، Inboundها، تنظیمات، گواهی و دادهٔ Subscription باقی مانده باشند
@@ -624,11 +630,9 @@ Container را صریح اعلام کنید (هیچ دستور جدید RouterOS
   می‌شود؛ نرخ منفی یا جهش ساخته نمی‌شود.
 - پس از افزودن env فقط همان Container را restart کنید، نه RouterOS.
 
-### 15.5 آماده‌سازی لاگ کانتینر و Restart Container برای `v1.0.3-mikrozia`
+### 15.5 آماده‌سازی لاگ کانتینر و Restart Container
 
-این قابلیت‌ها تا زمانی که Image `v1.0.3-mikrozia` نصب و روی CHR پذیرفته نشده است، در
-نسخهٔ فعلی `v1.0.2-mikrozia` فعال نیستند. نخست روی CHR، comment کانتینر را
-با `/container/print` به‌صورت **فیلدهای انتخابی** بررسی کنید؛ از `print detail`
+نخست روی CHR، comment کانتینر را با `/container/print` به‌صورت **فیلدهای انتخابی** بررسی کنید؛ از `print detail`
 بدون محدودیت فیلد استفاده نکنید، چون envهای حاوی رمز را نمایش می‌دهد.
 
 برای خواندن لاگ در RouterOS 7.25.1، `MIKROZIA_ROS_CONTAINER_COMMENT` را برابر
@@ -639,6 +643,15 @@ comment یکتای همان کانتینر در `MIKROZIA_ENV` تنظیم کنی
 نمایش می‌دهد که فیلد `container` آن‌ها با `name` کانتینر شناسایی‌شده برابر است.
 اگر `logging=no` باشد، فعال‌کردن آن تصمیم جداگانهٔ اپراتور در RouterOS است؛
 پنل تنظیمات لاگ را تغییر نمی‌دهد.
+
+```routeros
+/container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ROS_CONTAINER_COMMENT value="[Mikrozia:container] Container"
+/container/restart [find where name="mikrozia:<VERSIONED_TAG>"]
+```
+
+اگر این کلید از قبل وجود دارد، به‌جای `add` فقط همان ورودی را با `set` اصلاح
+کنید؛ کلید تکراری نسازید. سپس در پنل، Logs → RouterOS Container را Refresh کنید
+و با `/container/log/print` در WinBox مقایسه کنید.
 
 برای فعال‌سازی **اختیاری** Restart Container، حساب RouterOS API جداگانه‌ای
 با Policyهای لازم برای خواندن و اجرای `/container/restart` بسازید و نام/رمز آن
