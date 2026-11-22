@@ -1162,6 +1162,29 @@ and `linux/arm/v7`):
   unfiltered `print detail` exposing sensitive envs, recorded the RouterOS 7.25.1
   short alias `MIKROZIA_ROS_CONTAINER_COMMENT` command followed by restarting
   only that container, and removed the stale deferred status for Container Logs.
+- **Publication status:** Git commit `cb6ed93ed0515fd209dfb0ab9392ad3101598f4a`
+  and annotated tag `v1.0.5-mikrozia` (`bbf735777b927481e3c7088496c58d575a7046da`)
+  were pushed to `origin`, but **no Docker image was published for
+  `v1.0.5-mikrozia`** because upstream `Chocolate4U/Iran-v2ray-rules` pruned
+  pinned release tag `202611141143` (HTTP 404 during `DockerInit.sh`).
+  `v1.0.5-mikrozia` is therefore not installable as a container image and is
+  superseded by `v1.0.6-mikrozia` without altering or deleting the Git tag.
+
+## Release preparation: `v1.0.6-mikrozia` (2026-11-22, Patch Release)
+
+Owner-authorized patch release superseding the unpublished `v1.0.5-mikrozia`
+container image:
+
+- **Pinned Geo data refresh (`GEO_DATA_SOURCES`):** Replaced the pruned upstream
+  `Chocolate4U/Iran-v2ray-rules` tag `202611141143` (HTTP 404) with immutable
+  dated release tag `202611221249` for `geoip_IR.dat`
+  (`a03d84225badee0956766f154873edabcb30664082d301b783ad36161f9e63de`) and
+  `geosite_IR.dat`
+  (`0522f6f4dbcdab30734e961cd36fc8998151a3b610e7eddb443e8409eafe5565`), both
+  verified against upstream `.sha256sum` sidecars.
+- **Preserved fixes:** Carries the `v1.0.5-mikrozia` RouterOS Container Logs
+  `logging=true`/`yes` fix (`internal/routeros/container.go`), regression tests,
+  and updated Persian CHR upgrade guide (`docs/MIKROZIA_CHR_INSTALL_FA.md`).
 
 ## New-task template
 

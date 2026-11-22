@@ -16,8 +16,8 @@ geoip.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/2026
 geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/download/202611142203/geosite.dat 0eb5e3cc3ced44a4dd36eb198b4ad4252a4017971979d7faa16d5c5e184c7462
 #
 # Chocolate4U/Iran-v2ray-rules — geoip_IR/geosite_IR.
-geoip_IR.dat https://github.com/Chocolate4U/Iran-v2ray-rules/releases/download/202611141143/geoip.dat d9d9f64bb1873677dd9cbe34fec5246145bdb2c9c0eee386b8fdb2b2b69ccbb8
-geosite_IR.dat https://github.com/Chocolate4U/Iran-v2ray-rules/releases/download/202611141143/geosite.dat a936e0d2edce376754f3035dc19568da191e8c96328eb424a4d61090de5ea44f
+geoip_IR.dat https://github.com/Chocolate4U/Iran-v2ray-rules/releases/download/202611221249/geoip.dat a03d84225badee0956766f154873edabcb30664082d301b783ad36161f9e63de
+geosite_IR.dat https://github.com/Chocolate4U/Iran-v2ray-rules/releases/download/202611221249/geosite.dat 0522f6f4dbcdab30734e961cd36fc8998151a3b610e7eddb443e8409eafe5565
 #
 # runetfreedom/russia-v2ray-rules-dat — geoip_RU/geosite_RU.
 geoip_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/download/202611150112/geoip.dat b3fdc5e24ac7d6620f2bd47e743610c78637efde68796e7ea339fee5852df500
