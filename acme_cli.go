@@ -14,11 +14,11 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/acme"
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/global"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/acme"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/web/global"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
 )
 
 // acmeUsage prints the help of the "x-ui acme" command group.

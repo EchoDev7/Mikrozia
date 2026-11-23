@@ -15,16 +15,16 @@ Mikrozia **هیچ Rule مربوط به Firewall، NAT، Port Forward، Masquerad
 
 ## نسخه مرجع
 
-| جزء                     | نسخه/مقدار                    |
-| ----------------------- | ----------------------------- |
-| RouterOS                | `7.25.1` یا Stable جدیدتر     |
-| Container package       | دقیقاً هم‌نسخه RouterOS         |
-| Docker image            | `majlot/mikrozia:v1-mikrozia` |
-| معماری CHR              | `linux/amd64`                 |
-| IP پیش‌فرض Container     | `172.16.10.2/24`              |
-| Gateway پیش‌فرض          | `172.16.10.1`                 |
-| پورت داخلی پنل          | `2053/TCP`                    |
-| پورت داخلی Subscription | `2096/TCP`                    |
+| جزء                     | نسخه/مقدار                      |
+| ----------------------- | ------------------------------- |
+| RouterOS                | `7.25.1` یا Stable جدیدتر       |
+| Container package       | دقیقاً هم‌نسخه RouterOS           |
+| Docker image            | `echodev7/mikrozia:v1-mikrozia` |
+| معماری CHR              | `linux/amd64`                   |
+| IP پیش‌فرض Container     | `172.16.10.2/24`                |
+| Gateway پیش‌فرض          | `172.16.10.1`                   |
+| پورت داخلی پنل          | `2053/TCP`                      |
+| پورت داخلی Subscription | `2096/TCP`                      |
 
 Tag `latest` برای آزمایش مناسب است؛ برای نصب واقعی همیشه Tag نسخه‌دار را استفاده کنید.
 
@@ -118,7 +118,7 @@ Container:       172.16.10.2
 ایمیج رسمی پروژه از Docker Hub دریافت می‌شود:
 
 ```text
-majlot/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1-mikrozia
 ```
 
 > این مسیر با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا است. روی CHR
@@ -194,7 +194,7 @@ majlot/mikrozia:v1-mikrozia
 
 ```routeros
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 این دستورها فقط Bridge/VETH، Mountها، Environment و Container را ایجاد می‌کنند و
@@ -537,7 +537,7 @@ Mikrozia استفاده می‌کند: پیش از اعمال Snapshot سازگ�
 
 ```routeros
 /container/stop [find where comment="[Mikrozia:container] Container"]
-/container/add remote-image="majlot/mikrozia:<VERSIONED_TAG>" interface=veth-mikrozia root-dir=containers/mikrozia/root-<VERSIONED_TAG> mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M shm-size=64M logging=yes start-on-boot=yes check-certificate=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:<VERSIONED_TAG>" interface=veth-mikrozia root-dir=containers/mikrozia/root-<VERSIONED_TAG> mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M shm-size=64M logging=yes start-on-boot=yes check-certificate=yes comment="[Mikrozia:container] Container"
 ```
 
 تا پایان Extract (`/log/print follow-only where topics~"container"`) صبر کنید.
@@ -653,6 +653,12 @@ comment یکتای همان کانتینر در `MIKROZIA_ENV` تنظیم کنی
 کنید؛ کلید تکراری نسازید. سپس در پنل، Logs → RouterOS Container را Refresh کنید
 و با `/container/log/print` در WinBox مقایسه کنید.
 
+> پس از Extract یا Start تازه، RouterOS ممکن است چند ثانیه برای ثبت و
+> در دسترس‌کردن نخستین Logها زمان نیاز داشته باشد. اگر تب ابتدا خالی بود، یک
+> بار Refresh کنید و پس از مشاهدهٔ رکوردهای شروع Container دوباره با WinBox
+> مقایسه کنید. خالی‌بودن کوتاه‌مدت بلافاصله پس از Start، مجوز تغییر API، بازکردن
+> Firewall یا دادن Policy گسترده‌تر نیست.
+
 برای فعال‌سازی **اختیاری** Restart Container، حساب RouterOS API جداگانه‌ای
 با Policyهای لازم برای خواندن و اجرای `/container/restart` بسازید و نام/رمز آن
 را در `MIKROZIA_ROS_RESTART_USERNAME` و
@@ -673,6 +679,21 @@ comment یکتای همان کانتینر در `MIKROZIA_ENV` تنظیم کنی
    داده‌های `/etc/x-ui` و گواهی‌های `/root/cert` بررسی شوند.
 4. `Container History` برای CPU و RAM فقط نمونه‌های cgroup خود Container را
    نشان می‌دهد؛ نبود داده، مصرف میزبان را با برچسب Container جایگزین نمی‌کند.
+
+### 15.6 نتیجهٔ پذیرش واقعی v1.0.6
+
+ارتقای نسخه‌ای به `v1.0.6-mikrozia` با همین ترتیب روی CHR واقعی پذیرفته شد:
+Container جدید با همان Mountهای `MIKROZIA_DATA` و `MIKROZIA_CERT` اجرا شد،
+ورود پنل و داده‌های قبلی حفظ شدند، و Dashboard نسخهٔ جدید، Xray و اتصال داخلی
+RouterOS API را نشان داد. CPU/RAM میزبان RouterOS و نمونه‌های cgroup Container،
+Overall Speed، Clients، Top Inbounds، Storage و Container History بررسی شدند.
+
+در Logs → RouterOS Container، رکوردهای واقعی دانلود/شروع و لاگ‌های سرویس پس از
+آماده‌شدن Container نمایش داده و با خروجی RouterOS مقایسه شدند. حساب API
+`read,api` برای این خواندن کافی است؛ آن را برای رفع یک تأخیر کوتاه‌مدت Log به
+`write` ارتقا ندهید. Restart Container همچنان تا زمانی که یک حساب عملیاتیِ
+جداگانه و با اختیار صریح پیکربندی نشده است غیرفعال می‌ماند. در پذیرش این نسخه
+هیچ Restart یا Stop عملیاتی از پنل اجرا نشد.
 
 از Update داخلی پنل برای جایگزین‌کردن فایل‌های RootFS استفاده نکنید؛ Image باید واحد قابل انتشار و بازتولیدپذیر باقی بماند.
 
@@ -869,4 +890,4 @@ Container جدید بدون Mount صحیح `/etc/x-ui` ساخته شده است.
 - [MikroTik Device Mode](https://help.mikrotik.com/docs/spaces/ROS/pages/93749258/Device-mode)
 - [MikroTik CHR](https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud%20Hosted%20Router%20CHR)
 - [RouterOS Stable releases](https://mikrotik.com/download/changelogs?channelFilter=stable)
-- [Docker Hub: majlot/mikrozia](https://hub.docker.com/r/majlot/mikrozia)
+- [Docker Hub: echodev7/mikrozia](https://hub.docker.com/r/echodev7/mikrozia)

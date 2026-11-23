@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/dbtest"
+	"github.com/echodev7/mikrozia/v3/internal/database/dbtest"
 )
 
 // A panel restarts with an empty snapshot until the @2s ticker fires, and a

@@ -1,4 +1,4 @@
-// Package sub provides subscription server functionality for the 3x-ui panel,
+// Package sub provides subscription server functionality for the Mikrozia panel,
 // including HTTP/HTTPS servers for serving subscription links and JSON configurations.
 package sub
 
@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/locale"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/network"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/util/common"
+	"github.com/echodev7/mikrozia/v3/internal/web/locale"
+	"github.com/echodev7/mikrozia/v3/internal/web/middleware"
+	"github.com/echodev7/mikrozia/v3/internal/web/network"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
 
 	"github.com/gin-gonic/gin"
 )

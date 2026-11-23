@@ -1,15 +1,15 @@
 [فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
 
-# Mikrozia — 3x-ui برای RouterOS Container
+# Mikrozia — panneaux کنترل کانتینر RouterOS
 
-Mikrozia بسته‌ای از 3x-ui و Xray برای **MikroTik RouterOS Container** است. تنها
+Mikrozia بسته‌ای از Mikrozia و Xray برای **MikroTik RouterOS Container** است. تنها
 مسیر نصب و به‌روزرسانی پشتیبانی‌شده، Image نسخه‌دار OCI همراه با Mountهای پایدار
 است. راهنمای کامل فارسی در [README.md](/README.md) قرار دارد.
 
 ## نسخه فعلی
 
 ```text
-majlot/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1-mikrozia
 ```
 
 برای محیط تولید از Tag نسخه‌دار استفاده کنید، نه `latest`.
@@ -24,7 +24,7 @@ majlot/mikrozia:v1-mikrozia
 ## نصب
 
 دستورهای زیر را به ترتیب در Terminal RouterOS یا WinBox اجرا کنید. Image تولیدی
-همان Tag نسخه‌دار `majlot/mikrozia:v1-mikrozia` است.
+همان Tag نسخه‌دار `echodev7/mikrozia:v1-mikrozia` است.
 
 > این مسیر با قرارداد فعلی Container در RouterOS `7.25` هم‌راستا است. پذیرش روی
 > CHR تمیز برای P1-CHR-01 هنوز کامل نشده است؛ پیش از Production روی CHR موقت
@@ -47,7 +47,7 @@ majlot/mikrozia:v1-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **هشدار حساسیت:** Environment کانتینر RouterOS یک انبار پیکربندی است، نه انبار
@@ -88,6 +88,6 @@ Image نسخه‌دار جدید را دریافت کنید، کانتینر ر�
 
 ## Upstream و مجوز
 
-- Upstream: [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)
+- Upstream: [EchoDev7/Mikrozia](https://github.com/EchoDev7/Mikrozia) (forked from MHSanaei/3x-ui v3.11.0)
 - Xray: [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
 - License: GPL-3.0

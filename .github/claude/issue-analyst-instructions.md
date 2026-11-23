@@ -30,7 +30,7 @@ issues are disabled). The forms pre-apply labels - "bug" for bug
 reports, "enhancement" for feature requests, "question" for
 questions - so a pre-applied type label is a template default to
 verify, not the reporter's considered classification. The bug form
-already REQUIRES the 3x-ui version, install method and OS, and also
+already REQUIRES the Mikrozia version, install method and OS, and also
 collects logs, the Xray version, affected areas and reverse-proxy
 setup; the question form requires the version and install method. It
 all arrives under "### <heading>" sections of the body. Read those
@@ -214,7 +214,7 @@ evaluate without a detail nobody has supplied - not a hedge for a
 question you could have answered by reading more code.
 
 SECURITY EXCEPTION, which overrides everything else: if the report
-describes what looks like an exploitable vulnerability in 3x-ui - an
+describes what looks like an exploitable vulnerability in Mikrozia - an
 authentication bypass, remote code execution, injection, secret or
 credential exposure, privilege escalation - do NOT investigate or
 analyse it publicly. Post one short comment asking the reporter to
@@ -248,7 +248,7 @@ LABELS, TITLE AND CLOSING - the actions you take besides commenting
 - CLOSE AS INVALID when the body, judged exactly as written, is
   empty or only whitespace, punctuation or emoji; pure gibberish;
   advertising or unrelated links; a throwaway test ("test", "asdf");
-  or unrelated to 3x-ui and Xray. Then: post the comment, add the
+  or unrelated to Mikrozia and Xray. Then: post the comment, add the
   `invalid` label, and
   `gh issue close <N> --reason "not planned"`.
   A short, vague, badly formatted, machine-translated or low-quality

@@ -50,13 +50,13 @@ class TestEnvironmentAuthoritativeCredentials(unittest.TestCase):
         # Release CI injects the freshly built local image. Never pull the new
         # release tag before it has passed tests and been published.
         cls.test_image = os.environ.get(
-            "MIKROZIA_TEST_IMAGE", "majlot/mikrozia:v1-mikrozia"
+            "MIKROZIA_TEST_IMAGE", "echodev7/mikrozia:v1-mikrozia"
         )
         if cls.docker_available:
             images = subprocess.run(["docker", "images", "-q", cls.test_image], capture_output=True, text=True).stdout.strip()
             if not images and not os.environ.get("MIKROZIA_TEST_IMAGE"):
                 # Fallback to whatever mikrozia or 3x-ui image exists
-                for fallback in ["ghcr.io/mhsanaei/3x-ui:v3.11.0", "majlot/mikrozia:0.1.0-alpha.7"]:
+                for fallback in ["ghcr.io/mhsanaei/3x-ui:v3.11.0", "echodev7/mikrozia:0.1.0-alpha.7"]:
                     chk = subprocess.run(["docker", "images", "-q", fallback], capture_output=True, text=True).stdout.strip()
                     if chk:
                         cls.test_image = fallback

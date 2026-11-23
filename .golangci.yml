@@ -50,7 +50,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/mhsanaei/3x-ui
+        - github.com/echodev7/mikrozia
   exclusions:
     paths:
       - frontend

@@ -3,9 +3,9 @@ package tgbot
 // helpers.go holds the small shared primitives the screen layer needs, so the
 // router never grows a second copy of them.
 import (
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 // xrayProcessOrNil returns the running Xray process, or nil; a panel whose Xray

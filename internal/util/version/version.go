@@ -1,4 +1,4 @@
-// Package version compares 3x-ui release versions ("v3.8.0" or "3.8.0").
+// Package version compares Mikrozia release versions ("v3.8.0" or "3.8.0").
 package version
 
 import (

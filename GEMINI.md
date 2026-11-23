@@ -8,7 +8,7 @@ requirements, and completion criteria.
 @[Mikrozia Project Charter](docs/MIKROZIA_PROJECT_CHARTER.md)
 
 Use `CLAUDE.md`, `frontend/CLAUDE.md`, and `docs/architecture.md` for inherited
-implementation details. Where inherited 3x-ui guidance conflicts with Mikrozia
+implementation details. Where inherited Mikrozia guidance conflicts with Mikrozia
 product direction, follow the Mikrozia charter.
 
 Do not report completion from progress logs. Verify the actual diff, run the

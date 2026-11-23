@@ -92,7 +92,7 @@ Mikrozia 以多架构 OCI 镜像发布到 Docker Hub。生产环境使用版本�
 只是便捷别名：
 
 ```text
-majlot/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1-mikrozia
 ```
 
 <Callout type="warn">
@@ -157,7 +157,7 @@ majlot/mikrozia:v1-mikrozia
 
 ```text
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 这些命令不会添加 firewall、NAT、masquerade、端口转发或路由规则。出站连接和

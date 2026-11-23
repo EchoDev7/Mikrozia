@@ -77,7 +77,7 @@ describe('LogModal', () => {
     expect(
       screen.getByText('Only in-memory Mikrozia panel application entries are shown.'),
     ).toBeDefined();
-    expect(screen.getByText('X-UI:')).toBeDefined();
+    expect(screen.getByText('MIKROZIA:')).toBeDefined();
     expect(screen.queryByText(/stdout\/stderr/)).toBeNull();
     expect(screen.queryByText(/\/container\/set/)).toBeNull();
 
@@ -102,7 +102,7 @@ describe('LogModal', () => {
     ).toBeDefined();
     expect(screen.queryByText(/Access logs may record client source IP addresses/i)).toBeNull();
     expect(await screen.findByText('XRAY:')).toBeDefined();
-    expect(screen.queryByText('X-UI:')).toBeNull();
+    expect(screen.queryByText('MIKROZIA:')).toBeNull();
   });
 });
 

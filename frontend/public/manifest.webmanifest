@@ -1,6 +1,6 @@
 {
-  "name": "3x-ui",
-  "short_name": "3x-ui",
+  "name": "Mikrozia",
+  "short_name": "Mikrozia",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

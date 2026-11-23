@@ -16,11 +16,11 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/util/common"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 const (
@@ -274,8 +274,8 @@ func (g *GatewayClient) connectAndListen(ctx context.Context) error {
 		Intents: discordIntents,
 		Properties: IdentifyProperties{
 			OS:      "linux",
-			Browser: "3x-ui",
-			Device:  "3x-ui",
+			Browser: "mikrozia",
+			Device:  "mikrozia",
 		},
 	}
 	dataBytes, _ := json.Marshal(identData)
@@ -484,7 +484,7 @@ func (g *GatewayClient) sendStatus(ctx context.Context) {
 
 	hostname, _ := os.Hostname()
 	if hostname == "" {
-		hostname = "3x-ui"
+		hostname = "mikrozia"
 	}
 
 	var onlines []string

@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/acme"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/acme"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
 )
 
 // CertificateApplier applies a renewed certificate and reloads the listeners

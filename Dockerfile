@@ -39,7 +39,7 @@ COPY --from=frontend /src/internal/web/dist ./internal/web/dist
 
 ENV CGO_ENABLED=1
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
-RUN go build -ldflags "-w -s -X 'github.com/mhsanaei/3x-ui/v3/internal/config.mikroziaVersion=$(cat /tmp/mikrozia-version)'" -o build/x-ui .
+RUN go build -ldflags "-w -s -X 'github.com/echodev7/mikrozia/v3/internal/config.mikroziaVersion=$(cat /tmp/mikrozia-version)'" -o build/x-ui .
 RUN ./DockerInit.sh "$TARGETARCH" "$TARGETVARIANT" "$XRAY_VERSION" "$MTG_VERSION"
 
 # ========================================================
@@ -58,7 +58,7 @@ ENV HOME=/root
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Mikrozia" \
-  org.opencontainers.image.description="3x-ui adapted for MikroTik RouterOS containers" \
+  org.opencontainers.image.description="Mikrozia adapted for MikroTik RouterOS containers" \
   org.opencontainers.image.source="https://github.com/EchoDev7/Mikrozia" \
   org.opencontainers.image.version="${MIKROZIA_VERSION}" \
   io.mikrozia.xray.version="${XRAY_VERSION}" \

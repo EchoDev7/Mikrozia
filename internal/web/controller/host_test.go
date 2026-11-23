@@ -13,11 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/op/go-logging"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/dbtest"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	xuilogger "github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/dbtest"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	xuilogger "github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/web/entity"
 )
 
 func newHostTestDB(t *testing.T) {
@@ -149,7 +149,7 @@ func TestHostController_AuthInherited(t *testing.T) {
 	newHostTestDB(t)
 	engine := gin.New()
 	store := cookie.NewStore([]byte("host-auth-test-secret"))
-	engine.Use(sessions.Sessions("3x-ui", store))
+	engine.Use(sessions.Sessions("mikrozia", store))
 
 	a := &APIController{}
 	api := engine.Group("/panel/api")

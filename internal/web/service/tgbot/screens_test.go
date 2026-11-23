@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/locale"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/web/locale"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"

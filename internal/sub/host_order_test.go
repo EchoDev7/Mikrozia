@@ -16,10 +16,10 @@ import (
 	"github.com/goccy/go-yaml"
 	"gorm.io/gorm"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/testpg"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/testpg"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
 )
 
 func TestSubHosts_Postgres(t *testing.T) {

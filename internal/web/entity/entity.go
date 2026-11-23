@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/cronspec"
+	"github.com/echodev7/mikrozia/v3/internal/util/common"
+	"github.com/echodev7/mikrozia/v3/internal/util/cronspec"
 )
 
 type Msg struct {

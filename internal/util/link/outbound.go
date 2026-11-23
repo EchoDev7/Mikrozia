@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/util/maskcompat"
+	"github.com/echodev7/mikrozia/v3/internal/util/maskcompat"
 )
 
 // Outbound is the minimal shape we emit for each parsed link.
@@ -1095,7 +1095,7 @@ func firstParam(p url.Values, keys ...string) string {
 	return ""
 }
 
-// realityPerRequestParams are picked per request by subscription servers (3x-ui randomizes
+// realityPerRequestParams are picked per request by subscription servers (Mikrozia randomizes
 // sid/sni, older releases spx too), so they must not split one server into new identities.
 var realityPerRequestParams = map[string]bool{"sid": true, "sni": true, "spx": true}
 

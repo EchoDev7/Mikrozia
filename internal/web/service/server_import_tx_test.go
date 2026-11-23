@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
 )
 
 func seedPanelDBAt(t *testing.T, dbPath, webPort, remark string) {

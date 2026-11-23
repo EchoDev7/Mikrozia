@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/dbtest"
-	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/dbtest"
+	"github.com/echodev7/mikrozia/v3/internal/tuic"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 func TestTuicShutdownJournalSurvivesDatabaseFailureAndReplaysOnce(t *testing.T) {

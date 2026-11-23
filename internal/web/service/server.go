@@ -28,16 +28,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/netsafe"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/sys"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawg"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawgnet"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/util/common"
+	"github.com/echodev7/mikrozia/v3/internal/util/netsafe"
+	"github.com/echodev7/mikrozia/v3/internal/util/sys"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 
 	"github.com/google/uuid"
 	utls "github.com/refraction-networking/utls"
@@ -1423,7 +1423,7 @@ func (s *ServerService) PrepareBackup(ctx context.Context, requestHost string) (
 // is named after whatever address the user reached the panel with, no Listen
 // Domain needed. The Telegram bot has no request and passes "", falling back to
 // the configured Listen Domain (webDomain) and then the public IP. The extension
-// is .dump on PostgreSQL and .db on SQLite; the base falls back to "x-ui" when
+// is .dump on PostgreSQL and .db on SQLite; the base falls back to "mikrozia" when
 // no address is known.
 func (s *ServerService) BackupFilename(requestHost string) string {
 	ext := ".db"
@@ -1445,7 +1445,7 @@ func backupDateSuffix(now time.Time) string {
 // (webDomain) and then the resolved public IP (IPv4 before IPv6), reduced to safe
 // filename characters. The public IP is resolved directly rather than read from
 // LastStatus so callers whose ServerService never runs the status ticker —
-// notably the Telegram bot — still get a real address instead of the "x-ui"
+// notably the Telegram bot — still get a real address instead of the "mikrozia"
 // fallback.
 func (s *ServerService) backupHost(requestHost string) string {
 	host := extractHostname(strings.TrimSpace(requestHost))
@@ -1469,7 +1469,7 @@ func (s *ServerService) backupHost(requestHost string) string {
 // sanitizeBackupHost reduces a host to characters safe in a download filename
 // (the getDb handler enforces ^[a-zA-Z0-9_\-.]+$). IPv6 brackets are stripped
 // and any other character — such as the colons in an IPv6 address — becomes a
-// hyphen. Returns "x-ui" when nothing usable remains.
+// hyphen. Returns "mikrozia" when nothing usable remains.
 func sanitizeBackupHost(host string) string {
 	host = strings.Trim(host, "[]")
 	var b strings.Builder
@@ -1483,7 +1483,7 @@ func sanitizeBackupHost(host string) string {
 	}
 	out := strings.Trim(b.String(), ".-")
 	if out == "" {
-		return "x-ui"
+		return "mikrozia"
 	}
 	return out
 }

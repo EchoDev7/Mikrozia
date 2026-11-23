@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	wgutil "github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	wgutil "github.com/echodev7/mikrozia/v3/internal/util/wireguard"
 )
 
 func newKeepAliveRangeClient(t *testing.T, email, value string) model.Client {

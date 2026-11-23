@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 )
 
 const legacyHopFinalmask = `{"quicParams":{"udpHop":{"ports":"20000-30000","interval":"5-10"}}}`

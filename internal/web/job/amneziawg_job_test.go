@@ -3,10 +3,10 @@ package job
 import (
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawgnet"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/util/wireguard"
 )
 
 func TestAmneziaWGJobReconcilesUserspaceInbounds(t *testing.T) {

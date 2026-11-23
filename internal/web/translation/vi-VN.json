@@ -117,10 +117,8 @@
     "routing": "Định tuyến",
     "outbounds": "Outbound",
     "apiDocs": "Tài liệu API",
-    "donate": "Quyên góp",
     "sponsors": "Nhà tài trợ",
     "hosts": "Hosts",
-    "docs": "Tài liệu",
     "openMenu": "Mở menu",
     "pinSidebar": "Ghim thanh bên",
     "unpinSidebar": "Bỏ ghim thanh bên",
@@ -1310,7 +1308,7 @@
       "subAnnounce": "Thông báo",
       "subAnnounceDesc": "Văn bản thông báo hiển thị trong ứng dụng VPN. Hỗ trợ token định danh khách hàng: {{EMAIL}}, {{ID}}, {{SHORT_ID}}, {{SUB_ID}}, {{TELEGRAM_ID}}.",
       "subThemeDir": "Thư mục giao diện Đăng ký",
-      "subThemeDirDesc": "Đường dẫn tuyệt đối đến thư mục chứa mẫu tùy chỉnh (index.html/sub.html) cho trang đăng ký (ví dụ: /etc/3x-ui/sub_templates/my-theme/). Để trống để dùng trang mặc định.",
+      "subThemeDirDesc": "Đường dẫn tuyệt đối đến thư mục chứa mẫu tùy chỉnh (index.html/sub.html) cho trang đăng ký (ví dụ: /etc/Mikrozia/sub_templates/my-theme/). Để trống để dùng trang mặc định.",
       "subThemeDirDocs": "Hướng dẫn mẫu ↗",
       "subEnableRouting": "Bật định tuyến",
       "happLinkEnable": "Liên kết đăng ký được mã hóa",
@@ -2471,12 +2469,12 @@
     },
     "sponsors": {
       "title": "Nhà tài trợ",
-      "intro": "Các công ty hỗ trợ phát triển 3X-UI. Liên kết tài trợ mở trong tab mới.",
+      "intro": "Các công ty hỗ trợ phát triển Mikrozia. Liên kết tài trợ mở trong tab mới.",
       "become": "Trở thành nhà tài trợ",
       "tag": "Tài trợ",
       "visit": "Truy cập",
       "yourBrand": "Thương hiệu của bạn ở đây",
-      "yourBrandText": "Đưa công ty bạn đến hàng nghìn quản trị viên máy chủ mở 3X-UI mỗi ngày."
+      "yourBrandText": "Đưa công ty bạn đến hàng nghìn quản trị viên máy chủ mở Mikrozia mỗi ngày."
     }
   },
   "tgbot": {
@@ -2520,7 +2518,7 @@
       "report": "🕰 Báo cáo định kỳ: {{ .RunTime }}\r\n",
       "datetime": "⏰ Ngày-Giờ: {{ .DateTime }}\r\n",
       "hostname": "💻 Host: {{ .Hostname }}\r\n",
-      "version": "🚀 Phiên bản X-UI: {{ .Version }}\r\n",
+      "version": "🚀 Phiên bản Mikrozia: {{ .Version }}\r\n",
       "xrayVersion": "📡 Phiên bản Xray: {{ .XrayVersion }}\r\n",
       "ipv6": "🌐 IPv6: {{ .IPv6 }}\r\n",
       "ipv4": "🌐 IPv4: {{ .IPv4 }}\r\n",
@@ -2723,10 +2721,10 @@
   },
   "discord": {
     "test": {
-      "title": "Kiểm tra thông báo Discord của 3x-ui",
+      "title": "Kiểm tra thông báo Discord của Mikrozia",
       "body": "Đây là thông báo thử nghiệm xác nhận rằng thông báo Discord đã được cấu hình đúng."
     },
-    "footer": "Bảng điều khiển 3x-ui",
+    "footer": "Bảng điều khiển Mikrozia",
     "fields": {
       "panelVersion": "Phiên bản bảng điều khiển",
       "xrayCore": "Lõi Xray",
@@ -2761,13 +2759,13 @@
       "loginFailed": "Đăng nhập thất bại"
     },
     "report": {
-      "title": "📊 Báo cáo trạng thái 3x-ui",
+      "title": "📊 Báo cáo trạng thái Mikrozia",
       "summary": "Báo cáo định kỳ trạng thái máy chủ và proxy của **{{ .Host }}**",
-      "footer": "Báo cáo định kỳ 3x-ui • Lịch: {{ .RunTime }}"
+      "footer": "Báo cáo định kỳ Mikrozia • Lịch: {{ .RunTime }}"
     },
     "commands": {
-      "helpTitle": "🤖 Lệnh bot Discord của 3x-ui",
-      "helpDescription": "Các lệnh có sẵn để giám sát và quản lý máy chủ 3x-ui:",
+      "helpTitle": "🤖 Lệnh bot Discord của Mikrozia",
+      "helpDescription": "Các lệnh có sẵn để giám sát và quản lý máy chủ Mikrozia:",
       "helpStatus": "Hiển thị tải hệ thống, RAM, CPU, kết nối và người dùng trực tuyến",
       "helpReport": "Tạo báo cáo trạng thái đầy đủ (kèm bản sao lưu CSDL nếu được cấu hình)",
       "helpBackup": "Gửi ngay tệp sao lưu cơ sở dữ liệu",
@@ -2775,10 +2773,10 @@
       "helpInbounds": "Liệt kê tất cả inbound đã cấu hình kèm cổng và thống kê máy khách",
       "helpRestart": "Khởi động lại lõi Xray",
       "helpHelp": "Hiển thị danh sách lệnh này",
-      "statusTitle": "⚡ Trạng thái máy chủ 3x-ui",
+      "statusTitle": "⚡ Trạng thái máy chủ Mikrozia",
       "statusDescription": "Chỉ số vận hành hiện tại của **{{ .Host }}**",
       "backupTitle": "🗄️ Sao lưu cơ sở dữ liệu",
-      "backupDescription": "Bản sao lưu 3x-ui được tạo lúc `{{ .Time }}`",
+      "backupDescription": "Bản sao lưu Mikrozia được tạo lúc `{{ .Time }}`",
       "backupUnavailable": "❌ Dịch vụ sao lưu không khả dụng",
       "backupFailed": "❌ Không thể đọc bản sao lưu cơ sở dữ liệu: {{ .Error }}",
       "usageHint": "⚠️ Cách dùng: `!usage <email>` hoặc `/usage <email>`",

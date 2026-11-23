@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/eventbus"
+	"github.com/echodev7/mikrozia/v3/internal/eventbus"
 )
 
 // noticeServer records sendMessage/sendDocument/editMessageText with the visible body, so a test can

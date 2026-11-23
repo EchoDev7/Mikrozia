@@ -60,7 +60,7 @@ class DocsContractTests(unittest.TestCase):
             "/container/envs/add list=MIKROZIA_ENV key=XUI_PORT",
             "/container/envs/add list=MIKROZIA_ENV key=HOME",
             "/container/config/set registry-url=",
-            '/container/add remote-image="majlot/mikrozia:',
+            '/container/add remote-image="echodev7/mikrozia:',
             "/container/start",
         )
         cls.localized_api_pages = {
@@ -156,7 +156,7 @@ class DocsContractTests(unittest.TestCase):
         self.assertEqual(violations, [], "\n".join(violations))
 
     def test_02_install_and_update_paths_use_versioned_image_and_mounts(self):
-        image = re.compile(r"majlot/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia\.\d+|\d+-mikrozia)")
+        image = re.compile(r"echodev7/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia(?:\.\d+)?|\d+-mikrozia)")
         import_instruction = re.compile(
             r"(mikrozia-clean-room-deploy|mikrozia-preflight|\.rsc|/import\s+file-name)",
             re.IGNORECASE,
@@ -192,7 +192,7 @@ class DocsContractTests(unittest.TestCase):
             r"(mikrozia-clean-room-deploy|mikrozia-preflight|mikrozia-clean-room-teardown|\.rsc|/import\s+file-name)",
             re.IGNORECASE,
         )
-        image = re.compile(r"majlot/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia\.\d+|\d+-mikrozia)")
+        image = re.compile(r"echodev7/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia(?:\.\d+)?|\d+-mikrozia)")
         violations = []
         for name in self.current_install_docs:
             text = self._read(name)
@@ -208,7 +208,7 @@ class DocsContractTests(unittest.TestCase):
         self.assertEqual(violations, [], "\n".join(violations))
 
     def test_03_root_readmes_publish_the_same_contract(self):
-        image = re.compile(r"majlot/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia\.\d+|\d+-mikrozia)")
+        image = re.compile(r"echodev7/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia(?:\.\d+)?|\d+-mikrozia)")
         import_instruction = re.compile(
             r"(mikrozia-clean-room-deploy|mikrozia-preflight|\.rsc|/import\s+file-name)",
             re.IGNORECASE,
@@ -801,7 +801,7 @@ class DocsContractTests(unittest.TestCase):
 
         # The supported direct-terminal installation path must stay intact and
         # must not be mistaken for a branded firewall rule.
-        self.assertRegex(overview, r"/container/add remote-image=\"majlot/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia\.\d+|\d+-mikrozia)\"")
+        self.assertRegex(overview, r"/container/add remote-image=\"echodev7/mikrozia:v(?:\d+\.\d+\.\d+-mikrozia(?:\.\d+)?|\d+-mikrozia)\"")
         self.assertIn('/container/start [find where comment="[Mikrozia:container] Container"]', overview)
         self.assertNotIn('comment="[Mikrozia]', overview)
 

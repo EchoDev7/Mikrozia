@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/acme"
+	"github.com/echodev7/mikrozia/v3/internal/acme"
 )
 
 type certificateTestRunner struct {

@@ -110,7 +110,7 @@ export default function LogModal({ open, onClose }: LogModalProps) {
         ? xrayLogs
         : logs;
   const parsedLogs = useMemo(
-    () => shownLogs.map((line) => parseLogLine(line, tab === 'xray' ? 'XRAY:' : 'X-UI:')),
+    () => shownLogs.map((line) => parseLogLine(line, tab === 'xray' ? 'XRAY:' : 'MIKROZIA:')),
     [shownLogs, tab],
   );
 

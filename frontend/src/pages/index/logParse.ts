@@ -22,7 +22,7 @@ export const LEVEL_CLASSES = [
 
 const APP_LOG = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+(\S+)\s+-\s+([\s\S]*)$/;
 
-export function parseLogLine(line: string, defaultService = 'X-UI:'): ParsedLog {
+export function parseLogLine(line: string, defaultService = 'MIKROZIA:'): ParsedLog {
   const raw = (line || '').trim();
 
   let date = '';

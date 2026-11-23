@@ -14,7 +14,7 @@ import (
 
 	"github.com/apernet/quic-go"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
 )
 
 func TestEnsureStartsServerAndReconciles(t *testing.T) {

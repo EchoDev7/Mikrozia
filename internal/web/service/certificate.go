@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/acme"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/global"
+	"github.com/echodev7/mikrozia/v3/internal/acme"
+	"github.com/echodev7/mikrozia/v3/internal/web/global"
 )
 
 // CertificatePaths contains every panel and subscription TLS path that must

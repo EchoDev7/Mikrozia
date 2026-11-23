@@ -6,13 +6,13 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
-	ldaputil "github.com/mhsanaei/3x-ui/v3/internal/util/ldap"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/totp"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/util/crypto"
+	ldaputil "github.com/echodev7/mikrozia/v3/internal/util/ldap"
+	"github.com/echodev7/mikrozia/v3/internal/util/totp"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
 )
 
 // UserService provides business logic for user management and authentication.

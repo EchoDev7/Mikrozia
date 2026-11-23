@@ -1,6 +1,6 @@
-# 3x-ui threat model
+# Mikrozia threat model
 
-3x-ui is a self-hosted web control panel for Xray-core. One Go binary stores
+Mikrozia is a self-hosted web control panel for Xray-core. One Go binary stores
 inbounds, clients and settings in SQLite (default) or PostgreSQL, renders an
 Xray JSON config from that state, supervises Xray-core and the `mtg-multi`
 MTProto sidecar as child processes, runs AmneziaWG and TUIC servers in-process,

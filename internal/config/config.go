@@ -1,4 +1,4 @@
-// Package config provides configuration management utilities for the 3x-ui panel,
+// Package config provides configuration management utilities for the Mikrozia panel,
 // including version information, logging levels, database paths, and environment variable handling.
 package config
 
@@ -23,7 +23,7 @@ var version string
 //go:embed name
 var name string
 
-// mikroziaVersion is injected at build time via `-ldflags -X 'github.com/mhsanaei/3x-ui/v3/internal/config.mikroziaVersion=...'`.
+// mikroziaVersion is injected at build time via `-ldflags -X 'github.com/echodev7/mikrozia/v3/internal/config.mikroziaVersion=...'`.
 // buildCommit and buildDate are retained for diagnostics.
 var (
 	mikroziaVersion string
@@ -49,12 +49,12 @@ const (
 	Error   LogLevel = "error"
 )
 
-// GetBaseVersion returns the raw embedded upstream release version of 3x-ui (e.g. "3.11.0").
+// GetBaseVersion returns the raw embedded upstream release version of Mikrozia (e.g. "3.11.0").
 func GetBaseVersion() string {
 	return strings.TrimSpace(version)
 }
 
-// GetUpstreamVersion returns the raw embedded upstream release version of 3x-ui (e.g. "3.11.0").
+// GetUpstreamVersion returns the raw embedded upstream release version of Mikrozia (e.g. "3.11.0").
 func GetUpstreamVersion() string {
 	return GetBaseVersion()
 }
@@ -341,7 +341,7 @@ func GetLogFolder() string {
 	// scatters a log/ directory through the source tree (one per tested package).
 	// Redirect test runs to a shared temp folder so the source tree stays clean.
 	if testing.Testing() {
-		return filepath.Join(os.TempDir(), "3x-ui-test-log")
+		return filepath.Join(os.TempDir(), "Mikrozia-test-log")
 	}
 	if runtime.GOOS == "windows" {
 		return filepath.Join(".", "log")

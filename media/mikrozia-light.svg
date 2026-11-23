@@ -1,0 +1,13 @@
+<svg width="200" height="56" viewBox="0 0 200 56" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .mark { fill: #1a1a2e; }
+      .text { fill: #1a1a2e; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-weight: 700; }
+    </style>
+  </defs>
+  <!-- Icon: M-shaped mark with RouterOS-style container -->
+  <path d="M28 14 L28 42 L42 42 L42 14 Z M42 14 L56 14 L56 28 L42 28 Z M28 28 L42 28 L42 42 L28 42 Z" class="mark"/>
+  <path d="M60 18 Q60 14 64 14 Q68 14 68 18 Q68 22 64 22 Q60 22 60 18 Z M72 18 Q72 14 76 14 Q80 14 80 18 Q80 22 76 22 Q72 22 72 18 Z" class="mark"/>
+  <!-- Text: Mikrozia -->
+  <text x="92" y="36" class="text" font-size="24">Mikrozia</text>
+</svg>

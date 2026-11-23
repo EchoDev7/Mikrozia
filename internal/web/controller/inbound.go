@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/wirecodec"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/session"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/websocket"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/util/wirecodec"
+	"github.com/echodev7/mikrozia/v3/internal/web/middleware"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/web/session"
+	"github.com/echodev7/mikrozia/v3/internal/web/websocket"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 
 	"github.com/gin-gonic/gin"
 )

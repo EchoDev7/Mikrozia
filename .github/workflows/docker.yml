@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE_NAME: majlot/mikrozia
+  IMAGE_NAME: echodev7/mikrozia
   # Must stay in sync with the smoke matrix below and with the docs/tests.
   SUPPORTED_PLATFORMS: "linux/amd64,linux/arm64/v8,linux/arm/v7"
 
@@ -291,7 +291,7 @@ jobs:
             type=raw,value=latest
           labels: |
             org.opencontainers.image.title=Mikrozia
-            org.opencontainers.image.description=3x-ui adapted for MikroTik RouterOS containers
+            org.opencontainers.image.description=Mikrozia adapted for MikroTik RouterOS containers
             org.opencontainers.image.version=${{ env.RELEASE_TAG }}
             io.mikrozia.xray.version=${{ env.XRAY_VERSION }}
             io.mikrozia.mtg.version=${{ env.MTG_VERSION }}

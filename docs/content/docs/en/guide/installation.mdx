@@ -96,7 +96,7 @@ Mikrozia is published as a multi-architecture OCI image on Docker Hub. Use a
 versioned tag for production; `latest` is a convenience alias only:
 
 ```text
-majlot/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1-mikrozia
 ```
 
 <Callout type="warn">
@@ -178,7 +178,7 @@ versioned tag is pinned in `/container/add`; `memory-high`, `memory-max`, and
 
 ```text
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 These commands do not add firewall, NAT, masquerade, port-forwarding, or routing

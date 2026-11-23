@@ -8,10 +8,10 @@
     "#1": {
       "0409": {
         "identity": {
-          "name": "3x-ui",
+          "name": "mikrozia",
           "version": ""
         },
-        "description": "3X-UI web panel for Xray-core",
+        "description": "Mikrozia web panel for Xray-core",
         "minimum-os": "win7",
         "execution-level": "as invoker",
         "ui-access": false,
@@ -38,13 +38,13 @@
         },
         "info": {
           "0409": {
-            "CompanyName": "MHSanaei",
-            "FileDescription": "3X-UI web panel for Xray-core",
+            "CompanyName": "EchoDev7",
+            "FileDescription": "Mikrozia web panel for Xray-core",
             "FileVersion": "",
-            "InternalName": "3x-ui",
-            "LegalCopyright": "3X-UI contributors, licensed under GPL-3.0",
-            "OriginalFilename": "3x-ui.exe",
-            "ProductName": "3X-UI",
+            "InternalName": "mikrozia",
+            "LegalCopyright": "Mikrozia contributors, licensed under GPL-3.0",
+            "OriginalFilename": "mikrozia.exe",
+            "ProductName": "Mikrozia",
             "ProductVersion": ""
           }
         }

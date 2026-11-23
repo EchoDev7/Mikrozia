@@ -12,7 +12,7 @@ import (
 
 	"github.com/xtls/xray-core/app/proxyman/command"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 // A client per operation made a bulk delete pay a TCP + HTTP/2 handshake per client, so the local

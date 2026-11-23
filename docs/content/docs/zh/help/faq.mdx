@@ -44,7 +44,7 @@ Cloudflare DNS-01 签发自动续期，所有内容都保存在持久化挂载 `
 
 ## 如何更新？
 
-替换容器镜像。从 Docker Hub `majlot/mikrozia` 拉取新的版本化标签，使用相同的
+替换容器镜像。从 Docker Hub `echodev7/mikrozia` 拉取新的版本化标签，使用相同的
 `/etc/x-ui` 与 `/root/cert` 挂载重新创建容器，并在验证新镜像之前保留旧镜像。
 容器内没有面板、Xray、Geo 数据或软件更新器。参见
 [更新与卸载](/docs/guide/update-uninstall)。

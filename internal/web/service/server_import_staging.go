@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/config"
 )
 
 const (

@@ -1,8 +1,8 @@
 [فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
 
-# Mikrozia — 3x-ui для контейнера RouterOS
+# Mikrozia — панель управления контейнером RouterOS
 
-Mikrozia упаковывает 3x-ui и Xray для **контейнера MikroTik RouterOS**.
+Mikrozia упаковывает Mikrozia и Xray для **контейнера MikroTik RouterOS**.
 Единственный поддерживаемый путь установки и обновления — версионируемый
 OCI-образ с постоянными монтированиями. Полное руководство находится в
 [README.md](/README.md) (на персидском).
@@ -10,7 +10,7 @@ OCI-образ с постоянными монтированиями. Полн�
 ## Текущая версия
 
 ```text
-majlot/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1-mikrozia
 ```
 
 В production используйте версионируемый тег, а не `latest`.
@@ -25,7 +25,7 @@ majlot/mikrozia:v1-mikrozia
 ## Установка
 
 Выполняйте команды по порядку в терминале RouterOS или WinBox. Production-образ —
-версионированный тег `majlot/mikrozia:v1-mikrozia`.
+версионированный тег `echodev7/mikrozia:v1-mikrozia`.
 
 > Эти инструкции соответствуют текущему контракту контейнеров RouterOS `7.25`.
 > Приёмка на чистом CHR для P1-CHR-01 ещё не завершена; проверьте весь путь на
@@ -49,7 +49,7 @@ majlot/mikrozia:v1-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **Чувствительные значения:** Environment контейнера RouterOS — это хранилище
@@ -98,6 +98,6 @@ majlot/mikrozia:v1-mikrozia
 
 ## Upstream и лицензия
 
-- Upstream: [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)
+- Upstream: [EchoDev7/Mikrozia (forked from MHSanaei/3x-ui v3.11.0)](https://github.com/EchoDev7/Mikrozia)
 - Xray: [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
 - License: GPL-3.0

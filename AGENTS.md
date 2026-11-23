@@ -16,14 +16,14 @@ Before planning or changing code, read:
 5. `docs/MIKROZIA_PROJECT_LEDGER.md` — current task status, accepted decisions,
    verification gates, and owner-approval history.
 
-If inherited 3x-ui documentation conflicts with the Mikrozia charter on product
+If inherited Mikrozia documentation conflicts with the Mikrozia charter on product
 direction or RouterOS behavior, the Mikrozia charter wins. Existing language,
 testing, generation, and layering rules still apply unless the charter replaces
 them explicitly.
 
 ## Mission
 
-Mikrozia began as a 3x-ui fork to avoid rebuilding a mature panel from zero.
+Mikrozia began as a fork of the 3x-ui project to avoid rebuilding a mature panel from zero.
 The destination is an independent RouterOS-container product with its own
 identity, releases, documentation, roadmap, and selectively maintained code.
 The inherited structure is a bootstrap asset, not a permanent product boundary.
@@ -56,7 +56,7 @@ project identity in a controlled phase.
 ## Upstream policy
 
 - Preserve GPL-3.0 obligations, copyright notices, and honest attribution.
-- Treat 3x-ui as an upstream reference, not an automatic source of truth.
+- Treat Mikrozia as an upstream reference, not an automatic source of truth.
 - Never merge upstream wholesale into a release branch.
 - Review upstream changes individually for RouterOS compatibility, data safety,
   resource cost, security, and conflict with Mikrozia decisions.

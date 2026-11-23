@@ -12,7 +12,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 )
 
 // PostgreSQL variant of the legacy-limit preservation guarantee: a database

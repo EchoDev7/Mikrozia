@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	panelService "github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	panelService "github.com/echodev7/mikrozia/v3/internal/web/service/panel"
 )
 
 func newFullControllerTestEngine() *gin.Engine {
@@ -25,7 +25,7 @@ func newFullControllerTestEngine() *gin.Engine {
 	return engine
 }
 
-// TestRemovedUpdateEndpointsReturn404 confirms that all legacy 3x-ui self-update
+// TestRemovedUpdateEndpointsReturn404 confirms that all legacy Mikrozia self-update
 // routes have been completely removed and return 404 Not Found.
 func TestRemovedUpdateEndpointsReturn404(t *testing.T) {
 	engine := newFullControllerTestEngine()

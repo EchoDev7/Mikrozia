@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
 )
 
 func TestGetLogs_UsesApplicationLogsAndIgnoresJournalctl(t *testing.T) {

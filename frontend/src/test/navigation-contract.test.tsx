@@ -7,7 +7,7 @@ import { PALETTE_KEYWORDS } from '@/components/command-palette/CommandPalette';
 import { PANEL_ROUTES, PANEL_ROUTE_PATHS } from '@/routes/panelRoutes';
 import { routes } from '@/routes';
 
-// Four hand-kept nav lists let a page go missing from the sidebar or fall back to the "3X-UI"
+// Four hand-kept nav lists let a page go missing from the sidebar or fall back to the "Mikrozia"
 // title; the manifest replaced them, and these tests hold it to the router and the bundle.
 
 const translationDir = resolve(process.cwd(), '..', 'internal', 'web', 'translation');

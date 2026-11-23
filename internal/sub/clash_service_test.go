@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	wgutil "github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawg"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	wgutil "github.com/echodev7/mikrozia/v3/internal/util/wireguard"
 )
 
 func TestEnsureUniqueProxyNames(t *testing.T) {
@@ -236,7 +236,7 @@ func TestApplyTransport_TCPHeader(t *testing.T) {
 		wantHost     string
 	}{
 		{
-			name:      "Actual 3x-ui Panel Inbound Data Structure (Including Empty Response Headers)",
+			name:      "Actual Mikrozia Panel Inbound Data Structure (Including Empty Response Headers)",
 			proxyType: "ss",
 			stream: map[string]any{
 				"tcpSettings": map[string]any{

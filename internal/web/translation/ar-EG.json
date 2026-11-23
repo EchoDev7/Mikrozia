@@ -117,10 +117,8 @@
     "routing": "التوجيه",
     "outbounds": "الصادرات",
     "apiDocs": "توثيق API",
-    "donate": "تبرع",
     "sponsors": "الرعاة",
     "hosts": "المضيفات",
-    "docs": "التوثيق",
     "openMenu": "فتح القائمة",
     "pinSidebar": "تثبيت الشريط الجانبي",
     "unpinSidebar": "إلغاء تثبيت الشريط الجانبي",
@@ -1310,7 +1308,7 @@
       "subAnnounce": "إعلان",
       "subAnnounceDesc": "نص الإعلان المعروض في عميل VPN. يدعم رموز هوية العميل: {{EMAIL}}, {{ID}}, {{SHORT_ID}}, {{SUB_ID}}, {{TELEGRAM_ID}}.",
       "subThemeDir": "مجلد قالب الاشتراك",
-      "subThemeDirDesc": "المسار المطلق لمجلد يحتوي على قالب مخصص (index.html/sub.html) لصفحة الاشتراك (مثل /etc/3x-ui/sub_templates/my-theme/). اتركه فارغًا لاستخدام الصفحة الافتراضية.",
+      "subThemeDirDesc": "المسار المطلق لمجلد يحتوي على قالب مخصص (index.html/sub.html) لصفحة الاشتراك (مثل /etc/Mikrozia/sub_templates/my-theme/). اتركه فارغًا لاستخدام الصفحة الافتراضية.",
       "subThemeDirDocs": "دليل القالب ↗",
       "subEnableRouting": "تفعيل التوجيه",
       "happLinkEnable": "روابط اشتراك مشفّرة",
@@ -2471,12 +2469,12 @@
     },
     "sponsors": {
       "title": "الرعاة",
-      "intro": "شركات تدعم تطوير 3X-UI. تُفتح روابط الرعاة في علامة تبويب جديدة.",
+      "intro": "شركات تدعم تطوير Mikrozia. تُفتح روابط الرعاة في علامة تبويب جديدة.",
       "become": "كن راعيًا",
       "tag": "راعٍ",
       "visit": "زيارة",
       "yourBrand": "علامتك التجارية هنا",
-      "yourBrandText": "ضع شركتك أمام آلاف مسؤولي الخوادم الذين يفتحون 3X-UI كل يوم."
+      "yourBrandText": "ضع شركتك أمام آلاف مسؤولي الخوادم الذين يفتحون Mikrozia كل يوم."
     }
   },
   "tgbot": {
@@ -2520,7 +2518,7 @@
       "report": "🕰 التقارير المجدولة: {{ .RunTime }}\r\n",
       "datetime": "⏰ التاريخ والوقت: {{ .DateTime }}\r\n",
       "hostname": "💻 المضيف: {{ .Hostname }}\r\n",
-      "version": "🚀 نسخة 3X-UI: {{ .Version }}\r\n",
+      "version": "🚀 نسخة Mikrozia: {{ .Version }}\r\n",
       "xrayVersion": "📡 نسخة Xray: {{ .XrayVersion }}\r\n",
       "ipv6": "🌐 IPv6: {{ .IPv6 }}\r\n",
       "ipv4": "🌐 IPv4: {{ .IPv4 }}\r\n",
@@ -2723,10 +2721,10 @@
   },
   "discord": {
     "test": {
-      "title": "اختبار إشعارات Discord في 3x-ui",
+      "title": "اختبار إشعارات Discord في Mikrozia",
       "body": "هذا إشعار تجريبي يؤكد أن إشعارات Discord مُعدّة بشكل صحيح."
     },
-    "footer": "لوحة 3x-ui",
+    "footer": "لوحة Mikrozia",
     "fields": {
       "panelVersion": "إصدار اللوحة",
       "xrayCore": "نواة Xray",
@@ -2761,13 +2759,13 @@
       "loginFailed": "فشل تسجيل الدخول"
     },
     "report": {
-      "title": "📊 تقرير حالة 3x-ui",
+      "title": "📊 تقرير حالة Mikrozia",
       "summary": "تقرير دوري عن حالة الخادم والوكيل لـ **{{ .Host }}**",
-      "footer": "تقرير 3x-ui المجدول • الجدول: {{ .RunTime }}"
+      "footer": "تقرير Mikrozia المجدول • الجدول: {{ .RunTime }}"
     },
     "commands": {
-      "helpTitle": "🤖 أوامر بوت Discord في 3x-ui",
-      "helpDescription": "الأوامر المتاحة لمراقبة خادم 3x-ui وإدارته:",
+      "helpTitle": "🤖 أوامر بوت Discord في Mikrozia",
+      "helpDescription": "الأوامر المتاحة لمراقبة خادم Mikrozia وإدارته:",
       "helpStatus": "عرض حمل النظام والذاكرة والمعالج والاتصالات والمستخدمين المتصلين",
       "helpReport": "إنشاء تقرير حالة كامل (مع نسخة احتياطية لقاعدة البيانات إن كانت مفعّلة)",
       "helpBackup": "إرسال ملف النسخة الاحتياطية لقاعدة البيانات فورًا",
@@ -2775,10 +2773,10 @@
       "helpInbounds": "عرض كل الواردات المُعدّة مع المنافذ وإحصاءات العملاء",
       "helpRestart": "إعادة تشغيل نواة Xray",
       "helpHelp": "عرض قائمة الأوامر المتاحة هذه",
-      "statusTitle": "⚡ حالة خادم 3x-ui",
+      "statusTitle": "⚡ حالة خادم Mikrozia",
       "statusDescription": "مقاييس التشغيل الحالية لـ **{{ .Host }}**",
       "backupTitle": "🗄️ نسخة احتياطية لقاعدة البيانات",
-      "backupDescription": "أرشيف النسخة الاحتياطية لـ 3x-ui أُنشئ في `{{ .Time }}`",
+      "backupDescription": "أرشيف النسخة الاحتياطية لـ Mikrozia أُنشئ في `{{ .Time }}`",
       "backupUnavailable": "❌ خدمة النسخ الاحتياطي غير متاحة",
       "backupFailed": "❌ تعذّرت قراءة النسخة الاحتياطية لقاعدة البيانات: {{ .Error }}",
       "usageHint": "⚠️ الاستخدام: `!usage <email>` أو `/usage <email>`",

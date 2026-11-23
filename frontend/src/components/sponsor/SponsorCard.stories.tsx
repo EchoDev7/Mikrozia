@@ -10,16 +10,16 @@ const sponsor: Sponsor = {
   slots: ['dashboard', 'page', 'login'],
   until: '2099-01-01T00:00:00Z',
   title: { en: 'Acme VPS — fast NVMe servers', fa: 'سرورهای سریع Acme' },
-  text: { en: 'Deploy 3X-UI in 60 seconds. 20% off for panel users.' },
-  link: 'https://acme.example/?utm_source=3x-ui',
+  text: { en: 'Deploy Mikrozia in 60 seconds. 20% off for panel users.' },
+  link: 'https://acme.example/?utm_source=mikrozia',
 };
 
 // Copy as long as the real sponsors.json entries; each story renders it at its slot's width.
 const longSponsor: Sponsor = {
   ...sponsor,
-  title: { en: 'Advertise here — reach 3X-UI server admins' },
+  title: { en: 'Advertise here — reach Mikrozia server admins' },
   text: {
-    en: 'Put your VPS, hosting or domain brand in front of the admins who use 3X-UI every day. Message us for slots and pricing.',
+    en: 'Put your VPS, hosting or domain brand in front of the admins who use Mikrozia every day. Message us for slots and pricing.',
   },
 };
 

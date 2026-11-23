@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/lifecycle"
+	"github.com/echodev7/mikrozia/v3/internal/lifecycle"
 )
 
 func TestCertificateIPCReportsAcknowledgedSuccessAndFailure(t *testing.T) {

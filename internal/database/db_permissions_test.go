@@ -13,7 +13,7 @@ func TestInitDBRestrictsSQLiteFilePermissions(t *testing.T) {
 		t.Skip("POSIX permission bits are not meaningful on Windows")
 	}
 	t.Setenv("XUI_DB_JOURNAL_MODE", "")
-	dbDir := filepath.Join(t.TempDir(), "x-ui")
+	dbDir := filepath.Join(t.TempDir(), "mikrozia")
 	dbPath := filepath.Join(dbDir, "x-ui.db")
 
 	if err := InitDB(dbPath); err != nil {

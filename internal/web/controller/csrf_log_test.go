@@ -10,13 +10,13 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
 )
 
 func TestLoginCSRFRejectionLogsPeerIPNotForwardedHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(sessions.Sessions("3x-ui", cookie.NewStore([]byte("csrf-log-test-secret"))))
+	engine.Use(sessions.Sessions("mikrozia", cookie.NewStore([]byte("csrf-log-test-secret"))))
 	NewIndexController(engine.Group("/"))
 
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)

@@ -58,7 +58,7 @@ x-ui
 在 Mikrozia 架构中，面板更新完全通过替换容器或容器镜像实现。原版 3x-ui 在容器内部通过脚本执行自更新（`update.sh`）的危险路径已被彻底移除，以保护容器 RootFS 结构并确保 RouterOS 环境的长期稳定性。
 
 更新步骤：
-1. 拉取新的 Mikrozia 容器镜像标签（例如 Docker Hub 上的 `majlot/mikrozia`）。
+1. 拉取新的 Mikrozia 容器镜像标签（例如 Docker Hub 上的 `echodev7/mikrozia`）。
 2. 停止当前容器并使用新镜像重新创建，同时挂载原有的持久化目录（`/etc/x-ui` 和 `/root/cert`）。
 3. 启动新容器。
 

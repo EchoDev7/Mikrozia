@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database"
 )
 
 // Geo data is immutable image content on RouterOS. A stored Xray-native

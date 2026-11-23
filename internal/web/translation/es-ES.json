@@ -117,10 +117,8 @@
     "routing": "Enrutamiento",
     "outbounds": "Salidas",
     "apiDocs": "Documentación de la API",
-    "donate": "Donar",
     "sponsors": "Patrocinadores",
     "hosts": "Hosts",
-    "docs": "Documentación",
     "openMenu": "Abrir menú",
     "pinSidebar": "Fijar barra lateral",
     "unpinSidebar": "Desfijar barra lateral",
@@ -1310,7 +1308,7 @@
       "subAnnounce": "Anuncio",
       "subAnnounceDesc": "El texto del anuncio mostrado en el cliente VPN. Admite tokens de identidad del cliente: {{EMAIL}}, {{ID}}, {{SHORT_ID}}, {{SUB_ID}}, {{TELEGRAM_ID}}.",
       "subThemeDir": "Directorio del tema de suscripción",
-      "subThemeDirDesc": "Ruta absoluta a una carpeta que contiene una plantilla personalizada (index.html/sub.html) para la página de suscripción (p. ej. /etc/3x-ui/sub_templates/my-theme/). Déjalo vacío para usar la página predeterminada.",
+      "subThemeDirDesc": "Ruta absoluta a una carpeta que contiene una plantilla personalizada (index.html/sub.html) para la página de suscripción (p. ej. /etc/Mikrozia/sub_templates/my-theme/). Déjalo vacío para usar la página predeterminada.",
       "subThemeDirDocs": "Guía de plantillas ↗",
       "subEnableRouting": "Habilitar enrutamiento",
       "happLinkEnable": "Enlaces de suscripción cifrados",
@@ -2471,12 +2469,12 @@
     },
     "sponsors": {
       "title": "Patrocinadores",
-      "intro": "Empresas que apoyan el desarrollo de 3X-UI. Los enlaces patrocinados se abren en una pestaña nueva.",
+      "intro": "Empresas que apoyan el desarrollo de Mikrozia. Los enlaces patrocinados se abren en una pestaña nueva.",
       "become": "Hazte patrocinador",
       "tag": "Patrocinador",
       "visit": "Visitar",
       "yourBrand": "Tu marca aquí",
-      "yourBrandText": "Muestra tu empresa a miles de administradores de servidores que abren 3X-UI cada día."
+      "yourBrandText": "Muestra tu empresa a miles de administradores de servidores que abren Mikrozia cada día."
     }
   },
   "tgbot": {
@@ -2520,7 +2518,7 @@
       "report": "🕰 Informes programados: {{ .RunTime }}\r\n",
       "datetime": "⏰ Fecha y Hora: {{ .DateTime }}\r\n",
       "hostname": "💻 Host: {{ .Hostname }}\r\n",
-      "version": "🚀 Versión de X-UI: {{ .Version }}\r\n",
+      "version": "🚀 Versión de Mikrozia: {{ .Version }}\r\n",
       "xrayVersion": "📡 Versión de Xray: {{ .XrayVersion }}\r\n",
       "ipv6": "🌐 IPv6: {{ .IPv6 }}\r\n",
       "ipv4": "🌐 IPv4: {{ .IPv4 }}\r\n",
@@ -2723,10 +2721,10 @@
   },
   "discord": {
     "test": {
-      "title": "Prueba de notificación de Discord de 3x-ui",
+      "title": "Prueba de notificación de Discord de Mikrozia",
       "body": "Esta es una notificación de prueba que confirma que las notificaciones de Discord están configuradas correctamente."
     },
-    "footer": "Panel 3x-ui",
+    "footer": "Panel Mikrozia",
     "fields": {
       "panelVersion": "Versión del panel",
       "xrayCore": "Núcleo Xray",
@@ -2761,13 +2759,13 @@
       "loginFailed": "Inicio de sesión fallido"
     },
     "report": {
-      "title": "📊 Informe de estado de 3x-ui",
+      "title": "📊 Informe de estado de Mikrozia",
       "summary": "Informe periódico del estado del servidor y del proxy de **{{ .Host }}**",
-      "footer": "Informe programado de 3x-ui • Programación: {{ .RunTime }}"
+      "footer": "Informe programado de Mikrozia • Programación: {{ .RunTime }}"
     },
     "commands": {
-      "helpTitle": "🤖 Comandos del bot de Discord de 3x-ui",
-      "helpDescription": "Comandos disponibles para supervisar y administrar el servidor 3x-ui:",
+      "helpTitle": "🤖 Comandos del bot de Discord de Mikrozia",
+      "helpDescription": "Comandos disponibles para supervisar y administrar el servidor Mikrozia:",
       "helpStatus": "Muestra la carga del sistema, RAM, CPU, conexiones y usuarios en línea",
       "helpReport": "Genera un informe de estado completo (con copia de seguridad de la BD si está configurada)",
       "helpBackup": "Envía de inmediato el archivo de copia de seguridad de la base de datos",
@@ -2775,10 +2773,10 @@
       "helpInbounds": "Lista todas las entradas configuradas con puertos y estadísticas de clientes",
       "helpRestart": "Reinicia el núcleo Xray",
       "helpHelp": "Muestra esta lista de comandos disponibles",
-      "statusTitle": "⚡ Estado del servidor 3x-ui",
+      "statusTitle": "⚡ Estado del servidor Mikrozia",
       "statusDescription": "Métricas operativas actuales de **{{ .Host }}**",
       "backupTitle": "🗄️ Copia de seguridad de la base de datos",
-      "backupDescription": "Archivo de copia de seguridad de 3x-ui generado el `{{ .Time }}`",
+      "backupDescription": "Archivo de copia de seguridad de Mikrozia generado el `{{ .Time }}`",
       "backupUnavailable": "❌ Servicio de copia de seguridad no disponible",
       "backupFailed": "❌ No se pudo leer la copia de seguridad de la base de datos: {{ .Error }}",
       "usageHint": "⚠️ Uso: `!usage <email>` o `/usage <email>`",

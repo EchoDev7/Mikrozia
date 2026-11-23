@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/mtproto"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/mtproto"
+	"github.com/echodev7/mikrozia/v3/internal/web/runtime"
 )
 
 func mtgConfigPath(t *testing.T, inboundId int) string {

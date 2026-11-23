@@ -1186,6 +1186,56 @@ container image:
   `logging=true`/`yes` fix (`internal/routeros/container.go`), regression tests,
   and updated Persian CHR upgrade guide (`docs/MIKROZIA_CHR_INSTALL_FA.md`).
 
+## Live CHR deployment and dashboard acceptance: `v1.0.6-mikrozia` (P1-DEPLOY-06)
+
+Owner-authorized image replacement and visual acceptance completed on 2026-11-23.
+The versioned image was installed through RouterOS Container with a new
+per-release RootFS while preserving the existing `MIKROZIA_DATA` and
+`MIKROZIA_CERT` mounts. A RouterOS backup was saved before the replacement; the
+old container definition was removed only after the new image had extracted
+successfully. No persistent data or certificate mount was deleted.
+
+- **Dashboard accepted:** the new panel version, running Xray, and internal
+  read-only RouterOS API connection rendered correctly. RouterOS CPU/RAM,
+  cgroup-scoped Container CPU/RAM, Overall Speed, Clients, Top Inbounds,
+  Storage, Uptime, and Container History were visually checked against RouterOS.
+- **Container logs accepted:** `Logs → RouterOS Container` returned live
+  Container download/startup and panel/Xray entries after the new container had
+  become ready; they were compared with RouterOS Container logs. The existing
+  dedicated `read,api` account remained least-privilege and was not broadened.
+- **Lifecycle safety:** Restart/Stop controls were inspected only. `Restart
+  Container` remains disabled because no separately authorized operational
+  RouterOS account was provisioned; `Stop Container` remains absent by design.
+  No panel, Xray, or container lifecycle action was triggered during acceptance.
+- **Exclusions:** no RouterOS Firewall/NAT/routing change, API credential or
+  policy change, RouterOS reboot, Git operation, image publication, or change to
+  another container. Operational identifiers and credentials are intentionally
+  absent from this Ledger.
+
+## Release preparation: `v1.0.7-mikrozia` (2026-11-23, Mikrozia Identity & `echodev7/mikrozia`)
+
+Owner-authorized release completing the Mikrozia brand identity transition and
+moving Docker Hub publication to `echodev7/mikrozia` (`echodev7/mikrozia:v1.0.7-mikrozia`
+and floating `echodev7/mikrozia:v1-mikrozia` on `linux/amd64`, `linux/arm64/v8`,
+and `linux/arm/v7`):
+
+- **Go module & build metadata:** Migrated `go.mod`, internal imports,
+  `.golangci.yml`, and `Dockerfile` version `-ldflags` to
+  `github.com/echodev7/mikrozia/v3`.
+- **UI, OpenAPI, translations, and docs:** Completed Mikrozia rebranding across
+  the React frontend (`AppSidebar`, `LoginPage`, `manifest.webmanifest`,
+  `build-openapi.mjs` / `openapi.json`), Fumadocs site, READMEs, and `.github/`
+  metadata; removed legacy `donate.sanaei.dev`/`docs.sanaei.dev` links, dead CSS
+  and dead i18n keys (`menu.donate`, `menu.docs`), unused upstream media assets,
+  and stray build artifacts.
+- **Docker Hub migration:** Updated `.github/workflows/docker.yml`, READMEs,
+  multilingual installation/operations docs, and contract tests to
+  `echodev7/mikrozia` while preserving historical records and GPL-3.0
+  attribution.
+- **Runtime compatibility preserved:** Kept persistent RouterOS mount paths
+  (`/etc/x-ui`, `/root/cert`), `/app/x-ui`, `XUI_*` environment variables, and
+  existing database/session compatibility intact.
+
 ## New-task template
 
 Add an entry when the project manager authorizes a new bounded task:

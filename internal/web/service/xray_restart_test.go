@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 func installFakeXrayBinary(t *testing.T) {

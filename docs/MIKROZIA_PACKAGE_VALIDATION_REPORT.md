@@ -12,7 +12,7 @@
 **Document Version:** 1.0.0
 **Date:** November 1, 2026
 **Status:** HISTORICAL — SUPERSEDED FOR INSTALLATION
-**Upstream Version:** 3x-ui `v3.11.0`
+**Upstream Version:** 3x-ui `v3.11.0` (Mikrozia base)
 **Upstream Git Commit:** `c621ba9014a6aa21fd7c9ecf45655e44e24ebf13`
 **Upstream Image Digest:** `sha256:1628adbd9bed680d25d6f714bef4a20f132105f4612ea294952f6665dad32e5b`
 

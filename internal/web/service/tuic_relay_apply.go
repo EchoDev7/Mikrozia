@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/tuic"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 type relayAccount struct {

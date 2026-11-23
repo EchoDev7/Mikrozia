@@ -26,6 +26,7 @@ vendor/
 # Ignore compiled binaries
 main
 3x-ui
+/mikrozia
 
 # Ignore OS specific files
 .DS_Store

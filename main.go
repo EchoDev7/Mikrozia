@@ -1,4 +1,4 @@
-// Package main is the entry point for the 3x-ui web panel application.
+// Package main is the entry point for the Mikrozia web panel application.
 // It initializes the database, web server, and handles command-line operations for managing the panel.
 package main
 
@@ -17,19 +17,19 @@ import (
 	"time"
 	_ "unsafe"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/crypto/nodetoken"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/lifecycle"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/sub"
-	"github.com/mhsanaei/3x-ui/v3/internal/tunnelmonitor"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/sys"
-	"github.com/mhsanaei/3x-ui/v3/internal/web"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/global"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/tgbot"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/crypto/nodetoken"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/lifecycle"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/sub"
+	"github.com/echodev7/mikrozia/v3/internal/tunnelmonitor"
+	"github.com/echodev7/mikrozia/v3/internal/util/sys"
+	"github.com/echodev7/mikrozia/v3/internal/web"
+	"github.com/echodev7/mikrozia/v3/internal/web/global"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/panel"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/tgbot"
 
 	"github.com/joho/godotenv"
 	"github.com/op/go-logging"
@@ -72,7 +72,7 @@ func initNodeTokenCrypto() error {
 	return nil
 }
 
-// runWebServer initializes and starts the web server for the 3x-ui panel.
+// runWebServer initializes and starts the web server for the Mikrozia panel.
 func runWebServer() {
 	log.Printf("Starting %s", config.GetPanelVersion())
 
@@ -623,7 +623,7 @@ func GetApiToken(getApiToken bool, tokenName, tokenScope string) {
 	fmt.Println("apiToken:", created.Token)
 }
 
-// migrateDb performs database migration operations for the 3x-ui panel.
+// migrateDb performs database migration operations for the Mikrozia panel.
 func migrateDb() {
 	inboundService := service.InboundService{}
 
@@ -657,7 +657,7 @@ func loadServiceEnvFile() {
 	}
 }
 
-// main is the entry point of the 3x-ui application.
+// main is the entry point of the Mikrozia application.
 // It parses command-line arguments to run the web server, migrate database, or update settings.
 func main() {
 	loadServiceEnvFile()

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/util/netsafe"
+	"github.com/echodev7/mikrozia/v3/internal/util/netsafe"
 )
 
 func TestGetRemoteCertHashGuardsPrivateTargets(t *testing.T) {

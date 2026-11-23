@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 )
 
 // Mikrozia cannot enforce IP limits inside a RouterOS container, but the stored

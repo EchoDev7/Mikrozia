@@ -1,4 +1,4 @@
-// Package service provides business logic services for the 3x-ui web panel,
+// Package service provides business logic services for the Mikrozia web panel,
 // including inbound/outbound management, user administration, settings, and Xray integration.
 package service
 
@@ -16,18 +16,18 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/mtproto"
-	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/maskcompat"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/netsafe"
-	wgutil "github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawg"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/mtproto"
+	"github.com/echodev7/mikrozia/v3/internal/tuic"
+	"github.com/echodev7/mikrozia/v3/internal/util/common"
+	"github.com/echodev7/mikrozia/v3/internal/util/maskcompat"
+	"github.com/echodev7/mikrozia/v3/internal/util/netsafe"
+	wgutil "github.com/echodev7/mikrozia/v3/internal/util/wireguard"
+	"github.com/echodev7/mikrozia/v3/internal/web/runtime"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

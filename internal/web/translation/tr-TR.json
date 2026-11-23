@@ -117,10 +117,8 @@
     "routing": "Yönlendirme",
     "outbounds": "Giden Bağlantılar",
     "apiDocs": "API Belgeleri",
-    "donate": "Bağış Yap",
     "sponsors": "Sponsorlar",
     "hosts": "Host'lar",
-    "docs": "Belgeler",
     "openMenu": "Menüyü aç",
     "pinSidebar": "Kenar çubuğunu sabitle",
     "unpinSidebar": "Kenar çubuğu sabitlemesini kaldır",
@@ -1310,7 +1308,7 @@
       "subAnnounce": "Duyuru",
       "subAnnounceDesc": "VPN istemcisinde görüntülenen duyuru metni. İstemci kimlik tokenlarını destekler: {{EMAIL}}, {{ID}}, {{SHORT_ID}}, {{SUB_ID}}, {{TELEGRAM_ID}}.",
       "subThemeDir": "Abonelik Tema Dizini",
-      "subThemeDirDesc": "Abonelik sayfası için özel bir şablon (index.html/sub.html) içeren klasörün mutlak yolu (örn. /etc/3x-ui/sub_templates/my-theme/). Varsayılan sayfayı kullanmak için boş bırakın.",
+      "subThemeDirDesc": "Abonelik sayfası için özel bir şablon (index.html/sub.html) içeren klasörün mutlak yolu (örn. /etc/Mikrozia/sub_templates/my-theme/). Varsayılan sayfayı kullanmak için boş bırakın.",
       "subThemeDirDocs": "Şablon kılavuzu ↗",
       "subEnableRouting": "Yönlendirmeyi etkinleştir",
       "happLinkEnable": "Şifreli abonelik bağlantıları",
@@ -2471,12 +2469,12 @@
     },
     "sponsors": {
       "title": "Sponsorlar",
-      "intro": "3X-UI geliştirmesini destekleyen şirketler. Sponsor bağlantıları yeni sekmede açılır.",
+      "intro": "Mikrozia geliştirmesini destekleyen şirketler. Sponsor bağlantıları yeni sekmede açılır.",
       "become": "Sponsor ol",
       "tag": "Sponsor",
       "visit": "Ziyaret et",
       "yourBrand": "Markanız burada",
-      "yourBrandText": "Şirketinizi her gün 3X-UI açan binlerce sunucu yöneticisinin önüne çıkarın."
+      "yourBrandText": "Şirketinizi her gün Mikrozia açan binlerce sunucu yöneticisinin önüne çıkarın."
     }
   },
   "tgbot": {
@@ -2520,7 +2518,7 @@
       "report": "🕰 Planlanmış Raporlar: {{ .RunTime }}\r\n",
       "datetime": "⏰ Tarih ve Saat: {{ .DateTime }}\r\n",
       "hostname": "💻 Sunucu: {{ .Hostname }}",
-      "version": "🚀 3X-UI Sürümü: {{ .Version }}\r\n",
+      "version": "🚀 Mikrozia Sürümü: {{ .Version }}\r\n",
       "xrayVersion": "📡 Xray Sürümü: {{ .XrayVersion }}\r\n",
       "ipv6": "🌐 IPv6: {{ .IPv6 }}",
       "ipv4": "🌐 IPv4: {{ .IPv4 }}",
@@ -2723,10 +2721,10 @@
   },
   "discord": {
     "test": {
-      "title": "3x-ui Discord Bildirim Testi",
+      "title": "Mikrozia Discord Bildirim Testi",
       "body": "Bu, Discord bildirimlerinin doğru yapılandırıldığını doğrulayan bir test bildirimidir."
     },
-    "footer": "3x-ui Paneli",
+    "footer": "Mikrozia Paneli",
     "fields": {
       "panelVersion": "Panel Sürümü",
       "xrayCore": "Xray Çekirdeği",
@@ -2761,13 +2759,13 @@
       "loginFailed": "Giriş Başarısız"
     },
     "report": {
-      "title": "📊 3x-ui Durum Raporu",
+      "title": "📊 Mikrozia Durum Raporu",
       "summary": "**{{ .Host }}** için periyodik sunucu ve proxy durum raporu",
-      "footer": "3x-ui Zamanlanmış Rapor • Zamanlama: {{ .RunTime }}"
+      "footer": "Mikrozia Zamanlanmış Rapor • Zamanlama: {{ .RunTime }}"
     },
     "commands": {
-      "helpTitle": "🤖 3x-ui Discord Bot Komutları",
-      "helpDescription": "3x-ui sunucusunu izlemek ve yönetmek için kullanılabilir komutlar:",
+      "helpTitle": "🤖 Mikrozia Discord Bot Komutları",
+      "helpDescription": "Mikrozia sunucusunu izlemek ve yönetmek için kullanılabilir komutlar:",
       "helpStatus": "Sistem yükünü, RAM'i, CPU'yu, bağlantıları ve çevrimiçi kullanıcıları gösterir",
       "helpReport": "Tam durum raporu oluşturur (yapılandırıldıysa veritabanı yedeğiyle)",
       "helpBackup": "Veritabanı yedek dosyasını hemen gönderir",
@@ -2775,10 +2773,10 @@
       "helpInbounds": "Yapılandırılmış tüm gelen bağlantıları portları ve istemci istatistikleriyle listeler",
       "helpRestart": "Xray çekirdeğini yeniden başlatır",
       "helpHelp": "Bu komut listesini gösterir",
-      "statusTitle": "⚡ 3x-ui Sunucu Durumu",
+      "statusTitle": "⚡ Mikrozia Sunucu Durumu",
       "statusDescription": "**{{ .Host }}** için güncel çalışma metrikleri",
       "backupTitle": "🗄️ Veritabanı Yedeği",
-      "backupDescription": "`{{ .Time }}` tarihinde oluşturulan 3x-ui yedek arşivi",
+      "backupDescription": "`{{ .Time }}` tarihinde oluşturulan Mikrozia yedek arşivi",
       "backupUnavailable": "❌ Yedekleme hizmeti kullanılamıyor",
       "backupFailed": "❌ Veritabanı yedeği okunamadı: {{ .Error }}",
       "usageHint": "⚠️ Kullanım: `!usage <email>` veya `/usage <email>`",

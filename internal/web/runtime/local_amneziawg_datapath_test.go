@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawgnet"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/util/wireguard"
 )
 
 func datapathInbound(t *testing.T, id, port int, withLegacyKernelFlag *bool) *model.Inbound {

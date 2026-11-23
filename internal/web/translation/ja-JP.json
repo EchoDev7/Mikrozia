@@ -117,10 +117,8 @@
     "routing": "ルーティング",
     "outbounds": "アウトバウンド",
     "apiDocs": "API ドキュメント",
-    "donate": "寄付",
     "sponsors": "スポンサー",
     "hosts": "ホスト",
-    "docs": "ドキュメント",
     "openMenu": "メニューを開く",
     "pinSidebar": "サイドバーを固定",
     "unpinSidebar": "サイドバーの固定を解除",
@@ -1310,7 +1308,7 @@
       "subAnnounce": "お知らせ",
       "subAnnounceDesc": "VPNクライアントに表示されるお知らせのテキスト。クライアント識別トークンをサポートします: {{EMAIL}}, {{ID}}, {{SHORT_ID}}, {{SUB_ID}}, {{TELEGRAM_ID}}。",
       "subThemeDir": "サブスクリプションテーマディレクトリ",
-      "subThemeDirDesc": "サブスクリプションページのカスタムテンプレート (index.html/sub.html) を含むフォルダーの絶対パス（例: /etc/3x-ui/sub_templates/my-theme/）。空欄の場合はデフォルトのページを使用します。",
+      "subThemeDirDesc": "サブスクリプションページのカスタムテンプレート (index.html/sub.html) を含むフォルダーの絶対パス（例: /etc/Mikrozia/sub_templates/my-theme/）。空欄の場合はデフォルトのページを使用します。",
       "subThemeDirDocs": "テンプレートガイド ↗",
       "subEnableRouting": "ルーティングを有効化",
       "happLinkEnable": "暗号化されたサブスクリプションリンク",
@@ -2471,12 +2469,12 @@
     },
     "sponsors": {
       "title": "スポンサー",
-      "intro": "3X-UI の開発を支援している企業です。スポンサーリンクは新しいタブで開きます。",
+      "intro": "Mikrozia の開発を支援している企業です。スポンサーリンクは新しいタブで開きます。",
       "become": "スポンサーになる",
       "tag": "スポンサー",
       "visit": "訪問",
       "yourBrand": "ここにあなたのブランドを",
-      "yourBrandText": "毎日 3X-UI を開く何千人ものサーバー管理者に御社をアピールできます。"
+      "yourBrandText": "毎日 Mikrozia を開く何千人ものサーバー管理者に御社をアピールできます。"
     }
   },
   "tgbot": {
@@ -2520,7 +2518,7 @@
       "report": "🕰 定期報告：{{ .RunTime }}\r\n",
       "datetime": "⏰ 日時：{{ .DateTime }}\r\n",
       "hostname": "💻 ホスト: {{ .Hostname }}\r\n",
-      "version": "🚀 X-UI バージョン：{{ .Version }}\r\n",
+      "version": "🚀 Mikrozia バージョン：{{ .Version }}\r\n",
       "xrayVersion": "📡 Xray バージョン: {{ .XrayVersion }}\r\n",
       "ipv6": "🌐 IPv6: {{ .IPv6 }}\r\n",
       "ipv4": "🌐 IPv4: {{ .IPv4 }}\r\n",
@@ -2723,10 +2721,10 @@
   },
   "discord": {
     "test": {
-      "title": "3x-ui Discord通知テスト",
+      "title": "Mikrozia Discord通知テスト",
       "body": "これはDiscord通知が正しく設定されていることを確認するためのテスト通知です。"
     },
-    "footer": "3x-ui パネル",
+    "footer": "Mikrozia パネル",
     "fields": {
       "panelVersion": "パネルバージョン",
       "xrayCore": "Xray コア",
@@ -2761,13 +2759,13 @@
       "loginFailed": "ログイン失敗"
     },
     "report": {
-      "title": "📊 3x-ui ステータスレポート",
+      "title": "📊 Mikrozia ステータスレポート",
       "summary": "**{{ .Host }}** のサーバーとプロキシの定期ステータスレポート",
-      "footer": "3x-ui 定期レポート • スケジュール: {{ .RunTime }}"
+      "footer": "Mikrozia 定期レポート • スケジュール: {{ .RunTime }}"
     },
     "commands": {
-      "helpTitle": "🤖 3x-ui Discord Bot コマンド",
-      "helpDescription": "3x-ui サーバーの監視と管理に使えるコマンド:",
+      "helpTitle": "🤖 Mikrozia Discord Bot コマンド",
+      "helpDescription": "Mikrozia サーバーの監視と管理に使えるコマンド:",
       "helpStatus": "システム負荷、RAM、CPU、接続数、オンラインユーザーを表示",
       "helpReport": "完全なステータスレポートを生成（設定されていればDBバックアップ付き）",
       "helpBackup": "データベースのバックアップファイルを今すぐ送信",
@@ -2775,10 +2773,10 @@
       "helpInbounds": "設定済みのすべてのインバウンドをポートとクライアント統計付きで一覧表示",
       "helpRestart": "Xray コアを再起動",
       "helpHelp": "このコマンド一覧を表示",
-      "statusTitle": "⚡ 3x-ui サーバーステータス",
+      "statusTitle": "⚡ Mikrozia サーバーステータス",
       "statusDescription": "**{{ .Host }}** の現在の稼働メトリクス",
       "backupTitle": "🗄️ データベースバックアップ",
-      "backupDescription": "`{{ .Time }}` に生成された 3x-ui のバックアップ",
+      "backupDescription": "`{{ .Time }}` に生成された Mikrozia のバックアップ",
       "backupUnavailable": "❌ バックアップサービスを利用できません",
       "backupFailed": "❌ データベースのバックアップを読み込めませんでした: {{ .Error }}",
       "usageHint": "⚠️ 使い方: `!usage <email>` または `/usage <email>`",

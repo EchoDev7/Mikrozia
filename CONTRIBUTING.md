@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for taking the time to contribute to 3x-ui. This guide gets a development panel running locally and explains the conventions the project follows so changes land cleanly.
+Thanks for taking the time to contribute to Mikrozia. This guide gets a development panel running locally and explains the conventions the project follows so changes land cleanly.
 
 ## Prerequisites
 
@@ -50,8 +50,8 @@ Cross-building the Linux SQLite target from Windows (or vice versa) requires a s
 ## First-time setup
 
 ```bash
-git clone https://github.com/MHSanaei/3x-ui.git
-cd 3x-ui
+git clone https://github.com/EchoDev7/Mikrozia.git
+cd Mikrozia
 
 cp .env.example .env
 

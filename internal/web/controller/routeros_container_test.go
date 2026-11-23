@@ -48,7 +48,7 @@ func TestRouterOSContainerRoutesAuthAndNoSecrets(t *testing.T) {
 			}
 
 			secured := gin.New()
-			secured.Use(sessions.Sessions("3x-ui", cookie.NewStore([]byte("test-secret"))))
+			secured.Use(sessions.Sessions("mikrozia", cookie.NewStore([]byte("test-secret"))))
 			base := &BaseController{}
 			(&ServerController{}).initRouter(secured.Group("/panel/api/server", base.checkLogin))
 			blocked := httptest.NewRecorder()

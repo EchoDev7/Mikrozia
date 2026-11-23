@@ -1,7 +1,7 @@
 package job
 
 import (
-	"github.com/mhsanaei/3x-ui/v3/internal/eventbus"
+	"github.com/echodev7/mikrozia/v3/internal/eventbus"
 
 	"github.com/shirou/gopsutil/v4/mem"
 )

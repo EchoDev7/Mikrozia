@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://hub.docker.com/r/majlot/mikrozia">
+  <a href="https://hub.docker.com/r/echodev7/mikrozia">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="public/logo-dark.png" />
       <img src="public/logo-light.png" alt="Mikrozia" width="180" />
@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://hub.docker.com/r/majlot/mikrozia"><img src="https://img.shields.io/badge/image-majlot%2Fmikrozia-2496ED?style=flat-square&logo=docker" alt="Container image" /></a>
+  <a href="https://hub.docker.com/r/echodev7/mikrozia"><img src="https://img.shields.io/badge/image-echodev7%2Fmikrozia-2496ED?style=flat-square&logo=docker" alt="Container image" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License: GPL-3.0" /></a>
   <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js 16" />
   <img src="https://img.shields.io/badge/Fumadocs-16-0ea5e9?style=flat-square" alt="Fumadocs 16" />

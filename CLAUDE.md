@@ -2,7 +2,7 @@
 
 Mikrozia product direction is defined by `AGENTS.md` and the authoritative
 `docs/MIKROZIA_PROJECT_CHARTER.md`. Read both before this file. Where inherited
-3x-ui guidance conflicts with the Mikrozia RouterOS contract, the charter wins.
+Mikrozia guidance conflicts with the Mikrozia RouterOS contract, the charter wins.
 
 Operational guide for AI agents working in this repo. Long-form human docs:
 `CONTRIBUTING.md` (setup, testing philosophy) and `frontend/README.md`.
@@ -12,7 +12,7 @@ index, layering rules), read `docs/architecture.md` on demand — do not guess
 file locations when it can answer in one hop.
 
 ## Stack
-- Backend: Go 1.27 (`module github.com/mhsanaei/3x-ui/v3`), Gin, GORM.
+- Backend: Go 1.27 (`module github.com/echodev7/mikrozia/v3`), Gin, GORM.
   Runs Xray-core as a managed child process (`internal/xray/process.go`) and
   imports `github.com/xtls/xray-core` for config types + gRPC stats/handler/router
   API. MTProto inbounds run a second managed child — the `mtg-multi` binary

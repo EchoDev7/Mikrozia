@@ -58,7 +58,7 @@ For scripts and quick actions, `x-ui` accepts subcommands directly:
 In Mikrozia, panel updates are performed exclusively by replacing the Container or Container Image. Legacy in-place self-update scripts (`update.sh`) that ran inside the container have been completely removed to protect the container RootFS and preserve stability on RouterOS.
 
 To update Mikrozia:
-1. Pull the new Mikrozia container image tag (e.g. from Docker Hub `majlot/mikrozia`).
+1. Pull the new Mikrozia container image tag (e.g. from Docker Hub `echodev7/mikrozia`).
 2. Stop the current container and recreate it with the new image, reusing the existing persistent mounts (`/etc/x-ui` and `/root/cert`).
 3. Start the new container.
 

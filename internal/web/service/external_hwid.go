@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
 )
 
 const externalSubHwidKey = "externalSubHwid"
@@ -32,7 +32,7 @@ func ExternalSubscriptionHwid() string {
 			return strings.TrimSpace(row.Value)
 		}
 	}
-	hwid := "3x-ui-server-" + uuid.NewString()
+	hwid := "Mikrozia-server-" + uuid.NewString()
 	row = model.Setting{Key: externalSubHwidKey, Value: hwid}
 	if err := db.Where(model.Setting{Key: externalSubHwidKey}).FirstOrCreate(&row).Error; err != nil {
 		logger.Warningf("persisting the external subscription hwid failed: %v", err)

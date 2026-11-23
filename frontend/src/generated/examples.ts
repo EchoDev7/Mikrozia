@@ -1202,7 +1202,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "enable": true,
     "from": "2026-10-01T00:00:00Z",
     "id": "acme-2026-10",
-    "link": "https://acme.example/?utm_source=3x-ui",
+    "link": "https://acme.example/?utm_source=Mikrozia",
     "logo": "/sponsors/logo/acme.png",
     "name": "Acme VPS",
     "slots": [
@@ -1219,7 +1219,7 @@ export const EXAMPLES: Record<string, unknown> = {
         "enable": true,
         "from": "2026-10-01T00:00:00Z",
         "id": "acme-2026-10",
-        "link": "https://acme.example/?utm_source=3x-ui",
+        "link": "https://acme.example/?utm_source=Mikrozia",
         "logo": "/sponsors/logo/acme.png",
         "name": "Acme VPS",
         "slots": [

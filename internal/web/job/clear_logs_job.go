@@ -3,8 +3,8 @@ package job
 import (
 	"os"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 )
 
 const defaultMaxXrayLogBytes int64 = 64 << 20

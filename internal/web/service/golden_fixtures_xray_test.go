@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 
 	"github.com/xtls/xray-core/infra/conf"
 )

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/config"
 )
 
 func TestContainerCredentialRefusalPrecedesDatabaseAccess(t *testing.T) {

@@ -1,9 +1,9 @@
 # Mikrozia — 3x-ui for MikroTik RouterOS Container
 
-[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-majlot%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/majlot/mikrozia)
-[![Release](https://img.shields.io/badge/release-v1--mikrozia-green.svg)](https://hub.docker.com/r/majlot/mikrozia/tags)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-echodev7%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/echodev7/mikrozia)
+[![Release](https://img.shields.io/badge/release-v1--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
-[![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-lightgrey.svg)](https://hub.docker.com/r/majlot/mikrozia/tags)
+[![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-lightgrey.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 
 **Mikrozia** is a production-hardened, multi-architecture distribution of **3x-ui** (powered by **Xray-core**) engineered specifically to run inside the **MikroTik RouterOS Container** subsystem (CHR, x86_64, and ARM RouterBOARDs).
 
@@ -16,13 +16,13 @@ Standard Docker images cannot run reliably on RouterOS due to non-systemd init, 
 Docker Hub Repository:
 
 ```text
-majlot/mikrozia
+echodev7/mikrozia
 ```
 
-| Tag                           | Recommended Use            | Notes                             |
-| ----------------------------- | -------------------------- | --------------------------------- |
-| `majlot/mikrozia:v1-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
-| `majlot/mikrozia:latest`      | Quick testing / Labs       | Tracks the newest stable release. |
+| Tag                             | Recommended Use            | Notes                             |
+| ------------------------------- | -------------------------- | --------------------------------- |
+| `echodev7/mikrozia:v1-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
+| `echodev7/mikrozia:latest`      | Quick testing / Labs       | Tracks the newest stable release. |
 
 ### Supported Architectures
 
@@ -160,7 +160,7 @@ Set the official registry and create the container object using version `v1-mikr
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 
 # Pull image and add container
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" \
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" \
   interface=veth-mikrozia \
   root-dir=containers/mikrozia/root-v1-mikrozia \
   mountlists="MIKROZIA_DATA,MIKROZIA_CERT" \

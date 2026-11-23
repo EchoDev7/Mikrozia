@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/session"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/web/session"
 
 	"github.com/gin-gonic/gin"
 )

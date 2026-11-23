@@ -3,7 +3,7 @@ package sub
 import (
 	"strings"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 )
 
 func keepAliveForScalarExport(client model.Client) (int, bool) {

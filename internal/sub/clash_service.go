@@ -13,10 +13,10 @@ import (
 	"github.com/goccy/go-json"
 	yaml "github.com/goccy/go-yaml"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
-	wgutil "github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawg"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/tuic"
+	wgutil "github.com/echodev7/mikrozia/v3/internal/util/wireguard"
 )
 
 type SubClashService struct {
@@ -954,7 +954,7 @@ func (s *SubClashService) buildAmneziaWGProxy(subReq *SubService, inbound *model
 	return proxy
 }
 
-// buildXhttpClashOpts converts xhttpSettings from 3x-ui's camelCase JSON
+// buildXhttpClashOpts converts xhttpSettings from Mikrozia's camelCase JSON
 // storage into the kebab-case map that Mihomo expects under xhttp-opts.
 //
 // Only client-relevant fields are included (allowlist approach).

@@ -1,15 +1,15 @@
 [فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
 
-# Mikrozia — 面向 RouterOS 容器的 3x-ui
+# Mikrozia — 面向 RouterOS 容器的控制面板
 
-Mikrozia 将 3x-ui 与 Xray 打包为 **MikroTik RouterOS 容器** 产品。唯一受支持的
+Mikrozia 将 Mikrozia 与 Xray 打包为 **MikroTik RouterOS 容器** 产品。唯一受支持的
 安装与更新方式是带版本号的 OCI 镜像加持久化挂载。完整指南见
 [README.md](/README.md)（波斯语）。
 
 ## 当前版本
 
 ```text
-majlot/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1-mikrozia
 ```
 
 生产环境请使用带版本号的标签，而不是 `latest`。
@@ -24,7 +24,7 @@ majlot/mikrozia:v1-mikrozia
 ## 安装
 
 请在 RouterOS Terminal 或 WinBox 中按顺序执行以下命令。生产镜像是版本化标签
-`majlot/mikrozia:v1-mikrozia`。
+`echodev7/mikrozia:v1-mikrozia`。
 
 > 这些说明遵循当前 RouterOS `7.25` 容器契约。P1-CHR-01 的干净 CHR 验收尚未
 > 完成；请先在一次性 CHR 上验证完整流程，再用于生产。本文不声称已完成真实
@@ -47,7 +47,7 @@ majlot/mikrozia:v1-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="majlot/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **敏感值提示：** RouterOS Container Environment 是配置存储，而不是密钥存储。
@@ -87,6 +87,6 @@ majlot/mikrozia:v1-mikrozia
 
 ## 上游与许可证
 
-- Upstream: [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)
+- Upstream: [EchoDev7/Mikrozia (forked from MHSanaei/3x-ui v3.11.0)](https://github.com/EchoDev7/Mikrozia (forked from MHSanaei/3x-ui v3.11.0))
 - Xray: [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
 - License: GPL-3.0

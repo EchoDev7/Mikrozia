@@ -1,4 +1,4 @@
-// Package web provides the main web server implementation for the 3x-ui panel,
+// Package web provides the main web server implementation for the Mikrozia panel,
 // including HTTP/HTTPS serving, routing, templates, and background job scheduling.
 package web
 
@@ -17,28 +17,28 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
-	"github.com/mhsanaei/3x-ui/v3/internal/eventbus"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/mtproto"
-	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/cronspec"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/sys"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/controller"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/job"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/locale"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/network"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/discord"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/email"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/tgbot"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/websocket"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/echodev7/mikrozia/v3/internal/amneziawgnet"
+	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/eventbus"
+	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/mtproto"
+	"github.com/echodev7/mikrozia/v3/internal/tuic"
+	"github.com/echodev7/mikrozia/v3/internal/util/common"
+	"github.com/echodev7/mikrozia/v3/internal/util/cronspec"
+	"github.com/echodev7/mikrozia/v3/internal/util/sys"
+	"github.com/echodev7/mikrozia/v3/internal/web/controller"
+	"github.com/echodev7/mikrozia/v3/internal/web/job"
+	"github.com/echodev7/mikrozia/v3/internal/web/locale"
+	"github.com/echodev7/mikrozia/v3/internal/web/middleware"
+	"github.com/echodev7/mikrozia/v3/internal/web/network"
+	"github.com/echodev7/mikrozia/v3/internal/web/runtime"
+	"github.com/echodev7/mikrozia/v3/internal/web/service"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/discord"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/email"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/panel"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/tgbot"
+	"github.com/echodev7/mikrozia/v3/internal/web/websocket"
+	"github.com/echodev7/mikrozia/v3/internal/xray"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/sessions"
@@ -112,7 +112,7 @@ func EmbeddedDist() embed.FS {
 	return distFS
 }
 
-// Server represents the main web server for the 3x-ui panel with controllers, services, and scheduled jobs.
+// Server represents the main web server for the Mikrozia panel with controllers, services, and scheduled jobs.
 type Server struct {
 	httpServer           *http.Server
 	listener             net.Listener
@@ -220,7 +220,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 		sessionOptions.MaxAge = sessionMaxAge * 60 // minutes -> seconds
 	}
 	store.Options(sessionOptions)
-	engine.Use(sessions.Sessions("3x-ui", store))
+	engine.Use(sessions.Sessions("mikrozia", store))
 	engine.Use(func(c *gin.Context) {
 		c.Set("base_path", basePath)
 	})
@@ -725,7 +725,7 @@ func (s *Server) start(restartXray bool, startTgBot bool) (err error) {
 		if err := s.tgbotService.TestConnection(); err != nil {
 			return fmt.Errorf("telegram API test failed: %w", err)
 		}
-		s.tgbotService.SendMsgToTgbotAdmins("✅ Test message from 3x-ui")
+		s.tgbotService.SendMsgToTgbotAdmins("✅ Test message from Mikrozia")
 		return nil
 	})
 

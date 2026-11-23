@@ -117,10 +117,8 @@
     "routing": "路由",
     "outbounds": "出站",
     "apiDocs": "API 文件",
-    "donate": "捐贈",
     "sponsors": "贊助商",
     "hosts": "主機",
-    "docs": "文件",
     "openMenu": "開啟選單",
     "pinSidebar": "固定側邊欄",
     "unpinSidebar": "取消固定側邊欄",
@@ -1310,7 +1308,7 @@
       "subAnnounce": "公告",
       "subAnnounceDesc": "VPN 用戶端中顯示的公告文字。支援用戶端身分權杖：{{EMAIL}}、{{ID}}、{{SHORT_ID}}、{{SUB_ID}}、{{TELEGRAM_ID}}。",
       "subThemeDir": "訂閱主題目錄",
-      "subThemeDirDesc": "包含自訂訂閱頁面範本 (index.html/sub.html) 的資料夾的絕對路徑（例如 /etc/3x-ui/sub_templates/my-theme/）。留空則使用預設頁面。",
+      "subThemeDirDesc": "包含自訂訂閱頁面範本 (index.html/sub.html) 的資料夾的絕對路徑（例如 /etc/Mikrozia/sub_templates/my-theme/）。留空則使用預設頁面。",
       "subThemeDirDocs": "範本指南 ↗",
       "subEnableRouting": "啟用路由",
       "happLinkEnable": "加密訂閱連結",
@@ -2471,12 +2469,12 @@
     },
     "sponsors": {
       "title": "贊助商",
-      "intro": "支持 3X-UI 開發的公司。贊助連結將在新分頁中開啟。",
+      "intro": "支持 Mikrozia 開發的公司。贊助連結將在新分頁中開啟。",
       "become": "成為贊助商",
       "tag": "贊助",
       "visit": "造訪",
       "yourBrand": "您的品牌展示位",
-      "yourBrandText": "讓每天打開 3X-UI 的數千名伺服器管理員看到您的公司。"
+      "yourBrandText": "讓每天打開 Mikrozia 的數千名伺服器管理員看到您的公司。"
     }
   },
   "tgbot": {
@@ -2520,7 +2518,7 @@
       "report": "🕰 定時報告：{{ .RunTime }}\r\n",
       "datetime": "⏰ 日期時間：{{ .DateTime }}\r\n",
       "hostname": "💻 主機: {{ .Hostname }}\r\n",
-      "version": "🚀 X-UI 版本：{{ .Version }}\r\n",
+      "version": "🚀 Mikrozia 版本：{{ .Version }}\r\n",
       "xrayVersion": "📡 Xray 版本: {{ .XrayVersion }}\r\n",
       "ipv6": "🌐 IPv6: {{ .IPv6 }}\r\n",
       "ipv4": "🌐 IPv4: {{ .IPv4 }}\r\n",
@@ -2723,10 +2721,10 @@
   },
   "discord": {
     "test": {
-      "title": "3x-ui Discord 通知測試",
+      "title": "Mikrozia Discord 通知測試",
       "body": "這是一則測試通知，確認 Discord 通知已正確設定。"
     },
-    "footer": "3x-ui 面板",
+    "footer": "Mikrozia 面板",
     "fields": {
       "panelVersion": "面板版本",
       "xrayCore": "Xray 核心",
@@ -2761,13 +2759,13 @@
       "loginFailed": "登入失敗"
     },
     "report": {
-      "title": "📊 3x-ui 狀態報告",
+      "title": "📊 Mikrozia 狀態報告",
       "summary": "**{{ .Host }}** 的伺服器與代理定期狀態報告",
-      "footer": "3x-ui 排程報告 • 排程：{{ .RunTime }}"
+      "footer": "Mikrozia 排程報告 • 排程：{{ .RunTime }}"
     },
     "commands": {
-      "helpTitle": "🤖 3x-ui Discord 機器人指令",
-      "helpDescription": "用於監控和管理 3x-ui 伺服器的可用指令：",
+      "helpTitle": "🤖 Mikrozia Discord 機器人指令",
+      "helpDescription": "用於監控和管理 Mikrozia 伺服器的可用指令：",
       "helpStatus": "顯示系統負載、記憶體、CPU、連線數和線上使用者",
       "helpReport": "產生完整狀態報告（如已設定則附帶資料庫備份）",
       "helpBackup": "立即傳送資料庫備份檔案",
@@ -2775,10 +2773,10 @@
       "helpInbounds": "列出所有已設定的入站及其連接埠和用戶端統計",
       "helpRestart": "重新啟動 Xray 核心",
       "helpHelp": "顯示此可用指令清單",
-      "statusTitle": "⚡ 3x-ui 伺服器狀態",
+      "statusTitle": "⚡ Mikrozia 伺服器狀態",
       "statusDescription": "**{{ .Host }}** 的目前運作指標",
       "backupTitle": "🗄️ 資料庫備份",
-      "backupDescription": "3x-ui 備份產生於 `{{ .Time }}`",
+      "backupDescription": "Mikrozia 備份產生於 `{{ .Time }}`",
       "backupUnavailable": "❌ 備份服務無法使用",
       "backupFailed": "❌ 讀取資料庫備份失敗：{{ .Error }}",
       "usageHint": "⚠️ 用法：`!usage <email>` 或 `/usage <email>`",

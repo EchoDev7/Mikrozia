@@ -12,11 +12,11 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/dbtest"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
+	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/dbtest"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
+	"github.com/echodev7/mikrozia/v3/internal/util/crypto"
+	"github.com/echodev7/mikrozia/v3/internal/web/service/panel"
 )
 
 func TestTopInboundsController_SchemaAuthAndRouting(t *testing.T) {
@@ -120,7 +120,7 @@ func TestTopInboundsController_SchemaAuthAndRouting(t *testing.T) {
 
 	t.Run("unauthenticated request is rejected by checkLogin", func(t *testing.T) {
 		engine := gin.New()
-		engine.Use(sessions.Sessions("3x-ui", cookie.NewStore([]byte("test-secret"))))
+		engine.Use(sessions.Sessions("mikrozia", cookie.NewStore([]byte("test-secret"))))
 		base := &BaseController{}
 		g := engine.Group("/panel/api/inbounds", base.checkLogin)
 		NewInboundController(g)

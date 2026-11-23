@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/config"
 )
 
 // DumpSQLite writes a portable SQL text dump of the SQLite database at srcPath
