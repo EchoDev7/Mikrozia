@@ -1,11 +1,11 @@
-# Mikrozia — 3x-ui for MikroTik RouterOS Container
+# Mikrozia — Xray Control Panel for MikroTik RouterOS Container
 
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-echodev7%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/echodev7/mikrozia)
-[![Release](https://img.shields.io/badge/release-v1--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
+[![Release](https://img.shields.io/badge/release-v1.0.7--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-lightgrey.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 
-**Mikrozia** is a production-hardened, multi-architecture distribution of **3x-ui** (powered by **Xray-core**) engineered specifically to run inside the **MikroTik RouterOS Container** subsystem (CHR, x86_64, and ARM RouterBOARDs).
+**Mikrozia** is a production-hardened, multi-architecture control panel for **Xray-core** engineered specifically to run inside the **MikroTik RouterOS Container** subsystem (CHR, x86_64, and ARM RouterBOARDs).
 
 Standard Docker images cannot run reliably on RouterOS due to non-systemd init, ephemeral root filesystems, absent iptables/fail2ban kernel modules, and missing persistent mounts. Mikrozia solves these hurdles by providing a lightweight Alpine base, zero container-level firewall pollution, persistent volume mounts, a pinned in-image ACME client with persistent TLS certificate storage, and a seamless RouterOS runtime contract.
 
@@ -19,10 +19,10 @@ Docker Hub Repository:
 echodev7/mikrozia
 ```
 
-| Tag                             | Recommended Use            | Notes                             |
-| ------------------------------- | -------------------------- | --------------------------------- |
-| `echodev7/mikrozia:v1-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
-| `echodev7/mikrozia:latest`      | Quick testing / Labs       | Tracks the newest stable release. |
+| Tag                                 | Recommended Use            | Notes                             |
+| ----------------------------------- | -------------------------- | --------------------------------- |
+| `echodev7/mikrozia:v1.0.7-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
+| `echodev7/mikrozia:latest`          | Quick testing / Labs       | Tracks the newest stable release. |
 
 ### Supported Architectures
 
@@ -43,17 +43,17 @@ Mikrozia enforces strict isolation between application code and persistent user 
 | Property                        | Value                      | Description                                                                  |
 | ------------------------------- | -------------------------- | ---------------------------------------------------------------------------- |
 | **Entrypoint**                  | `/app/DockerEntrypoint.sh` | Hardened Alpine init without systemd                                         |
-| **Working Directory**           | `/app`                     | 3x-ui binary and management scripts                                          |
+| **Working Directory**           | `/app`                     | Mikrozia binary and management scripts                                       |
 | **Persistent Database**         | `/etc/x-ui`                | Stores `x-ui.db` (clients, inbounds, settings)                               |
 | **Persistent TLS Certificates** | `/root/cert`               | Issued and imported certificates plus ACME state; survives image replacement |
 | **User Home**                   | `/root`                    | Preserves SSH/environment consistency                                        |
-| **Internal Panel Port**         | `2053/TCP`                 | Default 3x-ui web admin UI                                                   |
+| **Internal Panel Port**         | `2053/TCP`                 | Default Mikrozia web admin UI                                                |
 | **Internal Sub Port**           | `2096/TCP`                 | Default subscription service endpoint                                        |
 | **Container Firewall**          | _None_                     | All firewall/NAT is handled exclusively by RouterOS                          |
 
 ### Production TLS Certificate Paths
 
-When configuring the Panel or Subscription TLS in 3x-ui, use these exact installed paths:
+When configuring the Panel or Subscription TLS in Mikrozia, use these exact installed paths:
 
 ```text
 /root/cert/vpn.yourdomain.com/fullchain.pem
@@ -153,16 +153,16 @@ reconciled with them on every start and is never silently deleted or reset.
 
 ### Step 4: Configure Docker Hub Registry and Add Container
 
-Set the official registry and create the container object using version `v1-mikrozia`:
+Set the official registry and create the container object using version `v1.0.7-mikrozia`:
 
 ```routeros
 # Set registry and temporary directory for layer extraction
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 
 # Pull image and add container
-/container/add remote-image="echodev7/mikrozia:v1-mikrozia" \
+/container/add remote-image="echodev7/mikrozia:v1.0.7-mikrozia" \
   interface=veth-mikrozia \
-  root-dir=containers/mikrozia/root-v1-mikrozia \
+  root-dir=containers/mikrozia/root-v1.0.7-mikrozia \
   mountlists="MIKROZIA_DATA,MIKROZIA_CERT" \
   envlist=MIKROZIA_ENV \
   dns="1.1.1.1,8.8.8.8" \

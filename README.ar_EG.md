@@ -9,7 +9,7 @@ Mikrozia هي حزمة من Mikrozia وXray لمشغّل **حاوية MikroTik R
 ## الإصدار الحالي
 
 ```text
-echodev7/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1.0.7-mikrozia
 ```
 
 استخدم وسمًا مُصدَّرًا برقم إصدار في بيئة الإنتاج، وليس `latest`.
@@ -24,7 +24,7 @@ echodev7/mikrozia:v1-mikrozia
 ## التثبيت
 
 نفّذ الأوامر التالية بالترتيب في Terminal RouterOS أو WinBox. صورة الإنتاج هي
-الوسم المُصدَّر برقم إصدار `echodev7/mikrozia:v1-mikrozia`.
+الوسم المُصدَّر برقم إصدار `echodev7/mikrozia:v1.0.7-mikrozia`.
 
 > تتبع هذه التعليمات عقد حاويات RouterOS `7.25` الحالي. لم يكتمل قبول CHR نظيف
 > الخاص بـ P1-CHR-01 بعد؛ اختبر المسار كاملًا على CHR مؤقت قبل الإنتاج. لا يدّعي
@@ -47,7 +47,7 @@ echodev7/mikrozia:v1-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1.0.7-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.7-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **قيم حساسة:** Environment حاوية RouterOS هو مخزن إعدادات وليس خزنة أسرار. كل قيمة
@@ -88,6 +88,6 @@ echodev7/mikrozia:v1-mikrozia
 
 ## المصدر الأعلى والترخيص
 
-- Upstream: [EchoDev7/Mikrozia (forked from MHSanaei/3x-ui v3.11.0)](https://github.com/EchoDev7/Mikrozia (forked from MHSanaei/3x-ui v3.11.0))
+- Upstream: [EchoDev7/Mikrozia](https://github.com/EchoDev7/Mikrozia) (forked from MHSanaei/3x-ui v3.11.0)
 - Xray: [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
 - License: GPL-3.0

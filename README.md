@@ -1,9 +1,17 @@
 [فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/mikrozia-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="media/mikrozia-light.svg" />
+    <img src="media/mikrozia-dark.svg" alt="Mikrozia" width="220" />
+  </picture>
+</p>
+
 # Mikrozia — RouterOS Container Control Panel
 
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-echodev7%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/echodev7/mikrozia)
-[![Release](https://img.shields.io/badge/release-v1--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
+[![Release](https://img.shields.io/badge/release-v1.0.7--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -30,7 +38,7 @@ Mikrozia هیچ Rule مربوط به Firewall، NAT، Port Forward، Masquerade 
 ## نسخه فعلی
 
 ```text
-echodev7/mikrozia:v1-mikrozia
+echodev7/mikrozia:v1.0.7-mikrozia
 ```
 
 معماری‌های انتشار:
@@ -110,7 +118,7 @@ Mountهای پایدار و متغیرهای محیطی:
 
 ```routeros
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v1-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1.0.7-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.7-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 Monitor استخراج:
@@ -190,8 +198,8 @@ v<major>-mikrozia
 نمونه:
 
 ```bash
-git tag v1-mikrozia
-git push origin v1-mikrozia
+git tag v1.0.7-mikrozia
+git push origin v1.0.7-mikrozia
 ```
 
 Workflow تست‌ها و Smoke Test را برای **هر سه معماری منتشرشده** اجرا می‌کند و سپس Imageهای `amd64`، `arm64` و `arm/v7` را همراه SBOM، provenance و Digest در `echodev7/mikrozia` منتشر می‌کند. انتشار فقط از روی Tag نسخه‌دار یا Dispatch صریح همان نسخه انجام می‌شود؛ Push روی `main` یا Pull Request هیچ Image‌ای منتشر نمی‌کند.

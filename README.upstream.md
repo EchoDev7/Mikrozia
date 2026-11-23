@@ -4,7 +4,7 @@
 > **HISTORICAL — SUPERSEDED / سند تاریخی — منسوخ‌شده.** این فایل راهنمای اصلی
 > پروژهٔ بالادست 3x-ui است و **برای Mikrozia معتبر نیست**. برای راهنمای فعلی به
 > [README.md](/README.md) (فارسی) و
-> [مستندات Mikrozia](https://github.com/majlot/Mikrozia/tree/main/docs/content/docs/en)
+> [مستندات Mikrozia](https://github.com/EchoDev7/Mikrozia/tree/main/docs/content/docs/en)
 > مراجعه کنید. Mikrozia فقط روی **MikroTik RouterOS Container** اجرا می‌شود؛
 > نصب با `install.sh`، systemd، Windows، Docker Compose تولیدی، Fail2ban و
 > به‌روزرسانی درون‌کانتینری پشتیبانی نمی‌شود.
