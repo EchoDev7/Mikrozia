@@ -6,6 +6,8 @@ const withMDX = createMDX();
 // Pages). Search already uses a static index, and OG images are prerendered, so
 // the export is self-contained. Default (unset) builds for Vercel/Node hosting.
 const isStaticExport = process.env.DEPLOY_TARGET === 'static';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://echodev7.github.io/Mikrozia';
+const staticBasePath = isStaticExport ? new URL(siteUrl).pathname.replace(/\/$/, '') : '';
 
 /** @type {import('next').NextConfig} */
 const config = {
@@ -14,7 +16,12 @@ const config = {
   // (`en/index.html` rather than `en.html`) so URLs with a trailing slash —
   // including the root `/` → `/en/` redirect — resolve instead of 404ing.
   ...(isStaticExport
-    ? { output: 'export', trailingSlash: true, images: { unoptimized: true } }
+    ? {
+        output: 'export',
+        ...(staticBasePath ? { basePath: staticBasePath } : {}),
+        trailingSlash: true,
+        images: { unoptimized: true },
+      }
     : {}),
 };
 
