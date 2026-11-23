@@ -12,6 +12,9 @@ const staticBasePath = isStaticExport ? new URL(siteUrl).pathname.replace(/\/$/,
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_BASE_PATH: staticBasePath,
+  },
   // On the static host (GitHub Pages) emit directory-style routes
   // (`en/index.html` rather than `en.html`) so URLs with a trailing slash —
   // including the root `/` → `/en/` redirect — resolve instead of 404ing.

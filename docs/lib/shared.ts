@@ -35,3 +35,4 @@ export const telegramChannelUrl = `https://t.me/${telegramChannel}`;
 // `??`) so an empty string — e.g. an unset `${{ vars.NEXT_PUBLIC_SITE_URL }}`
 // in CI — also falls back instead of shipping a blank origin.
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://echodev7.github.io/Mikrozia';
+export const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
