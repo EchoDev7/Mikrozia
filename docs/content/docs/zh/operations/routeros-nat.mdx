@@ -1,0 +1,28 @@
+---
+title: RouterOS 自动 NAT 管理
+description: 将 Mikrozia 连接到 MikroTik RouterOS API，在添加、编辑、启停或删除本地入站时自动管理 dst-nat 规则。
+icon: Network
+---
+
+启用 **Managed RouterOS NAT** 后，当您在 Mikrozia 面板中添加、编辑、启用/禁用或删除本地入站时，面板会自动在 MikroTik RouterOS 上同步对应的 `/ip/firewall/nat`（`dst-nat`）规则。
+
+<Callout type="info">
+  此功能**默认关闭**。Mikrozia **仅**管理带有 `mikrozia:managed:inbound:<id>:<proto>` 注释的规则，绝不会修改或删除您手动创建的 RouterOS 规则。
+</Callout>
+
+## MikroTik RouterOS 配置命令
+
+```bash
+/user/group/add name=mikrozia-nat policy=read,write,api
+/user/add name=mikrozia-nat group=mikrozia-nat password="YOUR_STRONG_PASSWORD"
+/ip/service/set api disabled=no port=8728 address=172.16.10.0/24
+/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8728 src-address=172.16.10.0/24 comment="Allow Mikrozia container API"
+```
+
+然后在面板中打开 **Panel Settings → RouterOS NAT**，填入路由器的私有 IP（例如 `172.16.10.1`）与 API 凭据，点击 **Test Connection** 测试连接，启用开关并保存。
+
+## 在 RouterOS 中查看托管规则
+
+```bash
+/ip/firewall/nat/print where comment~"^mikrozia:managed:inbound:"
+```

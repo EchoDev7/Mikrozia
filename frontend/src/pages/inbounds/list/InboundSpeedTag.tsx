@@ -28,8 +28,8 @@ export function InboundSpeedTag({
       className={tableCell ? SPEED_TAG_CLASS_NAME : undefined}
       style={tableCell ? SPEED_TAG_STYLE : undefined}
     >
-      ↑ {SizeFormatter.speedFormat(speed.up)}
-      {' / '}↓ {SizeFormatter.speedFormat(speed.down)}
+      ↑ {SizeFormatter.speedMbpsFormat(speed.up)}
+      {' / '}↓ {SizeFormatter.speedMbpsFormat(speed.down)}
     </Tag>
   );
   if (!withTooltip) return tag;
@@ -37,8 +37,8 @@ export function InboundSpeedTag({
     <Tooltip
       title={
         <div>
-          <div>↑ {SizeFormatter.speedFormat(speed.up)}</div>
-          <div>↓ {SizeFormatter.speedFormat(speed.down)}</div>
+          <div>↑ {SizeFormatter.speedMbpsFormat(speed.up)}</div>
+          <div>↓ {SizeFormatter.speedMbpsFormat(speed.down)}</div>
         </div>
       }
     >

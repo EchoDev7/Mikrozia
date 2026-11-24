@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { message } from 'antd';
 import 'antd/dist/reset.css';
+import '@/styles/fonts.css';
 
 import { readyI18n } from '@/i18n/react';
 import { AntdRootConfig } from '@/i18n/AntdRootConfig';

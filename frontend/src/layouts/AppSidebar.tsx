@@ -6,6 +6,7 @@ import { Drawer, Layout, Menu, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   ApartmentOutlined,
+  ApiOutlined,
   CloseOutlined,
   CloudServerOutlined,
   ClusterOutlined,
@@ -30,6 +31,7 @@ import {
 import { HttpUtil } from '@/utils';
 import { formatPanelVersion } from '@/lib/panel-version';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
+import { MikroziaLogo, MikroziaMark } from '@/components/ui/MikroziaLogo';
 import { useAllSettings } from '@/api/queries/useAllSettings';
 import { useCommandPalette } from '@/components/command-palette/useCommandPalette';
 import { PANEL_ROUTES } from '@/routes/panelRoutes';
@@ -180,6 +182,11 @@ export default function AppSidebar() {
         key: '/settings#security',
         icon: <SafetyOutlined aria-hidden />,
         label: t('pages.settings.securitySettings'),
+      },
+      {
+        key: '/settings#routeros-nat',
+        icon: <ApiOutlined aria-hidden />,
+        label: t('pages.settings.routerosNatSettings'),
       },
       {
         key: '/settings#telegram',
@@ -333,7 +340,11 @@ export default function AppSidebar() {
       >
         <div className="sider-brand">
           <div className="brand-block">
-            <span className="brand-text">{railCollapsed ? 'MZ' : 'Mikrozia'}</span>
+            {railCollapsed ? (
+              <MikroziaMark size={28} />
+            ) : (
+              <MikroziaLogo isDark={isDark} height={24} />
+            )}
           </div>
           {!railCollapsed && (
             <div className="brand-actions">
@@ -419,7 +430,7 @@ export default function AppSidebar() {
       >
         <div className="drawer-header">
           <div className="brand-block">
-            <span className="drawer-brand">Mikrozia</span>
+            <MikroziaLogo isDark={isDark} height={24} />
           </div>
           <div className="drawer-header-actions">
             <ThemeCycleButton

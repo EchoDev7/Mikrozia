@@ -726,6 +726,12 @@ export class SizeFormatter {
   static speedFormat(bps: number | null | undefined): string {
     return SizeFormatter.sizeFormat(bps) + '/s';
   }
+
+  // Network throughput in megabits per second (Mb/s) from bytes/s.
+  static speedMbpsFormat(bytesPerSec: number | null | undefined): string {
+    if (!bytesPerSec || !Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '0.00 Mb/s';
+    return ((bytesPerSec * 8) / 1_000_000).toFixed(2) + ' Mb/s';
+  }
 }
 
 export class CPUFormatter {

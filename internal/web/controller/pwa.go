@@ -16,6 +16,7 @@ var pwaAssets = map[string]pwaAsset{
 	"manifest.webmanifest":   {path: "dist/manifest.webmanifest", contentType: "application/manifest+json; charset=utf-8"},
 	"pwa-register.js":        {path: "dist/pwa-register.js", contentType: "application/javascript; charset=utf-8"},
 	"service-worker.js":      {path: "dist/service-worker.js", contentType: "application/javascript; charset=utf-8"},
+	"icons/favicon.svg":      {path: "dist/icons/favicon.svg", contentType: "image/svg+xml"},
 	"icons/Mikrozia-16.png":  {path: "dist/icons/Mikrozia-16.png", contentType: "image/png"},
 	"icons/Mikrozia-24.png":  {path: "dist/icons/Mikrozia-24.png", contentType: "image/png"},
 	"icons/Mikrozia-32.png":  {path: "dist/icons/Mikrozia-32.png", contentType: "image/png"},

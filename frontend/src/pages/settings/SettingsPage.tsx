@@ -28,6 +28,7 @@ import SecurityTab from './SecurityTab';
 import TelegramTab from './TelegramTab';
 import EmailTab from './EmailTab';
 import DiscordTab from './DiscordTab';
+import RouterosNatTab from './RouterosNatTab';
 import SubscriptionGeneralTab from './SubscriptionGeneralTab';
 import SubscriptionFormatsTab from './SubscriptionFormatsTab';
 import SubscriptionBalancersTab from './SubscriptionBalancersTab';
@@ -40,6 +41,7 @@ interface ApiMsg {
 const tabSlugs = [
   'general',
   'security',
+  'routeros-nat',
   'telegram',
   'email',
   'discord',
@@ -221,6 +223,8 @@ export default function SettingsPage() {
         return <EmailTab allSetting={allSetting} updateSetting={updateSetting} />;
       case 'discord':
         return <DiscordTab allSetting={allSetting} updateSetting={updateSetting} />;
+      case 'routeros-nat':
+        return <RouterosNatTab allSetting={allSetting} updateSetting={updateSetting} />;
       case 'subscription':
         return <SubscriptionGeneralTab allSetting={allSetting} updateSetting={updateSetting} />;
       case 'subscription-formats':

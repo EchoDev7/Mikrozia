@@ -52,3 +52,19 @@ describe('SizeFormatter.speedFormat', () => {
     expect(SizeFormatter.speedFormat(1024 * 1024 * 1024)).toBe('1.00 GB/s');
   });
 });
+
+describe('SizeFormatter.speedMbpsFormat', () => {
+  it('returns 0.00 Mb/s for non-positive or non-finite values', () => {
+    expect(SizeFormatter.speedMbpsFormat(0)).toBe('0.00 Mb/s');
+    expect(SizeFormatter.speedMbpsFormat(-100)).toBe('0.00 Mb/s');
+    expect(SizeFormatter.speedMbpsFormat(null)).toBe('0.00 Mb/s');
+    expect(SizeFormatter.speedMbpsFormat(undefined)).toBe('0.00 Mb/s');
+    expect(SizeFormatter.speedMbpsFormat(NaN)).toBe('0.00 Mb/s');
+  });
+
+  it('converts bytes per second to megabits per second (Mb/s)', () => {
+    expect(SizeFormatter.speedMbpsFormat(125_000)).toBe('1.00 Mb/s');
+    expect(SizeFormatter.speedMbpsFormat(1_250_000)).toBe('10.00 Mb/s');
+    expect(SizeFormatter.speedMbpsFormat(12_500_000)).toBe('100.00 Mb/s');
+  });
+});

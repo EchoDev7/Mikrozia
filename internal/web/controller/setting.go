@@ -9,6 +9,7 @@ import (
 
 	"github.com/echodev7/mikrozia/v3/internal/config"
 	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/routeros"
 	"github.com/echodev7/mikrozia/v3/internal/util/crypto"
 	"github.com/echodev7/mikrozia/v3/internal/web/entity"
 	"github.com/echodev7/mikrozia/v3/internal/web/middleware"
@@ -36,11 +37,19 @@ type updateUserForm struct {
 // "unchanged", so clearing needs its own signal — see #5724).
 type updateSettingForm struct {
 	entity.AllSetting
-	TwoFactorCode        string `json:"twoFactorCode" form:"twoFactorCode"`
-	ClearTgBotToken      bool   `json:"clearTgBotToken" form:"clearTgBotToken"`
-	ClearLdapPassword    bool   `json:"clearLdapPassword" form:"clearLdapPassword"`
-	ClearSmtpPassword    bool   `json:"clearSmtpPassword" form:"clearSmtpPassword"`
-	ClearDiscordBotToken bool   `json:"clearDiscordBotToken" form:"clearDiscordBotToken"`
+	TwoFactorCode            string `json:"twoFactorCode" form:"twoFactorCode"`
+	ClearTgBotToken          bool   `json:"clearTgBotToken" form:"clearTgBotToken"`
+	ClearLdapPassword        bool   `json:"clearLdapPassword" form:"clearLdapPassword"`
+	ClearSmtpPassword        bool   `json:"clearSmtpPassword" form:"clearSmtpPassword"`
+	ClearDiscordBotToken     bool   `json:"clearDiscordBotToken" form:"clearDiscordBotToken"`
+	ClearRouterosNatPassword bool   `json:"clearRouterosNatPassword" form:"clearRouterosNatPassword"`
+}
+
+type testRouterosNatForm struct {
+	Host     string `json:"host" form:"host"`
+	Port     int    `json:"port" form:"port"`
+	Username string `json:"username" form:"username"`
+	Password string `json:"password" form:"password"`
 }
 
 type validateRegexForm struct {
@@ -49,11 +58,13 @@ type validateRegexForm struct {
 
 // SettingController handles settings and user management operations.
 type SettingController struct {
-	settingService  service.SettingService
-	userService     panel.UserService
-	panelService    panel.PanelService
-	apiTokenService panel.ApiTokenService
-	xrayService     service.XrayService
+	settingService     service.SettingService
+	userService        panel.UserService
+	panelService       panel.PanelService
+	apiTokenService    panel.ApiTokenService
+	xrayService        service.XrayService
+	inboundService     service.InboundService
+	routerOSNATService service.RouterOSNATService
 }
 
 // NewSettingController creates a new SettingController and initializes its routes.
@@ -84,6 +95,9 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g.POST("/testTgBot", a.testTgBot)
 	g.POST("/tgBotCapabilities", a.tgBotCapabilities)
 	g.POST("/testDiscord", a.testDiscord)
+	g.POST("/testRouterosNat", a.testRouterosNat)
+	g.POST("/syncRouterosNat", a.syncRouterosNat)
+	g.GET("/detectContainerIp", a.detectContainerIp)
 }
 
 func (a *SettingController) validateRegex(c *gin.Context) {
@@ -154,10 +168,11 @@ func (a *SettingController) updateSetting(c *gin.Context) {
 		}
 	}
 	err := a.settingService.UpdateAllSetting(allSetting, service.SecretClears{
-		TgBotToken:      form.ClearTgBotToken,
-		LdapPassword:    form.ClearLdapPassword,
-		SmtpPassword:    form.ClearSmtpPassword,
-		DiscordBotToken: form.ClearDiscordBotToken,
+		TgBotToken:          form.ClearTgBotToken,
+		LdapPassword:        form.ClearLdapPassword,
+		SmtpPassword:        form.ClearSmtpPassword,
+		DiscordBotToken:     form.ClearDiscordBotToken,
+		RouterosNatPassword: form.ClearRouterosNatPassword,
 	})
 	if err == nil && twoFactorErr == nil && !oldTwoFactor && allSetting.TwoFactorEnable {
 		if bumpErr := a.userService.BumpLoginEpoch(); bumpErr != nil {
@@ -457,4 +472,55 @@ func (a *SettingController) testDiscord(c *gin.Context) {
 		return
 	}
 	jsonMsg(c, I18nWeb(c, "pages.settings.discordTestSuccess"), nil)
+}
+
+func (a *SettingController) testRouterosNat(c *gin.Context) {
+	form := &testRouterosNatForm{}
+	_ = c.ShouldBind(form)
+	var override *routeros.NATConnConfig
+	if strings.TrimSpace(form.Host) != "" || form.Port > 0 || strings.TrimSpace(form.Username) != "" || form.Password != "" {
+		override = &routeros.NATConnConfig{
+			Host:     form.Host,
+			Port:     form.Port,
+			Username: form.Username,
+			Password: form.Password,
+		}
+	}
+	res, err := a.routerOSNATService.TestConnection(c.Request.Context(), override)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	if res.State != "connected" {
+		detail := res.Detail
+		if detail == "" {
+			detail = res.State
+		}
+		jsonMsgObj(c, detail, res, errors.New(detail))
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosNatTestSuccess"), res, nil)
+}
+
+func (a *SettingController) syncRouterosNat(c *gin.Context) {
+	user := session.GetLoginUser(c)
+	inbounds, err := a.inboundService.GetInbounds(user.Id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	res, err := a.routerOSNATService.SyncAllInbounds(c.Request.Context(), inbounds)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	if res.Failed > 0 {
+		jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosNatSyncPartial"), res, service.JoinErrors(res.Errors))
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosNatSyncSuccess"), res, nil)
+}
+
+func (a *SettingController) detectContainerIp(c *gin.Context) {
+	jsonObj(c, gin.H{"ip": service.DetectContainerIPv4()}, nil)
 }

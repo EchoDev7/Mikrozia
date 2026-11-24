@@ -23,7 +23,7 @@ export default function ConnectionsCard({
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const accent = token.colorPrimary;
-  const udpColor = token.colorTextTertiary;
+  const udpColor = token.colorInfo;
 
   const referenceLines = useMemo(
     () => [

@@ -196,6 +196,29 @@
           "restartXrayOnClientDisable": {
             "type": "boolean"
           },
+          "routerosNatEnable": {
+            "type": "boolean"
+          },
+          "routerosNatHost": {
+            "type": "string"
+          },
+          "routerosNatInInterfaceList": {
+            "type": "string"
+          },
+          "routerosNatPassword": {
+            "type": "string"
+          },
+          "routerosNatPort": {
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "routerosNatTargetIP": {
+            "type": "string"
+          },
+          "routerosNatUsername": {
+            "type": "string"
+          },
           "sessionMaxAge": {
             "maximum": 525600,
             "minimum": 1,
@@ -671,6 +694,13 @@
           "realityScanCandidates",
           "remarkTemplate",
           "restartXrayOnClientDisable",
+          "routerosNatEnable",
+          "routerosNatHost",
+          "routerosNatInInterfaceList",
+          "routerosNatPassword",
+          "routerosNatPort",
+          "routerosNatTargetIP",
+          "routerosNatUsername",
           "sessionMaxAge",
           "smtpCpu",
           "smtpEnable",
@@ -876,6 +906,9 @@
           "hasNordSecret": {
             "type": "boolean"
           },
+          "hasRouterosNatPassword": {
+            "type": "boolean"
+          },
           "hasSmtpPassword": {
             "type": "boolean"
           },
@@ -982,6 +1015,29 @@
           },
           "restartXrayOnClientDisable": {
             "type": "boolean"
+          },
+          "routerosNatEnable": {
+            "type": "boolean"
+          },
+          "routerosNatHost": {
+            "type": "string"
+          },
+          "routerosNatInInterfaceList": {
+            "type": "string"
+          },
+          "routerosNatPassword": {
+            "type": "string"
+          },
+          "routerosNatPort": {
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "routerosNatTargetIP": {
+            "type": "string"
+          },
+          "routerosNatUsername": {
+            "type": "string"
           },
           "sessionMaxAge": {
             "maximum": 525600,
@@ -1434,6 +1490,7 @@
           "hasDiscordBotToken",
           "hasLdapPassword",
           "hasNordSecret",
+          "hasRouterosNatPassword",
           "hasSmtpPassword",
           "hasTgBotToken",
           "hasTwoFactorToken",
@@ -1466,6 +1523,13 @@
           "realityScanCandidates",
           "remarkTemplate",
           "restartXrayOnClientDisable",
+          "routerosNatEnable",
+          "routerosNatHost",
+          "routerosNatInInterfaceList",
+          "routerosNatPassword",
+          "routerosNatPort",
+          "routerosNatTargetIP",
+          "routerosNatUsername",
           "sessionMaxAge",
           "smtpCpu",
           "smtpEnable",
@@ -13772,6 +13836,136 @@
                 "example": {
                   "success": true,
                   "msg": "Test notification sent successfully"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/testRouterosNat": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Test RouterOS API connectivity and read access to /ip/firewall/nat using saved settings or optional form overrides.",
+        "operationId": "post_panel_api_setting_testRouterosNat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "host": "172.16.10.1",
+                "port": 8728,
+                "username": "mikrozia",
+                "password": "secret"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "RouterOS API connection succeeded",
+                  "obj": {
+                    "state": "connected",
+                    "identity": "CHR-01",
+                    "version": "7.18.2",
+                    "natRules": 4
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/syncRouterosNat": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Reconcile Mikrozia-owned RouterOS /ip/firewall/nat rules for all local inbounds when Managed RouterOS NAT is enabled.",
+        "operationId": "post_panel_api_setting_syncRouterosNat",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "RouterOS NAT rules synced",
+                  "obj": {
+                    "synced": 3,
+                    "failed": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/detectContainerIp": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Detect the container private IPv4 address used as the default dst-nat to-addresses target.",
+        "operationId": "get_panel_api_setting_detectContainerIp",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "ip": "172.16.10.2"
+                  }
                 }
               }
             }

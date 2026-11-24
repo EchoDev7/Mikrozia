@@ -197,6 +197,15 @@ export class AllSetting {
   discordEnabledEvents = 'login.attempt,cpu.high';
   hasDiscordBotToken = false;
   clearDiscordBotToken = false;
+  routerosNatEnable = false;
+  routerosNatHost = '';
+  routerosNatPort = 8728;
+  routerosNatUsername = '';
+  routerosNatPassword = '';
+  routerosNatTargetIP = '';
+  routerosNatInInterfaceList = 'WAN';
+  hasRouterosNatPassword = false;
+  clearRouterosNatPassword = false;
 
   constructor(data?: unknown) {
     if (data != null) {

@@ -26,7 +26,7 @@ export default function ThroughputCard({
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const accent = token.colorPrimary;
-  const downColor = token.colorTextTertiary;
+  const downColor = token.colorInfo;
   const available = status.metricAvailable('netIO');
 
   const referenceLines = useMemo(
@@ -60,7 +60,7 @@ export default function ThroughputCard({
             </Tooltip>
           </div>
           <div className="ov-sub">
-            {`${t('pages.index.throughputSub')} · ${t('pages.index.peak')} ${available ? SizeFormatter.speedFormat(peak(down)) : '—'}`}
+            {`${t('pages.index.throughputSub')} · ${t('pages.index.peak')} ${available ? SizeFormatter.speedMbpsFormat(peak(down)) : '—'}`}
           </div>
         </div>
         <div className="ov-wide-legend">
@@ -69,7 +69,7 @@ export default function ThroughputCard({
             {t('pages.index.upload')}
             <span className="ov-legend-num">
               {available
-                ? SizeFormatter.speedFormat(status.netIO.up)
+                ? SizeFormatter.speedMbpsFormat(status.netIO.up)
                 : t('pages.index.unavailable')}
             </span>
           </div>
@@ -78,7 +78,7 @@ export default function ThroughputCard({
             {t('pages.index.download')}
             <span className="ov-legend-num">
               {available
-                ? SizeFormatter.speedFormat(status.netIO.down)
+                ? SizeFormatter.speedMbpsFormat(status.netIO.down)
                 : t('pages.index.unavailable')}
             </span>
           </div>
@@ -100,7 +100,7 @@ export default function ThroughputCard({
           stroke2={downColor}
           name1={t('pages.index.upload')}
           name2={t('pages.index.download')}
-          yFormatter={SizeFormatter.speedFormat}
+          yFormatter={SizeFormatter.speedMbpsFormat}
           referenceLines={referenceLines}
         />
       </div>
@@ -125,8 +125,8 @@ export default function ThroughputCard({
           <div className="ov-foot-value">
             {available ? (
               <>
-                <span className="ov-foot-part">{`↑ ${SizeFormatter.speedFormat(mean(up))}`}</span>{' '}
-                <span className="ov-foot-part">{`↓ ${SizeFormatter.speedFormat(mean(down))}`}</span>
+                <span className="ov-foot-part">{`↑ ${SizeFormatter.speedMbpsFormat(mean(up))}`}</span>{' '}
+                <span className="ov-foot-part">{`↓ ${SizeFormatter.speedMbpsFormat(mean(down))}`}</span>
               </>
             ) : (
               '—'

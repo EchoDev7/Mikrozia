@@ -170,6 +170,29 @@ export const SCHEMAS: Record<string, unknown> = {
       "restartXrayOnClientDisable": {
         "type": "boolean"
       },
+      "routerosNatEnable": {
+        "type": "boolean"
+      },
+      "routerosNatHost": {
+        "type": "string"
+      },
+      "routerosNatInInterfaceList": {
+        "type": "string"
+      },
+      "routerosNatPassword": {
+        "type": "string"
+      },
+      "routerosNatPort": {
+        "maximum": 65535,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "routerosNatTargetIP": {
+        "type": "string"
+      },
+      "routerosNatUsername": {
+        "type": "string"
+      },
       "sessionMaxAge": {
         "maximum": 525600,
         "minimum": 1,
@@ -645,6 +668,13 @@ export const SCHEMAS: Record<string, unknown> = {
       "realityScanCandidates",
       "remarkTemplate",
       "restartXrayOnClientDisable",
+      "routerosNatEnable",
+      "routerosNatHost",
+      "routerosNatInInterfaceList",
+      "routerosNatPassword",
+      "routerosNatPort",
+      "routerosNatTargetIP",
+      "routerosNatUsername",
       "sessionMaxAge",
       "smtpCpu",
       "smtpEnable",
@@ -850,6 +880,9 @@ export const SCHEMAS: Record<string, unknown> = {
       "hasNordSecret": {
         "type": "boolean"
       },
+      "hasRouterosNatPassword": {
+        "type": "boolean"
+      },
       "hasSmtpPassword": {
         "type": "boolean"
       },
@@ -956,6 +989,29 @@ export const SCHEMAS: Record<string, unknown> = {
       },
       "restartXrayOnClientDisable": {
         "type": "boolean"
+      },
+      "routerosNatEnable": {
+        "type": "boolean"
+      },
+      "routerosNatHost": {
+        "type": "string"
+      },
+      "routerosNatInInterfaceList": {
+        "type": "string"
+      },
+      "routerosNatPassword": {
+        "type": "string"
+      },
+      "routerosNatPort": {
+        "maximum": 65535,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "routerosNatTargetIP": {
+        "type": "string"
+      },
+      "routerosNatUsername": {
+        "type": "string"
       },
       "sessionMaxAge": {
         "maximum": 525600,
@@ -1408,6 +1464,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "hasDiscordBotToken",
       "hasLdapPassword",
       "hasNordSecret",
+      "hasRouterosNatPassword",
       "hasSmtpPassword",
       "hasTgBotToken",
       "hasTwoFactorToken",
@@ -1440,6 +1497,13 @@ export const SCHEMAS: Record<string, unknown> = {
       "realityScanCandidates",
       "remarkTemplate",
       "restartXrayOnClientDisable",
+      "routerosNatEnable",
+      "routerosNatHost",
+      "routerosNatInInterfaceList",
+      "routerosNatPassword",
+      "routerosNatPort",
+      "routerosNatTargetIP",
+      "routerosNatUsername",
       "sessionMaxAge",
       "smtpCpu",
       "smtpEnable",

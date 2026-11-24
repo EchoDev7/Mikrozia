@@ -1,8 +1,8 @@
 # Mikrozia RouterOS API Integration Reference
 
 Status: dashboard health, resource telemetry, bounded RouterOS Container log
-reads, and opt-in single-container restart implemented; RouterOS VETH telemetry
-remains deferred.
+reads, opt-in single-container restart, and opt-in Managed RouterOS NAT
+reconciliation implemented; RouterOS VETH telemetry remains deferred.
 
 ## Purpose and scope
 
@@ -37,7 +37,12 @@ authoritative in the official documentation linked below.
   host must be a validated literal private IPv4 or IPv6 address (no hostnames,
   zones, loopback, or link-local addresses); the client uses only TCP/8728.
 - RouterOS firewall, NAT, routing, access-control, users, services and logging
-  remain operator-owned. No managed integration is implemented by this task.
+  remain operator-owned by default. When the administrator explicitly enables
+  **Managed RouterOS NAT Integration** in Panel Settings, Mikrozia reconciles
+  only its own marked `/ip/firewall/nat` (`dst-nat`) rules
+  (`comment="mikrozia:managed:inbound:<id>:<proto>"`) using a dedicated
+  operator-supplied RouterOS API account (`read,write,api`), with conflict
+  detection against foreign rules and compensating rollback on partial failure.
 - Container restart is disabled until the operator provides an exact unique
   container comment and a separate operational API account through
   `MIKROZIA_ROUTEROS_RESTART_USERNAME` and
@@ -163,6 +168,27 @@ does not create that account or widen RouterOS service access.
   database exports, or telemetry payloads.
 - No use of the existing multi-node panel abstraction as a substitute for a
   RouterOS connection. A RouterOS router is not an Xray child node.
+
+## Opt-in Managed RouterOS NAT integration
+
+Managed RouterOS NAT is off by default (`routerosNatEnable=false`) and
+configured under **Panel Settings → RouterOS NAT** (`/panel/settings#routeros-nat`).
+
+- **Scoped ownership**: Every managed rule is tagged with
+  `comment="mikrozia:managed:inbound:<inboundID>:<proto>"` (`tcp` or `udp`).
+  Unmarked or foreign rules are never adopted, modified, or deleted.
+- **Lifecycle**: Adding or editing a local inbound reconciles its required
+  `dst-nat` rule(s); disabling an inbound sets `disabled=yes` on its owned
+  rule(s) without deleting them; deleting an inbound (or moving it to
+  loopback/remote node) removes only its owned rule(s).
+- **Safety**: Only validated private IPv4/IPv6 hosts (`172.16.10.1` example)
+  and private IPv4 container targets (`172.16.10.2` example) are accepted.
+  Enabled foreign `dstnat` rules on the same protocol and port fail closed with
+  a conflict error; multi-rule write failures roll back newly created rules and
+  surface the error truthfully to the operator.
+- **API endpoints**: `POST /panel/api/setting/testRouterosNat`,
+  `POST /panel/api/setting/syncRouterosNat`, and
+  `GET /panel/api/setting/detectContainerIp`.
 
 ## Remaining future design and verification gates
 

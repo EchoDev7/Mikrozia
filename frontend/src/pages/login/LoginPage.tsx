@@ -28,6 +28,7 @@ import { FormField, rhfZodValidate } from '@/components/form/rhf';
 import { setMessageInstance } from '@/utils/messageBus';
 import SponsorSlot from '@/components/sponsor/SponsorSlot';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
+import { MikroziaLogo } from '@/components/ui/MikroziaLogo';
 import { LoginFormSchema, TwoFactorCodeSchema, type LoginFormValues } from '@/schemas/login';
 import './LoginPage.css';
 
@@ -186,7 +187,7 @@ export default function LoginPage() {
             ) : (
               <div className="login-card">
                 <div className="brand">
-                  <span className="brand-name">Mikrozia</span>
+                  <MikroziaLogo isDark={isDark} height={38} />
                   <span className="brand-accent" aria-hidden="true" />
                 </div>
                 <h2 className="welcome">

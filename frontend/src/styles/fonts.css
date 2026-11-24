@@ -1,0 +1,80 @@
+@import '@fontsource/barlow-condensed/700.css';
+@import '@fontsource/barlow-condensed/800.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-mono/700.css';
+@import '@fontsource/vazirmatn/500.css';
+@import '@fontsource/vazirmatn/700.css';
+
+body {
+  font-family:
+    'Space Grotesk', 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html[dir='rtl'] body {
+  font-family:
+    'Vazirmatn', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Swiss Constructivist condensed display typography for Overview KPIs & headers */
+.ov-kicker,
+.ov-tile-number,
+.ov-clients-unavailable,
+.ov-foot-value,
+.ov-strip-value,
+.summary-card .ant-statistic-content {
+  font-family: 'Barlow Condensed', 'Vazirmatn', 'Space Grotesk', sans-serif !important;
+  letter-spacing: 0.02em;
+}
+
+.ov-tile-number {
+  font-size: 44px !important;
+  font-weight: 800 !important;
+  line-height: 0.95 !important;
+}
+
+.ov-kicker {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em !important;
+}
+
+.ov-foot-value,
+.ov-strip-value {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+}
+
+html[dir='rtl'] .ov-kicker,
+html[dir='rtl'] .ov-tile-number,
+html[dir='rtl'] .ov-clients-unavailable,
+html[dir='rtl'] .ov-foot-value,
+html[dir='rtl'] .ov-strip-value,
+html[dir='rtl'] .summary-card .ant-statistic-content {
+  font-family: 'Vazirmatn', 'Barlow Condensed', sans-serif !important;
+  letter-spacing: 0 !important;
+}
+
+/* Technical monospace for telemetry metrics, speeds, IPs, ports, and logs */
+code,
+pre,
+.ov-mono,
+.ov-tile-detail,
+.ov-tile-sub,
+.ov-tile-foot,
+.ov-legend-num,
+.ov-ip,
+.ov-state,
+.ov-panel-version,
+.ov-clients-val,
+.ov-top-inbounds-traffic,
+.sider-version,
+.client-traffic-cell-used,
+.client-traffic-cell-limit {
+  font-family:
+    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}

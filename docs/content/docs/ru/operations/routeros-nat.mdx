@@ -1,0 +1,28 @@
+---
+title: Managed RouterOS NAT
+description: Подключите Mikrozia к RouterOS API для автоматического создания, обновления, отключения и удаления правил dst-nat при изменении локальных инбаундов.
+icon: Network
+---
+
+При включении **Managed RouterOS NAT** Mikrozia автоматически синхронизирует правила `/ip/firewall/nat` (`dst-nat`) на роутере MikroTik при создании, редактировании, включении/отключении и удалении локальных инбаундов.
+
+<Callout type="info">
+  Функция **отключена по умолчанию**. Mikrozia управляет **только** правилами с комментарием `mikrozia:managed:inbound:<id>:<proto>` и никогда не изменяет и не удаляет ваши ручные правила RouterOS.
+</Callout>
+
+## Настройка MikroTik RouterOS
+
+```bash
+/user/group/add name=mikrozia-nat policy=read,write,api
+/user/add name=mikrozia-nat group=mikrozia-nat password="YOUR_STRONG_PASSWORD"
+/ip/service/set api disabled=no port=8728 address=172.16.10.0/24
+/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8728 src-address=172.16.10.0/24 comment="Allow Mikrozia container API"
+```
+
+Затем откройте **Panel Settings → RouterOS NAT** в панели Mikrozia, введите приватный IP роутера (например `172.16.10.1`), учётные данные API, нажмите **Test Connection**, включите переключатель и сохраните настройки.
+
+## Проверка правил на роутере
+
+```bash
+/ip/firewall/nat/print where comment~"^mikrozia:managed:inbound:"
+```

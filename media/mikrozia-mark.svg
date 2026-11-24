@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="mikrozia mark">
+  <!-- Mikrozia Compact Favicon / App Icon Mark -->
+  <rect x="2" y="2" width="60" height="60" fill="#F5F0E6" stroke="#111111" stroke-width="4"/>
+  <!-- Top Constructivist color bars -->
+  <rect x="44" y="8" width="12" height="10" fill="#B81D3A"/>
+  <rect x="30" y="8" width="11" height="10" fill="#213B5E"/>
+  <rect x="8" y="8" width="19" height="10" fill="#D9A426" stroke="#111111" stroke-width="2"/>
+  <!-- Bold chamfered m glyph with stepped industrial feet -->
+  <path fill="#111111" d="M8 56V29L13.5 23.5H28.5L32 27L35.5 23.5H50.5L56 29V56H47V53H44.5V46H47V32H36.5V46H39V53H36.5V56H27.5V53H25V46H27.5V32H17V46H19.5V53H17V56Z"/>
+</svg>

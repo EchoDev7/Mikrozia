@@ -10,6 +10,15 @@
   top: 0;
   height: 100vh;
   align-self: flex-start;
+  border-inline-end: 3px solid #111111;
+}
+
+body.dark .ant-sidebar > .ant-layout-sider {
+  border-inline-end: 3px solid #3b404d;
+}
+
+html[data-theme='ultra-dark'] body.dark .ant-sidebar > .ant-layout-sider {
+  border-inline-end: 2px solid #2e323d;
 }
 
 .ant-sidebar:not(.sidebar-pinned) > .ant-layout-sider:not(.ant-layout-sider-collapsed) {
@@ -273,9 +282,14 @@
   }
 }
 
+body.light .ant-drawer-content,
+body.light .ant-drawer-body {
+  background-color: #f5f0e6;
+}
+
 body.dark .ant-drawer-content,
 body.dark .ant-drawer-body {
-  background-color: #15161a;
+  background-color: #14161b;
 }
 
 html[data-theme='ultra-dark'] body.dark .ant-drawer-content,
@@ -291,11 +305,33 @@ body.dark .ant-drawer-body .drawer-menu .ant-menu-item-group-list {
   background-color: transparent;
 }
 
+.sider-nav .ant-menu-item,
+.sider-utility .ant-menu-item,
+.drawer-menu .ant-menu-item {
+  border-radius: 0 !important;
+  font-weight: 600;
+}
+
 .sider-nav .ant-menu-item-selected,
 .sider-utility .ant-menu-item-selected,
 .drawer-menu .ant-menu-item-selected {
-  background-color: color-mix(in srgb, var(--ant-color-primary) 20%, transparent) !important;
-  color: var(--ant-color-primary) !important;
+  background-color: #b81d3a !important;
+  color: #faf7f0 !important;
+  border: 2px solid #111111;
+}
+
+body.dark .sider-nav .ant-menu-item-selected,
+body.dark .sider-utility .ant-menu-item-selected,
+body.dark .drawer-menu .ant-menu-item-selected {
+  background-color: #d92b4b !important;
+  color: #f5f0e6 !important;
+  border: 2px solid #f5f0e6;
+}
+
+.sider-nav .ant-menu-item-selected .anticon,
+.sider-utility .ant-menu-item-selected .anticon,
+.drawer-menu .ant-menu-item-selected .anticon {
+  color: #faf7f0 !important;
 }
 
 .sider-nav .ant-menu-item-active:not(.ant-menu-item-selected),
@@ -304,6 +340,6 @@ body.dark .ant-drawer-body .drawer-menu .ant-menu-item-group-list {
 .sider-nav .ant-menu-item:not(.ant-menu-item-selected):not(.ant-menu-item-disabled):hover,
 .sider-utility .ant-menu-item:not(.ant-menu-item-selected):not(.ant-menu-item-disabled):hover,
 .drawer-menu .ant-menu-item:not(.ant-menu-item-selected):not(.ant-menu-item-disabled):hover {
-  background-color: color-mix(in srgb, var(--ant-color-primary) 10%, transparent) !important;
+  background-color: color-mix(in srgb, var(--ant-color-primary) 12%, transparent) !important;
   color: var(--ant-color-primary) !important;
 }

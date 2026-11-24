@@ -21,7 +21,7 @@ echodev7/mikrozia
 
 | Tag                                 | Recommended Use            | Notes                             |
 | ----------------------------------- | -------------------------- | --------------------------------- |
-| `echodev7/mikrozia:v1.0.7-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
+| `echodev7/mikrozia:v1.0.8-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
 | `echodev7/mikrozia:latest`          | Quick testing / Labs       | Tracks the newest stable release. |
 
 ### Supported Architectures
@@ -153,16 +153,16 @@ reconciled with them on every start and is never silently deleted or reset.
 
 ### Step 4: Configure Docker Hub Registry and Add Container
 
-Set the official registry and create the container object using version `v1.0.7-mikrozia`:
+Set the official registry and create the container object using version `v1.0.8-mikrozia`:
 
 ```routeros
 # Set registry and temporary directory for layer extraction
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 
 # Pull image and add container
-/container/add remote-image="echodev7/mikrozia:v1.0.7-mikrozia" \
+/container/add remote-image="echodev7/mikrozia:v1.0.8-mikrozia" \
   interface=veth-mikrozia \
-  root-dir=containers/mikrozia/root-v1.0.7-mikrozia \
+  root-dir=containers/mikrozia/root-v1.0.8-mikrozia \
   mountlists="MIKROZIA_DATA,MIKROZIA_CERT" \
   envlist=MIKROZIA_ENV \
   dns="1.1.1.1,8.8.8.8" \

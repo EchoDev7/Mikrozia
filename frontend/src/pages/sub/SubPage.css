@@ -1,18 +1,27 @@
 .subscription-page {
-  --bg-page: #e6e8ec;
-  --bg-card: #ffffff;
+  --bg-page: #f5f0e6;
+  --bg-card: #faf7f0;
   min-height: 100vh;
-  background: var(--bg-page);
+  background-color: var(--bg-page);
+  background-image:
+    radial-gradient(rgba(17, 17, 17, 0.04) 1px, transparent 0),
+    radial-gradient(rgba(17, 17, 17, 0.025) 1px, transparent 0);
+  background-size: 24px 24px;
 }
 
 .subscription-page.is-dark {
-  --bg-page: #1a1b1f;
-  --bg-card: #23252b;
+  --bg-page: #111215;
+  --bg-card: #17191e;
+  background-image:
+    linear-gradient(rgba(245, 240, 230, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 240, 230, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
 .subscription-page.is-dark.is-ultra {
-  --bg-page: #000;
-  --bg-card: #101013;
+  --bg-page: #000000;
+  --bg-card: #0d0e12;
+  background-image: none;
 }
 
 .subscription-page .ant-layout,
@@ -32,21 +41,20 @@
 }
 
 .subscription-page .sub-card {
-  border-radius: 12px;
+  border-radius: 0;
+  border: 2px solid #111111;
   background: var(--bg-card);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 2px 2px 0 #111111;
 }
 
 .subscription-page.is-dark .sub-card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border: 2px solid #3b404d;
+  box-shadow: 2px 2px 0 #000000;
 }
 
 .subscription-page.is-dark.is-ultra .sub-card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  border: 1.5px solid #2e323d;
+  box-shadow: none;
 }
 
 .sub-card > .ant-card-body {
@@ -103,11 +111,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 13px;
+  border-radius: 0;
+  border: 2px solid #111111;
   background: var(--ant-color-primary);
-  color: #fff;
+  color: #faf7f0;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .sub-brand-text {

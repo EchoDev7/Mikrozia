@@ -1,13 +1,28 @@
-<svg width="200" height="56" viewBox="0 0 200 56" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <style>
-      .mark { fill: #1a1a2e; }
-      .text { fill: #1a1a2e; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-weight: 700; }
-    </style>
-  </defs>
-  <!-- Icon: M-shaped mark with RouterOS-style container -->
-  <path d="M28 14 L28 42 L42 42 L42 14 Z M42 14 L56 14 L56 28 L42 28 Z M28 28 L42 28 L42 42 L28 42 Z" class="mark"/>
-  <path d="M60 18 Q60 14 64 14 Q68 14 68 18 Q68 22 64 22 Q60 22 60 18 Z M72 18 Q72 14 76 14 Q80 14 80 18 Q80 22 76 22 Q72 22 72 18 Z" class="mark"/>
-  <!-- Text: Mikrozia -->
-  <text x="92" y="36" class="text" font-size="24">Mikrozia</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 402 96" width="402" height="96" role="img" aria-label="mikrozia">
+  <!-- Mikrozia Constructivist Wordmark — Light Mode (Transparent Background) -->
+  <!-- m (Ink Black #111111 with stepped industrial feet) -->
+  <path fill="#111111" d="M12 82V38L20 30H39L44 35L49 30H68L76 38V82H64V78H60.5V68H64V42H50V68H53.5V78H50V82H38V78H34.5V68H38V42H24V68H27.5V78H24V82Z"/>
+
+  <!-- i (Ink Black stem + Crimson Red square dot) -->
+  <rect x="86" y="14" width="12" height="12" fill="#B81D3A"/>
+  <rect x="86" y="30" width="12" height="52" fill="#111111"/>
+
+  <!-- k (Ink Black tall ascender + chamfered geometric arms) -->
+  <path fill="#111111" d="M108 14H120V50L138 30H151V39L135 55L152 72V82H138L124 65L120 69V82H108Z"/>
+
+  <!-- r (Ink Black chamfered shoulder) -->
+  <path fill="#111111" d="M162 30H194V42H181L174 49V82H162Z"/>
+
+  <!-- o + rightward routing arrow (Deep Navy #213B5E) -->
+  <path fill="#213B5E" fill-rule="evenodd" d="M210 30H242L250 38V51.5H256V46L269 55L256 64V58.5H250V74L242 82H210L202 74V38ZM216 42L214 44V68L216 70H236L238 68V44L236 42Z"/>
+
+  <!-- z + upward return arrow (Crimson Red #B81D3A) -->
+  <path fill="#B81D3A" d="M260 30H308V42L278 70H297.5V60H293L301 51L309 60H304.5V70H308V82H260V70L290 42H260Z"/>
+
+  <!-- i (Ink Black stem + Crimson Red square dot) -->
+  <rect x="318" y="14" width="12" height="12" fill="#B81D3A"/>
+  <rect x="318" y="30" width="12" height="52" fill="#111111"/>
+
+  <!-- a (Solid Mustard Gold #D9A426, transparent counter) -->
+  <path fill="#D9A426" fill-rule="evenodd" d="M342 30H380L388 38V82H348L340 74V57L348 49H376V41H342ZM352 60H376V71H352Z"/>
 </svg>

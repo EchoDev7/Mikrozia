@@ -1,0 +1,108 @@
+---
+title: Managed RouterOS NAT
+description: Connect Mikrozia to the MikroTik RouterOS API to automatically create, update, disable, and remove dst-nat rules whenever local inbounds change.
+icon: Network
+---
+
+With **Managed RouterOS NAT Integration** enabled, Mikrozia automatically reconciles MikroTik `/ip/firewall/nat` (`dst-nat`) rules whenever you create, edit, enable/disable, or delete a local inbound.
+
+<Callout type="info">
+  This feature is **off by default** and opt-in only. Mikrozia manages **only** rules tagged with `mikrozia:managed:inbound:<id>:<proto>` and never modifies or deletes your manual RouterOS firewall/NAT rules.
+</Callout>
+
+## Prerequisites
+
+- MikroTik RouterOS v7 (or CHR) hosting the Mikrozia container.
+- Private network reachability from inside the container to the RouterOS bridge/gateway IP (for example `172.16.10.1`).
+- A dedicated RouterOS API account with least-privilege permissions (`read,write,api`).
+
+## Step-by-Step MikroTik Setup
+
+<Steps>
+
+<Step>
+### Create a Dedicated API Group and User
+
+Run the following commands in the RouterOS Terminal (WinBox or SSH):
+
+```bash
+/user/group/add name=mikrozia-nat policy=read,write,api
+/user/add name=mikrozia-nat group=mikrozia-nat password="YOUR_STRONG_PASSWORD"
+```
+
+<Callout type="warn">
+  Do not use the full `admin` account. A dedicated account with `read,write,api` is sufficient.
+</Callout>
+</Step>
+
+<Step>
+### Enable RouterOS API for the Container Subnet Only
+
+Enable the `api` service and restrict `address` to your private container bridge subnet (never expose port `8728` to the internet):
+
+```bash
+/ip/service/set api disabled=no port=8728 address=172.16.10.0/24
+```
+
+If your RouterOS `input` firewall drops traffic from the container bridge to the router itself, allow port `8728` from the container subnet:
+
+```bash
+/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8728 src-address=172.16.10.0/24 comment="Allow Mikrozia container API"
+```
+</Step>
+
+<Step>
+### Verify the WAN Interface List (Optional)
+
+By default Mikrozia creates `dst-nat` rules matching `in-interface-list=WAN`. Verify your WAN interface is a member of that list:
+
+```bash
+/interface/list/member/print where list=WAN
+```
+
+If you do not use a `WAN` interface list, leave **In-Interface List** empty in Mikrozia and rules will match `dst-address-type=local` instead.
+</Step>
+
+<Step>
+### Configure Mikrozia Panel Settings
+
+Open **Panel Settings → RouterOS NAT** (`/panel/settings#routeros-nat`) and fill in:
+
+| Field | Description | Example |
+| --- | --- | --- |
+| **Enable Managed RouterOS NAT** | Turns automatic reconciliation on or off | `Enabled` |
+| **RouterOS API Host** | Private IP address of the RouterOS bridge/gateway | `172.16.10.1` |
+| **RouterOS API Port** | RouterOS `/ip/service` port for `api` | `8728` |
+| **RouterOS API Username** | Dedicated API username from Step 1 | `mikrozia-nat` |
+| **RouterOS API Password** | Password for the dedicated API account | `••••••••` |
+| **Container Target IP** | Private IPv4 of this container for `to-addresses` (click **Auto-Detect** to fill automatically) | `172.16.10.2` |
+| **In-Interface List** | Incoming interface list, or blank for `dst-address-type=local` | `WAN` |
+
+1. Click **Test Connection** to verify RouterOS identity, version, and NAT read access.
+2. Turn on **Enable Managed RouterOS NAT** and click **Save**.
+3. Click **Sync All Inbounds** to create managed NAT rules for existing local inbounds.
+</Step>
+
+</Steps>
+
+## Lifecycle Behavior
+
+- **Add / Edit Inbound**: Creates or updates `dst-nat` rule(s) for the inbound's port and required transport protocol(s) (`tcp`, `udp`, or both for dual-transport inbounds like Shadowsocks `tcp,udp`).
+- **Disable / Enable Inbound**: Toggles `disabled=yes` / `disabled=no` on the inbound's owned NAT rule(s) without deleting them.
+- **Delete Inbound**: Removes only the NAT rule(s) tagged with that inbound's ID.
+- **Loopback (`127.0.0.1`) and Remote-Node Inbounds**: Skipped automatically.
+
+## Verify Managed Rules in RouterOS
+
+```bash
+/ip/firewall/nat/print where comment~"^mikrozia:managed:inbound:"
+```
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+| --- | --- | --- |
+| **Connection refused / timeout** | `/ip/service` `api` is disabled, restricted to a different subnet, or blocked by `chain=input`. | Check `/ip/service/print` and add an `input` allow rule for the container subnet on port `8728`. |
+| **Authentication failed** | Wrong credentials or missing `api` policy on the user group. | Ensure group `mikrozia-nat` has `policy=read,write,api`. |
+| **NAT conflict detected** | An enabled manual `dstnat` rule already uses the same protocol and port. | Mikrozia refuses to overwrite manual rules; remove or disable the conflicting manual rule in RouterOS and retry. |
+| **Invalid host / target IP** | A public IP was entered. | Only private IPv4 addresses (e.g. `172.16.10.1`, `192.168.x.x`) are accepted. |

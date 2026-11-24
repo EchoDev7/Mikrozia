@@ -174,6 +174,7 @@ export const AllSettingSchema = z
     hasNordSecret: z.boolean().optional(),
     hasSmtpPassword: z.boolean().optional(),
     hasDiscordBotToken: z.boolean().optional(),
+    hasRouterosNatPassword: z.boolean().optional(),
     discordBotEnable: z.boolean().optional(),
     discordBotToken: z.string().optional(),
     discordChannelId: z.string().optional(),
@@ -184,6 +185,13 @@ export const AllSettingSchema = z
     discordMemory: z.number().int().min(0).max(100).optional(),
     discordLang: z.string().optional(),
     discordEnabledEvents: z.string().optional(),
+    routerosNatEnable: z.boolean().optional(),
+    routerosNatHost: z.string().optional(),
+    routerosNatPort: z.number().int().min(0).max(65535).optional(),
+    routerosNatUsername: z.string().optional(),
+    routerosNatPassword: z.string().optional(),
+    routerosNatTargetIP: z.string().optional(),
+    routerosNatInInterfaceList: z.string().optional(),
   })
   .loose();
 

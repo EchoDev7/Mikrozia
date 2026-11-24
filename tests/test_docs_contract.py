@@ -723,7 +723,12 @@ class DocsContractTests(unittest.TestCase):
             "docs/MIKROZIA_PROJECT_LEDGER.md",
             "docs/MIKROZIA_PROJECT_CHARTER.md",
             "docs/MIKROZIA_CHR_INSTALL_FA.md",
+            "docs/MIKROZIA_ROUTEROS_API_INTEGRATION.md",
             "docs/content/docs/fa/reference/ports-firewall.mdx",
+            "docs/content/docs/en/operations/routeros-nat.mdx",
+            "docs/content/docs/fa/operations/routeros-nat.mdx",
+            "docs/content/docs/ru/operations/routeros-nat.mdx",
+            "docs/content/docs/zh/operations/routeros-nat.mdx",
         }
         skipped_dirs = {
             ".git",
@@ -764,6 +769,16 @@ class DocsContractTests(unittest.TestCase):
             self.assertIn("نمونه", text)
             self.assertIn("دستی", text)
             self.assertIn("/ip/firewall/nat/add chain=dstnat", text)
+
+        for rel in (
+            "docs/MIKROZIA_ROUTEROS_API_INTEGRATION.md",
+            "docs/content/docs/en/operations/routeros-nat.mdx",
+            "docs/content/docs/fa/operations/routeros-nat.mdx",
+            "docs/content/docs/ru/operations/routeros-nat.mdx",
+            "docs/content/docs/zh/operations/routeros-nat.mdx",
+        ):
+            text = self._read(rel)
+            self.assertIn("mikrozia:managed:inbound:", text)
 
         overview = self._read("docs", "DOCKER_HUB_OVERVIEW.md")
         heading = "## Required Network Inputs (operator-owned)"

@@ -27,7 +27,10 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
   },
   icons: {
-    icon: `${basePath}/favicon.png`,
+    icon: [
+      { url: `${basePath}/favicon.svg`, type: 'image/svg+xml' },
+      { url: `${basePath}/favicon.png`, type: 'image/png' },
+    ],
     apple: `${basePath}/icon.png`,
   },
 };

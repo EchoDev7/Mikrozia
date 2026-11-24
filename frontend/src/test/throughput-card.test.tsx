@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe('ThroughputCard', () => {
-  it('renders genuine zero traffic as 0 B/s when netIO is available', () => {
+  it('renders genuine zero traffic as 0.00 Mb/s when netIO is available', () => {
     renderWithProviders(
       <ThroughputCard
         status={new Status({ netIO: { up: 0, down: 0 }, netTraffic: { sent: 0, recv: 0 } })}
@@ -33,7 +33,7 @@ describe('ThroughputCard', () => {
     );
 
     expect(screen.getByText('Overall Speed')).toBeDefined();
-    expect(screen.getAllByText('0 B/s').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('0.00 Mb/s').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('0 B').length).toBe(2);
     expect(screen.queryByText('Unavailable')).toBeNull();
   });
@@ -56,7 +56,7 @@ describe('ThroughputCard', () => {
     );
 
     expect(screen.getAllByText('Unavailable').length).toBe(2);
-    expect(screen.queryByText('0 B/s')).toBeNull();
+    expect(screen.queryByText('0.00 Mb/s')).toBeNull();
     expect(screen.getByText(/peak —/i)).toBeDefined();
   });
 
@@ -76,13 +76,13 @@ describe('ThroughputCard', () => {
       />,
     );
 
-    expect(screen.getByText('1.00 KB/s')).toBeDefined();
-    expect(screen.getByText('2.00 KB/s')).toBeDefined();
+    expect(screen.getByText('0.01 Mb/s')).toBeDefined();
+    expect(screen.getByText('0.02 Mb/s')).toBeDefined();
     expect(screen.getByText('4.00 KB')).toBeDefined();
     expect(screen.getByText('8.00 KB')).toBeDefined();
-    expect(screen.getByText('↑ 1.50 KB/s')).toBeDefined();
-    expect(screen.getByText('↓ 3.00 KB/s')).toBeDefined();
-    expect(screen.getByText(/peak 4\.00 KB\/s/i)).toBeDefined();
+    expect(screen.getByText('↑ 0.01 Mb/s')).toBeDefined();
+    expect(screen.getByText('↓ 0.02 Mb/s')).toBeDefined();
+    expect(screen.getByText(/peak 0\.03 Mb\/s/i)).toBeDefined();
 
     const hintBtn = screen.getByRole('button', {
       name: /traffic visible from the container network interface/i,

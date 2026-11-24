@@ -59,6 +59,13 @@ export interface AllSetting {
   realityScanCandidates: string;
   remarkTemplate: string;
   restartXrayOnClientDisable: boolean;
+  routerosNatEnable: boolean;
+  routerosNatHost: string;
+  routerosNatInInterfaceList: string;
+  routerosNatPassword: string;
+  routerosNatPort: number;
+  routerosNatTargetIP: string;
+  routerosNatUsername: string;
   sessionMaxAge: number;
   smtpCpu: number;
   smtpEnable: boolean;
@@ -217,6 +224,7 @@ export interface AllSettingView {
   hasDiscordBotToken: boolean;
   hasLdapPassword: boolean;
   hasNordSecret: boolean;
+  hasRouterosNatPassword: boolean;
   hasSmtpPassword: boolean;
   hasTgBotToken: boolean;
   hasTwoFactorToken: boolean;
@@ -249,6 +257,13 @@ export interface AllSettingView {
   realityScanCandidates: string;
   remarkTemplate: string;
   restartXrayOnClientDisable: boolean;
+  routerosNatEnable: boolean;
+  routerosNatHost: string;
+  routerosNatInInterfaceList: string;
+  routerosNatPassword: string;
+  routerosNatPort: number;
+  routerosNatTargetIP: string;
+  routerosNatUsername: string;
   sessionMaxAge: number;
   smtpCpu: number;
   smtpEnable: boolean;

@@ -19,10 +19,11 @@ import (
 
 // InboundController handles HTTP requests related to Xray inbounds management.
 type InboundController struct {
-	inboundService  service.InboundService
-	clientService   service.ClientService
-	xrayService     service.XrayService
-	fallbackService service.FallbackService
+	inboundService     service.InboundService
+	clientService      service.ClientService
+	xrayService        service.XrayService
+	fallbackService    service.FallbackService
+	routerOSNATService service.RouterOSNATService
 }
 
 // NewInboundController creates a new InboundController and sets up its routes.
@@ -193,12 +194,16 @@ func (a *InboundController) addInbound(c *gin.Context) {
 		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
 		return
 	}
-	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundCreateSuccess"), inbound, nil)
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
 	a.broadcastInboundsUpdate(user.Id)
 	notifyClientsChanged()
+	if natErr := a.routerOSNATService.SyncInbound(c.Request.Context(), inbound); natErr != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundCreateSuccess"), natErr)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundCreateSuccess"), inbound, nil)
 }
 
 // delInbound deletes an inbound configuration by its ID.
@@ -213,13 +218,17 @@ func (a *InboundController) delInbound(c *gin.Context) {
 		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
 		return
 	}
-	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundDeleteSuccess"), id, nil)
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
 	user := session.GetLoginUser(c)
 	a.broadcastInboundsUpdate(user.Id)
 	notifyClientsChanged()
+	if natErr := a.routerOSNATService.DeleteInbound(c.Request.Context(), id); natErr != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundDeleteSuccess"), natErr)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundDeleteSuccess"), id, nil)
 }
 
 type bulkDelInboundsRequest struct {
@@ -239,13 +248,30 @@ func (a *InboundController) bulkDelInbounds(c *gin.Context) {
 		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
 		return
 	}
-	jsonObj(c, result, nil)
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
 	user := session.GetLoginUser(c)
 	a.broadcastInboundsUpdate(user.Id)
 	notifyClientsChanged()
+	skipped := make(map[int]bool, len(result.Skipped))
+	for _, s := range result.Skipped {
+		skipped[s.Id] = true
+	}
+	var natErrs []string
+	for _, deletedID := range req.Ids {
+		if skipped[deletedID] {
+			continue
+		}
+		if natErr := a.routerOSNATService.DeleteInbound(c.Request.Context(), deletedID); natErr != nil {
+			natErrs = append(natErrs, natErr.Error())
+		}
+	}
+	if len(natErrs) > 0 {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), service.JoinErrors(natErrs))
+		return
+	}
+	jsonObj(c, result, nil)
 }
 
 // updateInbound updates an existing inbound configuration.
@@ -273,13 +299,17 @@ func (a *InboundController) updateInbound(c *gin.Context) {
 		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
 		return
 	}
-	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), inbound, nil)
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
 	user := session.GetLoginUser(c)
 	a.broadcastInboundsUpdate(user.Id)
 	notifyClientsChanged()
+	if natErr := a.routerOSNATService.SyncInbound(c.Request.Context(), inbound); natErr != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), natErr)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), inbound, nil)
 }
 
 // setInboundSubSortIndex changes only subscription ordering without sending
@@ -325,7 +355,6 @@ func (a *InboundController) setInboundEnable(c *gin.Context) {
 		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
 		return
 	}
-	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), nil)
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
@@ -334,6 +363,13 @@ func (a *InboundController) setInboundEnable(c *gin.Context) {
 	// sessions re-fetch via REST. The toggling admin's own UI already
 	// updated optimistically.
 	websocket.BroadcastInvalidate(websocket.MessageTypeInbounds)
+	if ib, getErr := a.inboundService.GetInbound(id); getErr == nil && ib != nil {
+		if natErr := a.routerOSNATService.SyncInbound(c.Request.Context(), ib); natErr != nil {
+			jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), natErr)
+			return
+		}
+	}
+	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), nil)
 }
 
 // resetInboundTraffic resets traffic counters for a specific inbound.

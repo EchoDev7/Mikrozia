@@ -5,9 +5,10 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--ant-color-fill-quaternary);
+  padding: 3px 8px;
+  border-radius: 0;
+  border: 1.5px solid var(--ant-color-border);
+  background: var(--ant-color-bg-container);
 }
 
 .client-traffic-cell.is-compact {
@@ -56,22 +57,47 @@
   display: block;
 }
 
-.client-traffic-cell-bar .ant-progress-inner {
+.client-traffic-cell-bar .ant-progress-inner,
+.client-traffic-cell-bar .ant-progress-rail {
   background: var(--ant-color-fill-secondary);
+  border-radius: 0 !important;
+}
+
+.client-traffic-cell-bar .ant-progress-bg,
+.client-traffic-cell-bar .ant-progress-track,
+.client-traffic-cell-bar [class*='ant-progress-bg'] {
+  border-radius: 0 !important;
+  background: #213b5e !important;
+}
+
+body.dark .client-traffic-cell-bar .ant-progress-bg,
+body.dark .client-traffic-cell-bar .ant-progress-track,
+body.dark .client-traffic-cell-bar [class*='ant-progress-bg'] {
+  background: #3e73ad !important;
 }
 
 .client-traffic-cell.is-unlimited .client-traffic-cell-bar .ant-progress-inner .ant-progress-bg {
-  background-color: color-mix(in srgb, #722ed1 35%, transparent);
-  border: 1px solid color-mix(in srgb, #722ed1 55%, transparent);
+  background: #213b5e !important;
+  border: 1px solid #111111;
+}
+
+body.dark .client-traffic-cell.is-unlimited .client-traffic-cell-bar .ant-progress-inner .ant-progress-bg {
+  background: #3e73ad !important;
+  border: 1px solid #6ea3df;
 }
 
 .client-traffic-cell-infinity {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  color: var(--ant-color-purple);
+  color: #213b5e;
   font-size: 14px;
+  font-weight: 700;
   line-height: 1;
+}
+
+body.dark .client-traffic-cell-infinity {
+  color: #6ea3df;
 }
 
 .client-traffic-popover table {

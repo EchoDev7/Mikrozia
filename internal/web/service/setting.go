@@ -260,6 +260,15 @@ var defaultValueMap = map[string]string{
 	"discordMemory":        "80",
 	"discordLang":          "en-US",
 	"discordEnabledEvents": "login.attempt,cpu.high",
+
+	// Managed RouterOS NAT integration (opt-in, off by default)
+	"routerosNatEnable":          "false",
+	"routerosNatHost":            "",
+	"routerosNatPort":            "8728",
+	"routerosNatUsername":        "",
+	"routerosNatPassword":        "",
+	"routerosNatTargetIP":        "",
+	"routerosNatInInterfaceList": "WAN",
 }
 
 // SettingService provides business logic for application settings management.
@@ -359,6 +368,7 @@ func (s *SettingService) GetAllSettingView() (*entity.AllSettingView, error) {
 	view.HasNordSecret = secretConfigured(mustString(s.GetNord()))
 	view.HasSmtpPassword = secretConfigured(allSetting.SmtpPassword)
 	view.HasDiscordBotToken = secretConfigured(allSetting.DiscordBotToken)
+	view.HasRouterosNatPassword = secretConfigured(allSetting.RouterosNatPassword)
 	var apiTokenCount int64
 	if err := database.GetDB().Model(model.ApiToken{}).Where("enabled = ?", true).Count(&apiTokenCount).Error; err == nil {
 		view.HasApiToken = apiTokenCount > 0
@@ -368,6 +378,7 @@ func (s *SettingService) GetAllSettingView() (*entity.AllSettingView, error) {
 	view.LdapPassword = ""
 	view.SmtpPassword = ""
 	view.DiscordBotToken = ""
+	view.RouterosNatPassword = ""
 	return view, nil
 }
 
@@ -1669,10 +1680,11 @@ func (s *SettingService) SetNodeDownThreshold(value int) error {
 // flag, a blank submitted secret means "unchanged" (the field is always served
 // blank to the browser) and the stored value is preserved.
 type SecretClears struct {
-	TgBotToken      bool
-	LdapPassword    bool
-	SmtpPassword    bool
-	DiscordBotToken bool
+	TgBotToken          bool
+	LdapPassword        bool
+	SmtpPassword        bool
+	DiscordBotToken     bool
+	RouterosNatPassword bool
 }
 
 func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting, clears SecretClears) error {
@@ -1822,7 +1834,18 @@ func (s *SettingService) preserveRedactedSecrets(allSetting *entity.AllSetting, 
 		}
 		allSetting.DiscordBotToken = value
 	}
+	if !clears.RouterosNatPassword && strings.TrimSpace(allSetting.RouterosNatPassword) == "" {
+		value, err := s.GetRouterosNatPassword()
+		if err != nil {
+			return err
+		}
+		allSetting.RouterosNatPassword = value
+	}
 	return nil
+}
+
+func (s *SettingService) GetRouterosNatPassword() (string, error) {
+	return s.getString("routerosNatPassword")
 }
 
 func validateSettingsURLs(allSetting *entity.AllSetting) error {

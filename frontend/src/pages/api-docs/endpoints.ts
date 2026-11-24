@@ -2000,6 +2000,30 @@ export const sections: readonly Section[] = [
         response: '{\n  "success": true,\n  "msg": "Test notification sent successfully"\n}',
       },
       {
+        method: 'POST',
+        path: '/panel/api/setting/testRouterosNat',
+        summary:
+          'Test RouterOS API connectivity and read access to /ip/firewall/nat using saved settings or optional form overrides.',
+        body: '{\n  "host": "172.16.10.1",\n  "port": 8728,\n  "username": "mikrozia",\n  "password": "secret"\n}',
+        response:
+          '{\n  "success": true,\n  "msg": "RouterOS API connection succeeded",\n  "obj": {\n    "state": "connected",\n    "identity": "CHR-01",\n    "version": "7.18.2",\n    "natRules": 4\n  }\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/syncRouterosNat',
+        summary:
+          'Reconcile Mikrozia-owned RouterOS /ip/firewall/nat rules for all local inbounds when Managed RouterOS NAT is enabled.',
+        response:
+          '{\n  "success": true,\n  "msg": "RouterOS NAT rules synced",\n  "obj": {\n    "synced": 3,\n    "failed": 0\n  }\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/setting/detectContainerIp',
+        summary:
+          'Detect the container private IPv4 address used as the default dst-nat to-addresses target.',
+        response: '{\n  "success": true,\n  "obj": {\n    "ip": "172.16.10.2"\n  }\n}',
+      },
+      {
         method: 'GET',
         path: '/panel/api/setting/getDefaultJsonConfig',
         summary:

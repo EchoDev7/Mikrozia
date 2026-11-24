@@ -5,13 +5,27 @@
 .settings-page .ant-card,
 .nodes-page .ant-card,
 .groups-page .ant-card,
-.api-docs-page .ant-card {
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+.api-docs-page .ant-card,
+.hosts-page .ant-card {
+  border-radius: 0;
+  border: 2px solid #111111;
+  box-shadow: 2px 2px 0 #111111;
   transition:
-    transform 0.2s ease,
-    box-shadow 0.25s ease,
-    border-color 0.2s ease;
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.15s ease;
+}
+
+[dir='rtl'] .index-page .ant-card,
+[dir='rtl'] .clients-page .ant-card,
+[dir='rtl'] .inbounds-page .ant-card,
+[dir='rtl'] .xray-page .ant-card,
+[dir='rtl'] .settings-page .ant-card,
+[dir='rtl'] .nodes-page .ant-card,
+[dir='rtl'] .groups-page .ant-card,
+[dir='rtl'] .api-docs-page .ant-card,
+[dir='rtl'] .hosts-page .ant-card {
+  box-shadow: -2px 2px 0 #111111;
 }
 
 .index-page.is-dark .ant-card,
@@ -21,10 +35,22 @@
 .settings-page.is-dark .ant-card,
 .nodes-page.is-dark .ant-card,
 .groups-page.is-dark .ant-card,
-.api-docs-page.is-dark .ant-card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+.api-docs-page.is-dark .ant-card,
+.hosts-page.is-dark .ant-card {
+  border: 2px solid #3b404d;
+  box-shadow: 2px 2px 0 #000000;
+}
+
+[dir='rtl'] .index-page.is-dark .ant-card,
+[dir='rtl'] .clients-page.is-dark .ant-card,
+[dir='rtl'] .inbounds-page.is-dark .ant-card,
+[dir='rtl'] .xray-page.is-dark .ant-card,
+[dir='rtl'] .settings-page.is-dark .ant-card,
+[dir='rtl'] .nodes-page.is-dark .ant-card,
+[dir='rtl'] .groups-page.is-dark .ant-card,
+[dir='rtl'] .api-docs-page.is-dark .ant-card,
+[dir='rtl'] .hosts-page.is-dark .ant-card {
+  box-shadow: -2px 2px 0 #000000;
 }
 
 .index-page.is-dark.is-ultra .ant-card,
@@ -34,10 +60,10 @@
 .settings-page.is-dark.is-ultra .ant-card,
 .nodes-page.is-dark.is-ultra .ant-card,
 .groups-page.is-dark.is-ultra .ant-card,
-.api-docs-page.is-dark.is-ultra .ant-card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+.api-docs-page.is-dark.is-ultra .ant-card,
+.hosts-page.is-dark.is-ultra .ant-card {
+  border: 1.5px solid #2e323d;
+  box-shadow: none;
 }
 
 .index-page .ant-card.ant-card-hoverable:hover,
@@ -47,9 +73,11 @@
 .settings-page .ant-card.ant-card-hoverable:hover,
 .nodes-page .ant-card.ant-card-hoverable:hover,
 .groups-page .ant-card.ant-card-hoverable:hover,
-.api-docs-page .ant-card.ant-card-hoverable:hover {
+.api-docs-page .ant-card.ant-card-hoverable:hover,
+.hosts-page .ant-card.ant-card-hoverable:hover {
   cursor: default;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: #213b5e;
+  box-shadow: 3px 3px 0 #111111;
 }
 
 .index-page.is-dark .ant-card.ant-card-hoverable:hover,
@@ -59,23 +87,10 @@
 .settings-page.is-dark .ant-card.ant-card-hoverable:hover,
 .nodes-page.is-dark .ant-card.ant-card-hoverable:hover,
 .groups-page.is-dark .ant-card.ant-card-hoverable:hover,
-.api-docs-page.is-dark .ant-card.ant-card-hoverable:hover {
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.index-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.clients-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.inbounds-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.xray-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.settings-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.nodes-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.groups-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
-.api-docs-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover {
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+.api-docs-page.is-dark .ant-card.ant-card-hoverable:hover,
+.hosts-page.is-dark .ant-card.ant-card-hoverable:hover {
+  border-color: #6ea3df;
+  box-shadow: 3px 3px 0 #000000;
 }
 
 .index-page .ant-card .ant-card-actions,
@@ -85,50 +100,383 @@
 .settings-page .ant-card .ant-card-actions,
 .nodes-page .ant-card .ant-card-actions,
 .groups-page .ant-card .ant-card-actions,
-.api-docs-page .ant-card .ant-card-actions {
-  background: transparent;
-}
-
-/* Hosts page shares the same card styling + hover shadows (without the default
-   antd hoverable pointer/blur), matching Clients/Inbounds/etc. */
-.hosts-page .ant-card {
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.25s ease,
-    border-color 0.2s ease;
-}
-
-.hosts-page.is-dark .ant-card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.hosts-page.is-dark.is-ultra .ant-card {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.025);
-}
-
-.hosts-page .ant-card.ant-card-hoverable:hover {
-  cursor: default;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-}
-
-.hosts-page.is-dark .ant-card.ant-card-hoverable:hover {
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.hosts-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover {
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
+.api-docs-page .ant-card .ant-card-actions,
 .hosts-page .ant-card .ant-card-actions {
   background: transparent;
 }
+
+/* Global Constructivist Summary Strip (Inbounds, Clients, Nodes, Groups, Hosts) */
+.summary-card {
+  position: relative;
+}
+
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #213b5e 0%,
+    #213b5e 38%,
+    #b81d3a 38%,
+    #b81d3a 72%,
+    #d9a426 72%,
+    #d9a426 100%
+  );
+  pointer-events: none;
+}
+
+.summary-card .ant-statistic-title {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.summary-card .ant-statistic-content {
+  font-weight: 800;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Global Constructivist Table Headers */
+.ant-table-thead > tr > th {
+  font-weight: 800 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Global Constructivist Active Tabs (high-contrast solid block in Light & Dark) */
+.ant-tabs .ant-tabs-tab {
+  padding: 8px 14px;
+  margin: 0 4px 0 0 !important;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+body.light .ant-tabs .ant-tabs-tab.ant-tabs-tab-active {
+  background: #213b5e;
+  border: 2px solid #111111;
+  border-bottom: 0;
+}
+
+body.light .ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn,
+body.light .ant-tabs .ant-tabs-tab.ant-tabs-tab-active .anticon {
+  color: #faf7f0 !important;
+}
+
+body.dark .ant-tabs .ant-tabs-tab.ant-tabs-tab-active {
+  background: #e5b32e;
+  border: 2px solid #111111;
+  border-bottom: 0;
+}
+
+body.dark .ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn,
+body.dark .ant-tabs .ant-tabs-tab.ant-tabs-tab-active .anticon {
+  color: #111111 !important;
+}
+
+.ant-tabs .ant-tabs-ink-bar {
+  height: 3px !important;
+}
+
+/* Tactile Constructivist Primary Buttons */
+.ant-btn-primary:not(:disabled) {
+  border: 2px solid #111111 !important;
+  box-shadow: 2px 2px 0 #111111;
+  font-weight: 700;
+}
+
+body.dark .ant-btn-primary:not(:disabled) {
+  border: 2px solid #f5f0e6 !important;
+  box-shadow: 2px 2px 0 #000000;
+}
+
+.ant-btn-primary:not(:disabled):active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #111111;
+}
+
+/* Crisp Alerts & Modals */
+.ant-alert {
+  border-width: 2px !important;
+  border-inline-start-width: 5px !important;
+  border-radius: 0 !important;
+}
+
+.ant-modal .ant-modal-content {
+  border-radius: 0 !important;
+  border: 2px solid #111111;
+  box-shadow: 4px 4px 0 #111111;
+}
+
+body.dark .ant-modal .ant-modal-content {
+  border: 2px solid #3b404d;
+  box-shadow: 4px 4px 0 #000000;
+}
+
+/* Distinct Steel-Blue Online status dot (never confused with Crimson Ended dot) */
+.ant-badge .ant-badge-status-processing,
+.dot.dot-blue {
+  background-color: #213b5e !important;
+  color: #213b5e !important;
+}
+
+body.dark .ant-badge .ant-badge-status-processing,
+body.dark .dot.dot-blue {
+  background-color: #3e73ad !important;
+  color: #3e73ad !important;
+}
+
+/* Global sharp-corner sweep for all panel dialogs, popovers, dropdowns, editors, and cards */
+.ant-dropdown .ant-dropdown-menu,
+.ant-popover .ant-popover-inner,
+.ant-select-dropdown,
+.ant-tooltip .ant-tooltip-inner,
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-drawer .ant-drawer-content,
+.ant-collapse,
+.ant-collapse-item,
+.ant-segmented,
+.ant-segmented-item,
+.ant-segmented-thumb,
+.ant-pagination-item,
+.ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination-next .ant-pagination-item-link,
+.ant-progress-inner,
+.ant-progress-bg,
+.json-editor-wrap,
+.cm-editor,
+.qr-card,
+.qr-panel,
+.config-block,
+.node-card,
+.sponsor-card,
+.history-card,
+.log-viewer {
+  border-radius: 0 !important;
+}
+
+.ant-dropdown .ant-dropdown-menu,
+.ant-popover .ant-popover-inner,
+.ant-select-dropdown {
+  border: 2px solid #111111;
+  box-shadow: 3px 3px 0 #111111;
+}
+
+body.dark .ant-dropdown .ant-dropdown-menu,
+body.dark .ant-popover .ant-popover-inner,
+body.dark .ant-select-dropdown {
+  border: 2px solid #3b404d;
+  box-shadow: 3px 3px 0 #000000;
+}
+
+/* Industrial Square Toggle Switches (Crimson when OFF, Signal Green when ON, exact centered thumb) */
+.ant-switch {
+  height: 22px !important;
+  min-width: 44px !important;
+  line-height: 18px !important;
+  border-radius: 0 !important;
+  border: 2px solid #111111 !important;
+  background: #b81d3a !important;
+}
+
+body.dark .ant-switch {
+  border: 2px solid #f5f0e6 !important;
+  background: #d92b4b !important;
+}
+
+.ant-switch.ant-switch-checked {
+  background: #2f9e44 !important;
+  border-color: #111111 !important;
+}
+
+body.dark .ant-switch.ant-switch-checked {
+  background: #38b857 !important;
+  border-color: #f5f0e6 !important;
+}
+
+.ant-switch .ant-switch-handle {
+  top: 2px !important;
+  inset-inline-start: 2px;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.ant-switch.ant-switch-checked .ant-switch-handle {
+  inset-inline-start: calc(100% - 16px) !important;
+}
+
+.ant-switch.ant-switch-small {
+  height: 18px !important;
+  min-width: 34px !important;
+  line-height: 14px !important;
+}
+
+.ant-switch.ant-switch-small .ant-switch-handle {
+  top: 2px !important;
+  inset-inline-start: 2px;
+  width: 10px !important;
+  height: 10px !important;
+}
+
+.ant-switch.ant-switch-small.ant-switch-checked .ant-switch-handle {
+  inset-inline-start: calc(100% - 12px) !important;
+}
+
+.ant-switch .ant-switch-handle::before {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #faf7f0 !important;
+  border: 1.5px solid #111111;
+}
+
+/* Constructivist Table Row Action Micro-Buttons (QR, Info, Reset, Edit, Delete, More) */
+.ant-table-tbody .ant-btn-icon-only,
+.action-buttons .ant-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: 1.5px solid #111111 !important;
+  background: #faf7f0 !important;
+  color: #111111 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.action-buttons {
+  gap: 6px !important;
+}
+
+body.dark .ant-table-tbody .ant-btn-icon-only,
+body.dark .action-buttons .ant-btn {
+  border-color: #3b404d !important;
+  background: #17191e !important;
+  color: #f5f0e6 !important;
+}
+
+.ant-table-tbody .ant-btn-icon-only:not(:disabled):hover,
+.action-buttons .ant-btn:not(:disabled):hover {
+  background: #213b5e !important;
+  border-color: #111111 !important;
+  color: #faf7f0 !important;
+}
+
+body.dark .ant-table-tbody .ant-btn-icon-only:not(:disabled):hover,
+body.dark .action-buttons .ant-btn:not(:disabled):hover {
+  background: #3e73ad !important;
+  border-color: #f5f0e6 !important;
+  color: #f5f0e6 !important;
+}
+
+.ant-table-tbody .ant-btn-icon-only.ant-btn-dangerous,
+.action-buttons .ant-btn.ant-btn-dangerous {
+  border-color: #b81d3a !important;
+  color: #b81d3a !important;
+}
+
+body.dark .ant-table-tbody .ant-btn-icon-only.ant-btn-dangerous,
+body.dark .action-buttons .ant-btn.ant-btn-dangerous {
+  border-color: #d92b4b !important;
+  color: #f26d85 !important;
+}
+
+.ant-table-tbody .ant-btn-icon-only.ant-btn-dangerous:not(:disabled):hover,
+.action-buttons .ant-btn.ant-btn-dangerous:not(:disabled):hover {
+  background: #b81d3a !important;
+  border-color: #111111 !important;
+  color: #faf7f0 !important;
+}
+
+body.dark .ant-table-tbody .ant-btn-icon-only.ant-btn-dangerous:not(:disabled):hover,
+body.dark .action-buttons .ant-btn.ant-btn-dangerous:not(:disabled):hover {
+  background: #d92b4b !important;
+  border-color: #f5f0e6 !important;
+  color: #f5f0e6 !important;
+}
+
+/* Constructivist Stamp Tags (replace AntD pastel lavender/baby-blue/mint pills) */
+.ant-tag {
+  border-radius: 0 !important;
+  border: 1.5px solid #111111 !important;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+body.dark .ant-tag {
+  border-color: #4b5263 !important;
+}
+
+.ant-tag.ant-tag-purple,
+.ant-tag.ant-tag-geekblue {
+  background: #e6ecf5 !important;
+  color: #213b5e !important;
+  border-color: #213b5e !important;
+}
+
+body.dark .ant-tag.ant-tag-purple,
+body.dark .ant-tag.ant-tag-geekblue {
+  background: #1b283a !important;
+  color: #a8ccf5 !important;
+  border-color: #3e73ad !important;
+}
+
+.ant-tag.ant-tag-blue,
+.ant-tag.ant-tag-cyan {
+  background: #213b5e !important;
+  color: #faf7f0 !important;
+  border-color: #111111 !important;
+}
+
+body.dark .ant-tag.ant-tag-blue,
+body.dark .ant-tag.ant-tag-cyan {
+  background: #244670 !important;
+  color: #f5f0e6 !important;
+  border-color: #6ea3df !important;
+}
+
+.ant-tag.ant-tag-green,
+.ant-tag.ant-tag-success {
+  background: #e9f5ec !important;
+  color: #1f6e2d !important;
+  border-color: #2f9e44 !important;
+}
+
+body.dark .ant-tag.ant-tag-green,
+body.dark .ant-tag.ant-tag-success {
+  background: #172b1d !important;
+  color: #6ee087 !important;
+  border-color: #38b857 !important;
+}
+
+.ant-tag.ant-tag-orange,
+.ant-tag.ant-tag-gold,
+.ant-tag.ant-tag-warning {
+  background: #d9a426 !important;
+  color: #111111 !important;
+  border-color: #111111 !important;
+}
+
+.ant-tag.ant-tag-red,
+.ant-tag.ant-tag-error,
+.ant-tag.ant-tag-volcano {
+  background: #b81d3a !important;
+  color: #faf7f0 !important;
+  border-color: #111111 !important;
+}
+
+

@@ -74,7 +74,7 @@ describe('stable table speed tags (issue #5912)', () => {
     );
     const tags = Array.from(document.querySelectorAll<HTMLElement>('.ant-tag'));
     expect(tags).toHaveLength(2);
-    expect(tags[0]?.textContent).toBe('↑ 1024.00 MB/s / ↓ 1024.00 MB/s');
+    expect(tags[0]?.textContent).toBe('↑ 8589.93 Mb/s / ↓ 8589.93 Mb/s');
     expect(tags[1]?.textContent).toBe(tags[0]?.textContent);
     for (const tag of tags) expectStableTableTag(tag);
 

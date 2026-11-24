@@ -7,10 +7,17 @@
 .groups-page,
 .api-docs-page,
 .sponsors-page {
-  --bg-page: #e6e8ec;
-  --bg-card: #ffffff;
+  --bg-page: #f5f0e6;
+  --bg-card: #faf7f0;
   min-height: 100vh;
-  background: var(--bg-page);
+  background-color: var(--bg-page);
+  background-image:
+    radial-gradient(rgba(17, 17, 17, 0.04) 1px, transparent 0),
+    radial-gradient(rgba(17, 17, 17, 0.025) 1px, transparent 0);
+  background-size: 24px 24px;
+  background-position:
+    0 0,
+    12px 12px;
 }
 
 .index-page.is-dark,
@@ -22,8 +29,13 @@
 .groups-page.is-dark,
 .api-docs-page.is-dark,
 .sponsors-page.is-dark {
-  --bg-page: #1a1b1f;
-  --bg-card: #23252b;
+  --bg-page: #111215;
+  --bg-card: #17191e;
+  background-image:
+    linear-gradient(rgba(245, 240, 230, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 240, 230, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: 0 0;
 }
 
 .index-page.is-dark.is-ultra,
@@ -35,8 +47,9 @@
 .groups-page.is-dark.is-ultra,
 .api-docs-page.is-dark.is-ultra,
 .sponsors-page.is-dark.is-ultra {
-  --bg-page: #000;
-  --bg-card: #101013;
+  --bg-page: #000000;
+  --bg-card: #0d0e12;
+  background-image: none;
 }
 
 .index-page .ant-layout,
@@ -193,20 +206,33 @@ body.dark .ant-dropdown-menu-item-divider {
 /* Hosts page shares the standard panel page shell (background, transparent
    layout, content padding, summary-card padding). */
 .hosts-page {
-  --bg-page: #e6e8ec;
-  --bg-card: #ffffff;
+  --bg-page: #f5f0e6;
+  --bg-card: #faf7f0;
   min-height: 100vh;
-  background: var(--bg-page);
+  background-color: var(--bg-page);
+  background-image:
+    radial-gradient(rgba(17, 17, 17, 0.04) 1px, transparent 0),
+    radial-gradient(rgba(17, 17, 17, 0.025) 1px, transparent 0);
+  background-size: 24px 24px;
+  background-position:
+    0 0,
+    12px 12px;
 }
 
 .hosts-page.is-dark {
-  --bg-page: #1a1b1f;
-  --bg-card: #23252b;
+  --bg-page: #111215;
+  --bg-card: #17191e;
+  background-image:
+    linear-gradient(rgba(245, 240, 230, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 240, 230, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: 0 0;
 }
 
 .hosts-page.is-dark.is-ultra {
-  --bg-page: #000;
-  --bg-card: #101013;
+  --bg-page: #000000;
+  --bg-card: #0d0e12;
+  background-image: none;
 }
 
 .hosts-page .ant-layout,

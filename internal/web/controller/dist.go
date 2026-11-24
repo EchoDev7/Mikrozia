@@ -108,6 +108,7 @@ func serveDistPage(c *gin.Context, name string) {
 	if basePath != "/" {
 		body = bytes.ReplaceAll(body, []byte(`src="/assets/`), []byte(`src="`+basePath+`assets/`))
 		body = bytes.ReplaceAll(body, []byte(`href="/assets/`), []byte(`href="`+basePath+`assets/`))
+		body = bytes.ReplaceAll(body, []byte(`href="/icons/`), []byte(`href="`+basePath+`icons/`))
 	}
 
 	jsEscape := strings.NewReplacer(

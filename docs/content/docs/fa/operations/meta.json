@@ -3,6 +3,7 @@
   "icon": "ServerCog",
   "pages": [
     "reverse-proxy",
+    "routeros-nat",
     "multi-node",
     "outbounds-routing",
     "backup-restore",

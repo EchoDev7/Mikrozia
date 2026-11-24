@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/echodev7/mikrozia/v3/internal/routeros"
 	"github.com/echodev7/mikrozia/v3/internal/util/common"
 	"github.com/echodev7/mikrozia/v3/internal/util/cronspec"
 )
@@ -212,19 +213,28 @@ type AllSetting struct {
 	LdapDefaultLimitIP     int    `json:"ldapDefaultLimitIP" form:"ldapDefaultLimitIP" validate:"gte=0"`
 
 	WarpUpdateInterval int `json:"warpUpdateInterval" form:"warpUpdateInterval" validate:"gte=0"`
+
+	RouterosNatEnable          bool   `json:"routerosNatEnable" form:"routerosNatEnable"`
+	RouterosNatHost            string `json:"routerosNatHost" form:"routerosNatHost"`
+	RouterosNatPort            int    `json:"routerosNatPort" form:"routerosNatPort" validate:"gte=0,lte=65535"`
+	RouterosNatUsername        string `json:"routerosNatUsername" form:"routerosNatUsername"`
+	RouterosNatPassword        string `json:"routerosNatPassword" form:"routerosNatPassword"`
+	RouterosNatTargetIP        string `json:"routerosNatTargetIP" form:"routerosNatTargetIP"`
+	RouterosNatInInterfaceList string `json:"routerosNatInInterfaceList" form:"routerosNatInInterfaceList"`
 }
 
 type AllSettingView struct {
 	AllSetting
 
-	HasTgBotToken      bool `json:"hasTgBotToken"`
-	HasTwoFactorToken  bool `json:"hasTwoFactorToken"`
-	HasLdapPassword    bool `json:"hasLdapPassword"`
-	HasApiToken        bool `json:"hasApiToken"`
-	HasWarpSecret      bool `json:"hasWarpSecret"`
-	HasNordSecret      bool `json:"hasNordSecret"`
-	HasSmtpPassword    bool `json:"hasSmtpPassword"`
-	HasDiscordBotToken bool `json:"hasDiscordBotToken"`
+	HasTgBotToken          bool `json:"hasTgBotToken"`
+	HasTwoFactorToken      bool `json:"hasTwoFactorToken"`
+	HasLdapPassword        bool `json:"hasLdapPassword"`
+	HasApiToken            bool `json:"hasApiToken"`
+	HasWarpSecret          bool `json:"hasWarpSecret"`
+	HasNordSecret          bool `json:"hasNordSecret"`
+	HasSmtpPassword        bool `json:"hasSmtpPassword"`
+	HasDiscordBotToken     bool `json:"hasDiscordBotToken"`
+	HasRouterosNatPassword bool `json:"hasRouterosNatPassword"`
 }
 
 func pathHasForbiddenChar(s string) bool {
@@ -361,6 +371,26 @@ func (s *AllSetting) CheckValid() error {
 	if s.SmtpFrom != "" {
 		if _, err := mail.ParseAddress(s.SmtpFrom); err != nil {
 			return common.NewError("SMTP from address is not valid:", s.SmtpFrom)
+		}
+	}
+
+	if strings.TrimSpace(s.RouterosNatTargetIP) != "" {
+		if _, ok := routeros.ValidatePrivateIPv4(s.RouterosNatTargetIP); !ok {
+			return common.NewError("RouterOS NAT target IP must be a private IPv4 address:", s.RouterosNatTargetIP)
+		}
+	}
+	if s.RouterosNatEnable {
+		if _, ok := routeros.ValidatePrivateHost(s.RouterosNatHost); !ok {
+			return common.NewError("RouterOS NAT host must be a private IP address:", s.RouterosNatHost)
+		}
+		if s.RouterosNatPort < 0 || s.RouterosNatPort > math.MaxUint16 {
+			return common.NewError("RouterOS NAT port is not a valid port:", s.RouterosNatPort)
+		}
+		if strings.TrimSpace(s.RouterosNatUsername) == "" {
+			return common.NewError("RouterOS NAT username is required when enabled")
+		}
+		if s.RouterosNatPassword == "" {
+			return common.NewError("RouterOS NAT password is required when enabled")
 		}
 	}
 
