@@ -65,6 +65,18 @@ _openapi:
         channel.
       url: '#test-discord-bot-connection-by-sending-a-test-embed-to-the-configured-channel'
     - depth: 2
+      title: Test RouterOS API connectivity and read access to /ip/firewall/nat using
+        saved settings or optional form overrides.
+      url: '#test-routeros-api-connectivity-and-read-access-to-ipfirewallnat-using-saved-settings-or-optional-form-overrides'
+    - depth: 2
+      title: Reconcile Mikrozia-owned RouterOS /ip/firewall/nat rules for all local
+        inbounds when Managed RouterOS NAT is enabled.
+      url: '#reconcile-mikrozia-owned-routeros-ipfirewallnat-rules-for-all-local-inbounds-when-managed-routeros-nat-is-enabled'
+    - depth: 2
+      title: Detect the container private IPv4 address used as the default dst-nat
+        to-addresses target.
+      url: '#detect-the-container-private-ipv4-address-used-as-the-default-dst-nat-to-addresses-target'
+    - depth: 2
       title: Return the built-in default Xray JSON config template that ships with
         this panel version.
       url: '#return-the-built-in-default-xray-json-config-template-that-ships-with-this-panel-version'
@@ -115,6 +127,15 @@ _openapi:
       - content: Test Discord bot connection by sending a test embed to the configured
           channel.
         id: test-discord-bot-connection-by-sending-a-test-embed-to-the-configured-channel
+      - content: Test RouterOS API connectivity and read access to /ip/firewall/nat
+          using saved settings or optional form overrides.
+        id: test-routeros-api-connectivity-and-read-access-to-ipfirewallnat-using-saved-settings-or-optional-form-overrides
+      - content: Reconcile Mikrozia-owned RouterOS /ip/firewall/nat rules for all local
+          inbounds when Managed RouterOS NAT is enabled.
+        id: reconcile-mikrozia-owned-routeros-ipfirewallnat-rules-for-all-local-inbounds-when-managed-routeros-nat-is-enabled
+      - content: Detect the container private IPv4 address used as the default dst-nat
+          to-addresses target.
+        id: detect-the-container-private-ipv4-address-used-as-the-default-dst-nat-to-addresses-target
       - content: Return the built-in default Xray JSON config template that ships with
           this panel version.
         id: return-the-built-in-default-xray-json-config-template-that-ships-with-this-panel-version
@@ -128,7 +149,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/panel/api/setting/all","method":"post"},{"path":"/panel/api/setting/defaultSettings","method":"post"},{"path":"/panel/api/setting/factoryDefaults","method":"post"},{"path":"/panel/api/setting/update","method":"post"},{"path":"/panel/api/setting/validateRegex","method":"post"},{"path":"/panel/api/setting/updateUser","method":"post"},{"path":"/panel/api/setting/adminCredentialState","method":"post"},{"path":"/panel/api/setting/restartPanel","method":"post"},{"path":"/panel/api/setting/testSmtp","method":"post"},{"path":"/panel/api/setting/testTgBot","method":"post"},{"path":"/panel/api/setting/tgBotCapabilities","method":"post"},{"path":"/panel/api/setting/testDiscord","method":"post"},{"path":"/panel/api/setting/getDefaultJsonConfig","method":"get"}]} showTitle />
+      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/panel/api/setting/all","method":"post"},{"path":"/panel/api/setting/defaultSettings","method":"post"},{"path":"/panel/api/setting/factoryDefaults","method":"post"},{"path":"/panel/api/setting/update","method":"post"},{"path":"/panel/api/setting/validateRegex","method":"post"},{"path":"/panel/api/setting/updateUser","method":"post"},{"path":"/panel/api/setting/adminCredentialState","method":"post"},{"path":"/panel/api/setting/restartPanel","method":"post"},{"path":"/panel/api/setting/testSmtp","method":"post"},{"path":"/panel/api/setting/testTgBot","method":"post"},{"path":"/panel/api/setting/tgBotCapabilities","method":"post"},{"path":"/panel/api/setting/testDiscord","method":"post"},{"path":"/panel/api/setting/testRouterosNat","method":"post"},{"path":"/panel/api/setting/syncRouterosNat","method":"post"},{"path":"/panel/api/setting/detectContainerIp","method":"get"},{"path":"/panel/api/setting/getDefaultJsonConfig","method":"get"}]} showTitle />
     </>
   );
 }
