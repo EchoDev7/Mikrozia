@@ -156,7 +156,9 @@
   margin: 0 4px 0 0 !important;
   font-weight: 700;
   letter-spacing: 0.03em;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 
 body.light .ant-tabs .ant-tabs-tab.ant-tabs-tab-active {
@@ -478,5 +480,3 @@ body.dark .ant-tag.ant-tag-success {
   color: #faf7f0 !important;
   border-color: #111111 !important;
 }
-
-
