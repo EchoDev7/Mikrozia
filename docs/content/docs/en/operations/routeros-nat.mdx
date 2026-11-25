@@ -31,7 +31,9 @@ Run the following commands in the RouterOS Terminal (WinBox or SSH):
 ```
 
 <Callout type="warn">
-  Do not use the full `admin` account. A dedicated account with `read,write,api` is sufficient.
+  Do not use the full `admin` account. A dedicated account with `read,write,api` is sufficient for both Managed NAT and Dashboard RouterOS CPU/RAM telemetry (one unified account).
+
+  **RouterOS CLI password rule**: When setting a password inside double quotes (`password="..."`) in RouterOS Terminal, **avoid `$`, `"`, `\`, `[`, `]`, `?`, and spaces** (`$` is expanded as a script variable and causes `authentication_failed`). Use `A-Z`, `a-z`, `0-9`, and safe symbols such as `@ # % ^ _ - . !`.
 </Callout>
 </Step>
 
@@ -52,21 +54,9 @@ If your RouterOS `input` firewall drops traffic from the container bridge to the
 </Step>
 
 <Step>
-### Verify the WAN Interface List (Optional)
-
-By default Mikrozia creates `dst-nat` rules matching `in-interface-list=WAN`. Verify your WAN interface is a member of that list:
-
-```bash
-/interface/list/member/print where list=WAN
-```
-
-If you do not use a `WAN` interface list, leave **In-Interface List** empty in Mikrozia and rules will match `dst-address-type=local` instead.
-</Step>
-
-<Step>
 ### Configure Mikrozia Panel Settings
 
-Open **Panel Settings → RouterOS NAT** (`/panel/settings#routeros-nat`) and fill in:
+Open **Panel Settings → RouterOS NAT** (`/panel/settings#routeros-nat`) and fill in (rules automatically match `dst-address-type=local`, so no `WAN` interface list is required):
 
 | Field | Description | Example |
 | --- | --- | --- |
@@ -74,9 +64,8 @@ Open **Panel Settings → RouterOS NAT** (`/panel/settings#routeros-nat`) and fi
 | **RouterOS API Host** | Private IP address of the RouterOS bridge/gateway | `172.16.10.1` |
 | **RouterOS API Port** | RouterOS `/ip/service` port for `api` | `8728` |
 | **RouterOS API Username** | Dedicated API username from Step 1 | `mikrozia-nat` |
-| **RouterOS API Password** | Password for the dedicated API account | `••••••••` |
+| **RouterOS API Password** | Password for the dedicated API account (without `$`) | `••••••••` |
 | **Container Target IP** | Private IPv4 of this container for `to-addresses` (click **Auto-Detect** to fill automatically) | `172.16.10.2` |
-| **In-Interface List** | Incoming interface list, or blank for `dst-address-type=local` | `WAN` |
 
 1. Click **Test Connection** to verify RouterOS identity, version, and NAT read access.
 2. Turn on **Enable Managed RouterOS NAT** and click **Save**.

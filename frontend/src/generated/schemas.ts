@@ -170,10 +170,16 @@ export const SCHEMAS: Record<string, unknown> = {
       "restartXrayOnClientDisable": {
         "type": "boolean"
       },
+      "routerosContainerComment": {
+        "type": "string"
+      },
       "routerosNatEnable": {
         "type": "boolean"
       },
       "routerosNatHost": {
+        "type": "string"
+      },
+      "routerosNatInInterface": {
         "type": "string"
       },
       "routerosNatInInterfaceList": {
@@ -668,8 +674,10 @@ export const SCHEMAS: Record<string, unknown> = {
       "realityScanCandidates",
       "remarkTemplate",
       "restartXrayOnClientDisable",
+      "routerosContainerComment",
       "routerosNatEnable",
       "routerosNatHost",
+      "routerosNatInInterface",
       "routerosNatInInterfaceList",
       "routerosNatPassword",
       "routerosNatPort",
@@ -990,10 +998,16 @@ export const SCHEMAS: Record<string, unknown> = {
       "restartXrayOnClientDisable": {
         "type": "boolean"
       },
+      "routerosContainerComment": {
+        "type": "string"
+      },
       "routerosNatEnable": {
         "type": "boolean"
       },
       "routerosNatHost": {
+        "type": "string"
+      },
+      "routerosNatInInterface": {
         "type": "string"
       },
       "routerosNatInInterfaceList": {
@@ -1497,8 +1511,10 @@ export const SCHEMAS: Record<string, unknown> = {
       "realityScanCandidates",
       "remarkTemplate",
       "restartXrayOnClientDisable",
+      "routerosContainerComment",
       "routerosNatEnable",
       "routerosNatHost",
+      "routerosNatInInterface",
       "routerosNatInInterfaceList",
       "routerosNatPassword",
       "routerosNatPort",

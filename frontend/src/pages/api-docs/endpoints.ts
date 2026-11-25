@@ -2017,6 +2017,31 @@ export const sections: readonly Section[] = [
           '{\n  "success": true,\n  "msg": "RouterOS NAT rules synced",\n  "obj": {\n    "synced": 3,\n    "failed": 0\n  }\n}',
       },
       {
+        method: 'POST',
+        path: '/panel/api/setting/detectRouterosWanInterface',
+        summary:
+          'Auto-detect the active RouterOS default-route WAN interface name (e.g. ether1, pppoe-out1) using saved settings or optional form overrides.',
+        body: '{\n  "host": "172.16.10.1",\n  "port": 8728,\n  "username": "mikrozia-nat",\n  "password": "secret"\n}',
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "interface": "ether1",\n    "state": "ok"\n  }\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/setting/routerosNatRules',
+        summary:
+          'List live Mikrozia-owned RouterOS /ip/firewall/nat rules with disabled state and byte/packet counters.',
+        response:
+          '{\n  "success": true,\n  "obj": [\n    {\n      "id": "*1",\n      "inboundId": 1,\n      "protocol": "tcp",\n      "dstPort": "443",\n      "toAddress": "172.16.10.2",\n      "toPort": "443",\n      "dstAddressType": "local",\n      "disabled": false,\n      "bytes": 1048576,\n      "packets": 1200,\n      "comment": "mikrozia:managed:inbound:1:tcp"\n    }\n  ]\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/cleanupRouterosNat',
+        summary:
+          'Remove only Mikrozia-owned RouterOS /ip/firewall/nat rules whose inbound ID no longer exists in the local panel database.',
+        response:
+          '{\n  "success": true,\n  "msg": "Orphaned RouterOS NAT rules removed",\n  "obj": {\n    "removed": 2\n  }\n}',
+      },
+      {
         method: 'GET',
         path: '/panel/api/setting/detectContainerIp',
         summary:

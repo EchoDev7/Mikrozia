@@ -220,7 +220,9 @@ type AllSetting struct {
 	RouterosNatUsername        string `json:"routerosNatUsername" form:"routerosNatUsername"`
 	RouterosNatPassword        string `json:"routerosNatPassword" form:"routerosNatPassword"`
 	RouterosNatTargetIP        string `json:"routerosNatTargetIP" form:"routerosNatTargetIP"`
+	RouterosNatInInterface     string `json:"routerosNatInInterface" form:"routerosNatInInterface"`
 	RouterosNatInInterfaceList string `json:"routerosNatInInterfaceList" form:"routerosNatInInterfaceList"`
+	RouterosContainerComment   string `json:"routerosContainerComment" form:"routerosContainerComment"`
 }
 
 type AllSettingView struct {

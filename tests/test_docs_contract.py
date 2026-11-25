@@ -726,6 +726,7 @@ class DocsContractTests(unittest.TestCase):
             "docs/MIKROZIA_ROUTEROS_API_INTEGRATION.md",
             "docs/content/docs/fa/reference/ports-firewall.mdx",
             "docs/content/docs/en/operations/routeros-nat.mdx",
+            "docs/content/docs/en/reference/api/settings.mdx",
             "docs/content/docs/fa/operations/routeros-nat.mdx",
             "docs/content/docs/ru/operations/routeros-nat.mdx",
             "docs/content/docs/zh/operations/routeros-nat.mdx",

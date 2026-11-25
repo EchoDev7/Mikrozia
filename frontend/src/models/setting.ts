@@ -203,7 +203,9 @@ export class AllSetting {
   routerosNatUsername = '';
   routerosNatPassword = '';
   routerosNatTargetIP = '';
-  routerosNatInInterfaceList = 'WAN';
+  routerosNatInInterface = '';
+  routerosNatInInterfaceList = '';
+  routerosContainerComment = '';
   hasRouterosNatPassword = false;
   clearRouterosNatPassword = false;
 

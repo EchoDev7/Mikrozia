@@ -32,14 +32,37 @@ type NATRuleSpec struct {
 	DstPort         int
 	ToAddress       string
 	ToPort          int
+	InInterface     string
 	InInterfaceList string
 	Disabled        bool
 }
 
 type NATTestResult struct {
-	State        string `json:"state"`
-	ManagedRules int    `json:"managedRules"`
-	Detail       string `json:"detail,omitempty"`
+	State         string `json:"state"`
+	Identity      string `json:"identity,omitempty"`
+	Version       string `json:"version,omitempty"`
+	BoardName     string `json:"boardName,omitempty"`
+	FreeHddSpace  uint64 `json:"freeHddSpace,omitempty"`
+	TotalHddSpace uint64 `json:"totalHddSpace,omitempty"`
+	HasMasquerade bool   `json:"hasMasquerade"`
+	NatRules      int    `json:"natRules"`
+	ManagedRules  int    `json:"managedRules"`
+	Detail        string `json:"detail,omitempty"`
+}
+
+type ManagedNATRule struct {
+	ID             string `json:"id"`
+	InboundID      int    `json:"inboundId"`
+	Protocol       string `json:"protocol"`
+	DstPort        string `json:"dstPort"`
+	ToAddress      string `json:"toAddress"`
+	ToPort         string `json:"toPort"`
+	InInterface    string `json:"inInterface,omitempty"`
+	DstAddressType string `json:"dstAddressType,omitempty"`
+	Disabled       bool   `json:"disabled"`
+	Bytes          uint64 `json:"bytes"`
+	Packets        uint64 `json:"packets"`
+	Comment        string `json:"comment"`
 }
 
 type NATReconcileResult struct {
@@ -248,7 +271,7 @@ func (c Client) TestNATConnection(parent context.Context, cfg NATConnConfig) NAT
 	}
 	defer conn.Close()
 
-	if writeSentence(conn, []string{"/ip/firewall/nat/print", "=.proplist=.id,comment"}) != nil {
+	if writeSentence(conn, []string{"/ip/firewall/nat/print", "=.proplist=.id,chain,action,disabled,comment"}) != nil {
 		return NATTestResult{State: "unreachable"}
 	}
 	state, rows := readNATRecords(r)
@@ -256,12 +279,192 @@ func (c Client) TestNATConnection(parent context.Context, cfg NATConnConfig) NAT
 		return NATTestResult{State: state}
 	}
 	managed := 0
+	hasMasq := false
 	for _, row := range rows {
 		if strings.HasPrefix(row["comment"], ManagedNATCommentPrefix) {
 			managed++
 		}
+		rowDisabled := row["disabled"] == "true" || row["disabled"] == "yes"
+		if !rowDisabled && row["chain"] == "srcnat" && row["action"] == "masquerade" {
+			hasMasq = true
+		}
 	}
-	return NATTestResult{State: "connected", ManagedRules: managed}
+	res := NATTestResult{
+		State:         "connected",
+		HasMasquerade: hasMasq,
+		NatRules:      len(rows),
+		ManagedRules:  managed,
+	}
+	if writeSentence(conn, []string{"/system/identity/print", "=.proplist=name"}) == nil {
+		if st, idRows := readNATRecords(r); st == "ok" && len(idRows) > 0 {
+			res.Identity = strings.TrimSpace(idRows[0]["name"])
+		}
+	}
+	if writeSentence(conn, []string{"/system/resource/print", "=.proplist=version,board-name,free-hdd-space,total-hdd-space"}) == nil {
+		if st, resRows := readNATRecords(r); st == "ok" && len(resRows) > 0 {
+			res.Version = strings.TrimSpace(resRows[0]["version"])
+			res.BoardName = strings.TrimSpace(resRows[0]["board-name"])
+			if v, err := strconv.ParseUint(strings.TrimSpace(resRows[0]["free-hdd-space"]), 10, 64); err == nil {
+				res.FreeHddSpace = v
+			}
+			if v, err := strconv.ParseUint(strings.TrimSpace(resRows[0]["total-hdd-space"]), 10, 64); err == nil {
+				res.TotalHddSpace = v
+			}
+		}
+	}
+	return res
+}
+
+func parseManagedInboundID(comment string) (int, bool) {
+	if !strings.HasPrefix(comment, ManagedNATCommentPrefix) {
+		return 0, false
+	}
+	rest := strings.TrimPrefix(comment, ManagedNATCommentPrefix)
+	idx := strings.IndexByte(rest, ':')
+	if idx <= 0 {
+		return 0, false
+	}
+	id, err := strconv.Atoi(rest[:idx])
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+	return id, true
+}
+
+// ListManagedNATRules returns only Mikrozia-owned NAT rules from RouterOS with live byte/packet counters.
+func (c Client) ListManagedNATRules(parent context.Context, cfg NATConnConfig) ([]ManagedNATRule, string) {
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return nil, state
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{
+		"/ip/firewall/nat/print",
+		"=.proplist=.id,chain,action,protocol,dst-port,to-addresses,to-ports,in-interface,dst-address-type,disabled,bytes,packets,comment",
+	}) != nil {
+		return nil, "unreachable"
+	}
+	state, rows := readNATRecords(r)
+	if state != "ok" {
+		return nil, state
+	}
+	out := make([]ManagedNATRule, 0)
+	for _, row := range rows {
+		id, ok := parseManagedInboundID(row["comment"])
+		if !ok {
+			continue
+		}
+		bytesVal, _ := strconv.ParseUint(strings.TrimSpace(row["bytes"]), 10, 64)
+		pktsVal, _ := strconv.ParseUint(strings.TrimSpace(row["packets"]), 10, 64)
+		out = append(out, ManagedNATRule{
+			ID:             row[".id"],
+			InboundID:      id,
+			Protocol:       row["protocol"],
+			DstPort:        row["dst-port"],
+			ToAddress:      row["to-addresses"],
+			ToPort:         row["to-ports"],
+			InInterface:    row["in-interface"],
+			DstAddressType: row["dst-address-type"],
+			Disabled:       row["disabled"] == "true" || row["disabled"] == "yes",
+			Bytes:          bytesVal,
+			Packets:        pktsVal,
+			Comment:        row["comment"],
+		})
+	}
+	return out, "ok"
+}
+
+// CleanupOrphanedNAT removes only Mikrozia-owned NAT rules whose inbound ID is not present in validInboundIDs.
+func (c Client) CleanupOrphanedNAT(parent context.Context, cfg NATConnConfig, validInboundIDs map[int]bool) (int, string, string) {
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return 0, state, ""
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{"/ip/firewall/nat/print", "=.proplist=.id,comment"}) != nil {
+		return 0, "unreachable", ""
+	}
+	state, rows := readNATRecords(r)
+	if state != "ok" {
+		return 0, state, ""
+	}
+	removed := 0
+	for _, row := range rows {
+		inboundID, ok := parseManagedInboundID(row["comment"])
+		if !ok || validInboundIDs[inboundID] {
+			continue
+		}
+		if writeSentence(conn, []string{"/ip/firewall/nat/remove", "=.id=" + row[".id"]}) != nil {
+			return removed, "unreachable", ""
+		}
+		st, _, detail := readCommandResult(r)
+		if st != "ok" {
+			return removed, st, detail
+		}
+		removed++
+	}
+	return removed, "ok", ""
+}
+
+// ExtractWANInterfaceFromGateway parses RouterOS v7 immediate-gw or gateway
+// values such as "172.31.0.1%ether1" or "pppoe-out1" and returns a sanitized
+// interface name, or "" if no interface name can be extracted.
+func ExtractWANInterfaceFromGateway(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if idx := strings.IndexByte(raw, '%'); idx >= 0 && idx+1 < len(raw) {
+		cand := strings.TrimSpace(raw[idx+1:])
+		if clean, ok := sanitizeInterfaceList(cand); ok {
+			return clean
+		}
+		return ""
+	}
+	if _, err := netip.ParseAddr(raw); err == nil {
+		return ""
+	}
+	if clean, ok := sanitizeInterfaceList(raw); ok {
+		return clean
+	}
+	return ""
+}
+
+// DetectWANInterface queries active default IPv4 routes on RouterOS to infer
+// the outgoing WAN interface name (e.g. "ether1", "pppoe-out1", "lte1").
+func (c Client) DetectWANInterface(parent context.Context, cfg NATConnConfig) (string, string) {
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return "", state
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{
+		"/ip/route/print",
+		"?dst-address=0.0.0.0/0",
+		"=.proplist=active,immediate-gw,gateway",
+	}) != nil {
+		return "", "unreachable"
+	}
+	state, rows := readNATRecords(r)
+	if state != "ok" {
+		return "", state
+	}
+	for _, row := range rows {
+		active := row["active"] == "true" || row["active"] == "yes"
+		if !active {
+			continue
+		}
+		if iface := ExtractWANInterfaceFromGateway(row["immediate-gw"]); iface != "" {
+			return iface, "ok"
+		}
+		if iface := ExtractWANInterfaceFromGateway(row["gateway"]); iface != "" {
+			return iface, "ok"
+		}
+	}
+	return "", "not_found"
 }
 
 func validateNATSpec(spec NATRuleSpec) (NATRuleSpec, bool) {
@@ -276,12 +479,17 @@ func validateNATSpec(spec NATRuleSpec) (NATRuleSpec, bool) {
 	if !ok {
 		return NATRuleSpec{}, false
 	}
+	iface, ok := sanitizeInterfaceList(spec.InInterface)
+	if !ok {
+		return NATRuleSpec{}, false
+	}
 	ifaceList, ok := sanitizeInterfaceList(spec.InInterfaceList)
 	if !ok {
 		return NATRuleSpec{}, false
 	}
 	spec.Protocol = proto
 	spec.ToAddress = targetIP
+	spec.InInterface = iface
 	spec.InInterfaceList = ifaceList
 	return spec, true
 }
@@ -301,10 +509,13 @@ func rowMatchesSpec(row map[string]string, spec NATRuleSpec) bool {
 		rowDisabled != wantDisabledBool {
 		return false
 	}
+	if spec.InInterface != "" {
+		return row["in-interface"] == spec.InInterface
+	}
 	if spec.InInterfaceList != "" {
 		return row["in-interface-list"] == spec.InInterfaceList
 	}
-	return row["dst-address-type"] == "local"
+	return row["dst-address-type"] == "local" && row["in-interface"] == ""
 }
 
 // ReconcileInboundNAT reconciles only Mikrozia-owned NAT rules for inboundID.
@@ -331,7 +542,7 @@ func (c Client) ReconcileInboundNAT(parent context.Context, cfg NATConnConfig, i
 
 	if writeSentence(conn, []string{
 		"/ip/firewall/nat/print",
-		"=.proplist=.id,chain,action,protocol,dst-port,to-addresses,to-ports,in-interface-list,dst-address-type,disabled,comment",
+		"=.proplist=.id,chain,action,protocol,dst-port,to-addresses,to-ports,in-interface,in-interface-list,dst-address-type,disabled,comment",
 	}) != nil {
 		return NATReconcileResult{State: "unreachable"}
 	}
@@ -404,10 +615,12 @@ func (c Client) ReconcileInboundNAT(parent context.Context, cfg NATConnConfig, i
 				"=disabled=" + disabledStr,
 				"=comment=" + comment,
 			}
-			if sp.InInterfaceList != "" {
-				words = append(words, "=in-interface-list="+sp.InInterfaceList)
+			if sp.InInterface != "" {
+				words = append(words, "=in-interface="+sp.InInterface, "=!in-interface-list", "=!dst-address-type")
+			} else if sp.InInterfaceList != "" {
+				words = append(words, "=in-interface-list="+sp.InInterfaceList, "=!in-interface", "=!dst-address-type")
 			} else {
-				words = append(words, "=dst-address-type=local")
+				words = append(words, "=dst-address-type=local", "=!in-interface", "=!in-interface-list")
 			}
 			if writeSentence(conn, words) != nil {
 				rb := rollback()
@@ -433,7 +646,9 @@ func (c Client) ReconcileInboundNAT(parent context.Context, cfg NATConnConfig, i
 			"=disabled=" + disabledStr,
 			"=comment=" + comment,
 		}
-		if sp.InInterfaceList != "" {
+		if sp.InInterface != "" {
+			words = append(words, "=in-interface="+sp.InInterface)
+		} else if sp.InInterfaceList != "" {
 			words = append(words, "=in-interface-list="+sp.InInterfaceList)
 		} else {
 			words = append(words, "=dst-address-type=local")

@@ -191,7 +191,9 @@ export const AllSettingSchema = z
     routerosNatUsername: z.string().optional(),
     routerosNatPassword: z.string().optional(),
     routerosNatTargetIP: z.string().optional(),
+    routerosNatInInterface: z.string().optional(),
     routerosNatInInterfaceList: z.string().optional(),
+    routerosContainerComment: z.string().optional(),
   })
   .loose();
 

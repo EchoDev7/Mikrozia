@@ -268,7 +268,9 @@ var defaultValueMap = map[string]string{
 	"routerosNatUsername":        "",
 	"routerosNatPassword":        "",
 	"routerosNatTargetIP":        "",
-	"routerosNatInInterfaceList": "WAN",
+	"routerosNatInInterface":     "",
+	"routerosNatInInterfaceList": "",
+	"routerosContainerComment":   "",
 }
 
 // SettingService provides business logic for application settings management.

@@ -2,10 +2,27 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/database"
 	"github.com/echodev7/mikrozia/v3/internal/routeros"
 )
+
+func resolveRouterOSContainerComment() string {
+	if c := config.RouterOSContainerComment(); c != "" {
+		return c
+	}
+	if database.GetDB() == nil {
+		return ""
+	}
+	var settingService SettingService
+	allSetting, err := settingService.GetAllSetting()
+	if err != nil || allSetting == nil {
+		return ""
+	}
+	return strings.TrimSpace(allSetting.RouterosContainerComment)
+}
 
 type RouterOSContainerService struct {
 	lookup   func(context.Context, string, string, string, string) routeros.ContainerSnapshot
@@ -14,11 +31,11 @@ type RouterOSContainerService struct {
 }
 
 func (s *RouterOSContainerService) Status(ctx context.Context) routeros.ContainerSnapshot {
-	cfg := config.GetRouterOSAPIConfig()
+	cfg := resolveRouterOSAPIConfig()
 	if cfg.State != "connecting" {
 		return routeros.ContainerSnapshot{State: cfg.State}
 	}
-	comment := config.RouterOSContainerComment()
+	comment := resolveRouterOSContainerComment()
 	if comment == "" {
 		return routeros.ContainerSnapshot{State: "not_configured"}
 	}
@@ -43,7 +60,7 @@ func (s *RouterOSContainerService) Restart(ctx context.Context) routeros.Contain
 	if !snap.RestartAvailable {
 		return routeros.ContainerRestartResult{State: "not_running"}
 	}
-	cfg := config.GetRouterOSAPIConfig()
+	cfg := resolveRouterOSAPIConfig()
 	if cfg.State != "connecting" {
 		return routeros.ContainerRestartResult{State: cfg.State}
 	}
@@ -51,7 +68,7 @@ func (s *RouterOSContainerService) Restart(ctx context.Context) routeros.Contain
 	if restart == nil {
 		restart = (routeros.Client{}).RestartContainer
 	}
-	return restart(ctx, cfg.Host, operational.Username, operational.Password, config.RouterOSContainerComment(), snap.ID, snap.Name)
+	return restart(ctx, cfg.Host, operational.Username, operational.Password, resolveRouterOSContainerComment(), snap.ID, snap.Name)
 }
 
 func (s *RouterOSContainerService) Logs(ctx context.Context, limit int) routeros.ContainerLogsSnapshot {
@@ -66,7 +83,7 @@ func (s *RouterOSContainerService) Logs(ctx context.Context, limit int) routeros
 	if !snap.Logging {
 		return routeros.ContainerLogsSnapshot{State: "logging_disabled", Entries: empty}
 	}
-	cfg := config.GetRouterOSAPIConfig()
+	cfg := resolveRouterOSAPIConfig()
 	if cfg.State != "connecting" {
 		return routeros.ContainerLogsSnapshot{State: cfg.State, Entries: empty}
 	}

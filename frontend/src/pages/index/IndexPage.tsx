@@ -40,6 +40,7 @@ import OverviewActionBar from './OverviewActionBar';
 import VitalTile from './VitalTile';
 import ClientsSummaryTile from './ClientsSummaryTile';
 import TopInboundsTile from './TopInboundsTile';
+import SslCertTile from './SslCertTile';
 import ThroughputCard from './ThroughputCard';
 import ConnectionsCard from './ConnectionsCard';
 import SystemStrip from './SystemStrip';
@@ -456,6 +457,7 @@ export default function IndexPage() {
                       data={history.series.diskUsage}
                       isMobile={isMobile}
                     />
+                    <SslCertTile tlsCert={status.tlsCert} />
                   </div>
 
                   <div className="ov-mid">

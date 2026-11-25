@@ -130,6 +130,16 @@ type Status struct {
 		Mem     uint64 `json:"mem"`
 		Uptime  uint64 `json:"uptime"`
 	} `json:"appStats"`
+	TlsCert *TlsCertInfo `json:"tlsCert,omitempty"`
+}
+
+// TlsCertInfo summarizes the active panel TLS certificate for the Overview card.
+type TlsCertInfo struct {
+	Configured bool   `json:"configured"`
+	Subject    string `json:"subject,omitempty"`
+	NotAfter   int64  `json:"notAfter,omitempty"`
+	DaysLeft   int    `json:"daysLeft,omitempty"`
+	Expired    bool   `json:"expired,omitempty"`
 }
 
 // ServerService provides business logic for server monitoring and management.
@@ -158,6 +168,11 @@ type ServerService struct {
 	lastStatusMu sync.RWMutex
 	lastStatus   *Status
 	coldStatusMu sync.Mutex
+
+	tlsCertMu       sync.Mutex
+	tlsCertCached   *TlsCertInfo
+	tlsCertPath     string
+	tlsCertCachedAt time.Time
 }
 
 // allowedHistoryBuckets is the bucket-second whitelist for time-series
@@ -226,16 +241,18 @@ func (s *ServerService) reconcileStatusXray(status *Status) *Status {
 	return &live
 }
 
-// CurrentStatus never reports "no status yet": the @2s ticker leaves LastStatus
-// nil for the first seconds after a restart, and a master probing a node then
-// reads the empty snapshot as an offline panel.
+const maxCachedStatusAge = 5 * time.Second
+
+// CurrentStatus never reports "no status yet" or a permanently frozen snapshot:
+// if the @2s ticker has not populated LastStatus yet or stalled beyond
+// maxCachedStatusAge, collect a fresh snapshot on demand.
 func (s *ServerService) CurrentStatus() *Status {
-	if status := s.LastStatus(); status != nil {
+	if status := s.LastStatus(); status != nil && time.Since(status.T) <= maxCachedStatusAge {
 		return s.reconcileStatusXray(status)
 	}
 	s.coldStatusMu.Lock()
 	defer s.coldStatusMu.Unlock()
-	if status := s.LastStatus(); status != nil {
+	if status := s.LastStatus(); status != nil && time.Since(status.T) <= maxCachedStatusAge {
 		return s.reconcileStatusXray(status)
 	}
 	return s.RefreshStatus()
@@ -673,7 +690,75 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 		status.AppStats.Uptime = 0
 	}
 
+	status.TlsCert = s.readPanelTLSCertInfo(now)
+
 	return status
+}
+
+func (s *ServerService) readPanelTLSCertInfo(now time.Time) *TlsCertInfo {
+	if database.GetDB() == nil {
+		return &TlsCertInfo{Configured: false}
+	}
+	certPath, err := s.settingService.GetCertFile()
+	if err != nil {
+		return &TlsCertInfo{Configured: false}
+	}
+	certPath = strings.TrimSpace(certPath)
+	if certPath == "" {
+		return &TlsCertInfo{Configured: false}
+	}
+
+	s.tlsCertMu.Lock()
+	defer s.tlsCertMu.Unlock()
+	if s.tlsCertCached != nil && s.tlsCertPath == certPath && now.Sub(s.tlsCertCachedAt) < time.Minute {
+		cp := *s.tlsCertCached
+		return &cp
+	}
+
+	raw, readErr := os.ReadFile(certPath)
+	if readErr != nil {
+		info := &TlsCertInfo{Configured: false}
+		s.tlsCertCached, s.tlsCertPath, s.tlsCertCachedAt = info, certPath, now
+		return &TlsCertInfo{Configured: false}
+	}
+
+	var leaf *x509.Certificate
+	for len(raw) > 0 {
+		var block *pem.Block
+		block, raw = pem.Decode(raw)
+		if block == nil {
+			break
+		}
+		if block.Type == "CERTIFICATE" {
+			parsed, parseErr := x509.ParseCertificate(block.Bytes)
+			if parseErr == nil {
+				leaf = parsed
+				break
+			}
+		}
+	}
+	if leaf == nil {
+		info := &TlsCertInfo{Configured: false}
+		s.tlsCertCached, s.tlsCertPath, s.tlsCertCachedAt = info, certPath, now
+		return &TlsCertInfo{Configured: false}
+	}
+
+	subject := strings.TrimSpace(leaf.Subject.CommonName)
+	if len(leaf.DNSNames) > 0 && strings.TrimSpace(leaf.DNSNames[0]) != "" {
+		subject = strings.TrimSpace(leaf.DNSNames[0])
+	}
+	hoursLeft := leaf.NotAfter.Sub(now).Hours()
+	daysLeft := int(math.Floor(hoursLeft / 24))
+	info := &TlsCertInfo{
+		Configured: true,
+		Subject:    subject,
+		NotAfter:   leaf.NotAfter.Unix(),
+		DaysLeft:   daysLeft,
+		Expired:    now.After(leaf.NotAfter),
+	}
+	s.tlsCertCached, s.tlsCertPath, s.tlsCertCachedAt = info, certPath, now
+	cp := *info
+	return &cp
 }
 
 // AppendCpuSample is preserved for callers that only have the CPU number.

@@ -36,6 +36,14 @@ export const XrayInfoSchema = z
   })
   .partial();
 
+export const TlsCertInfoSchema = z.object({
+  configured: z.boolean(),
+  subject: z.string().optional(),
+  notAfter: z.number().optional(),
+  daysLeft: z.number().optional(),
+  expired: z.boolean().optional(),
+});
+
 export const StatusSchema = z.object({
   resourceScope: z.string().optional(),
   unavailableMetrics: z.array(z.string()).optional(),
@@ -57,6 +65,7 @@ export const StatusSchema = z.object({
   appUptime: z.number().optional(),
   appStats: AppStatsSchema.optional(),
   xray: XrayInfoSchema.optional(),
+  tlsCert: TlsCertInfoSchema.nullable().optional(),
 });
 
 export type StatusInput = z.infer<typeof StatusSchema>;

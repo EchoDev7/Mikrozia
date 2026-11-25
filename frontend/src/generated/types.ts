@@ -59,8 +59,10 @@ export interface AllSetting {
   realityScanCandidates: string;
   remarkTemplate: string;
   restartXrayOnClientDisable: boolean;
+  routerosContainerComment: string;
   routerosNatEnable: boolean;
   routerosNatHost: string;
+  routerosNatInInterface: string;
   routerosNatInInterfaceList: string;
   routerosNatPassword: string;
   routerosNatPort: number;
@@ -257,8 +259,10 @@ export interface AllSettingView {
   realityScanCandidates: string;
   remarkTemplate: string;
   restartXrayOnClientDisable: boolean;
+  routerosContainerComment: string;
   routerosNatEnable: boolean;
   routerosNatHost: string;
+  routerosNatInInterface: string;
   routerosNatInInterfaceList: string;
   routerosNatPassword: string;
   routerosNatPort: number;

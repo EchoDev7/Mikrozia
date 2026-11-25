@@ -162,3 +162,33 @@ func TestReconcileInboundNAT_RollsBackOnPartialFailure(t *testing.T) {
 		t.Fatalf("expected rollback to remove first rule, left with %+v", srv.rules)
 	}
 }
+
+func TestExtractWANInterfaceFromGateway(t *testing.T) {
+	cases := map[string]string{
+		"172.31.0.1%ether1":  "ether1",
+		"10.0.0.1%vlan-100":  "vlan-100",
+		"pppoe-out1":         "pppoe-out1",
+		"lte1":               "lte1",
+		"172.31.0.1":         "",
+		"":                   "",
+		"bad;rm -rf /":       "",
+		"172.31.0.1%bad;cmd": "",
+	}
+	for in, want := range cases {
+		if got := ExtractWANInterfaceFromGateway(in); got != want {
+			t.Errorf("ExtractWANInterfaceFromGateway(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestParseManagedInboundID(t *testing.T) {
+	if id, ok := parseManagedInboundID("mikrozia:managed:inbound:42:tcp"); !ok || id != 42 {
+		t.Fatalf("got (%d, %v), want (42, true)", id, ok)
+	}
+	if _, ok := parseManagedInboundID("manual rule"); ok {
+		t.Fatal("manual rule should not parse as managed inbound")
+	}
+	if _, ok := parseManagedInboundID("mikrozia:managed:inbound:0:udp"); ok {
+		t.Fatal("inbound id 0 should be rejected")
+	}
+}

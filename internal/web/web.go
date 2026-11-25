@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -59,6 +60,13 @@ var distFS embed.FS
 
 var startTime = time.Now()
 
+func init() {
+	// Alpine Linux images omit /etc/mime.types; register font MIME types so
+	// http.FileServer serves embedded woff/woff2 assets without content sniffing.
+	_ = mime.AddExtensionType(".woff", "font/woff")
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+}
+
 // cronPanicLogger adapts the package logger to cron's Printf-style logger so a
 // panicking scheduled job is recovered and logged instead of crashing the panel.
 type cronPanicLogger struct{}
@@ -85,6 +93,14 @@ func (f *wrapDistFS) Open(name string) (fs.File, error) {
 
 type wrapAssetsFile struct {
 	fs.File
+}
+
+func (f *wrapAssetsFile) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := f.File.(io.Seeker)
+	if !ok {
+		return 0, errors.New("seek not supported")
+	}
+	return seeker.Seek(offset, whence)
 }
 
 func (f *wrapAssetsFile) Stat() (fs.FileInfo, error) {

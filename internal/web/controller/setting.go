@@ -97,6 +97,9 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g.POST("/testDiscord", a.testDiscord)
 	g.POST("/testRouterosNat", a.testRouterosNat)
 	g.POST("/syncRouterosNat", a.syncRouterosNat)
+	g.POST("/detectRouterosWanInterface", a.detectRouterosWanInterface)
+	g.GET("/routerosNatRules", a.listRouterosNatRules)
+	g.POST("/cleanupRouterosNat", a.cleanupRouterosNat)
 	g.GET("/detectContainerIp", a.detectContainerIp)
 }
 
@@ -523,4 +526,52 @@ func (a *SettingController) syncRouterosNat(c *gin.Context) {
 
 func (a *SettingController) detectContainerIp(c *gin.Context) {
 	jsonObj(c, gin.H{"ip": service.DetectContainerIPv4()}, nil)
+}
+
+func (a *SettingController) detectRouterosWanInterface(c *gin.Context) {
+	form := &testRouterosNatForm{}
+	_ = c.ShouldBind(form)
+	var override *routeros.NATConnConfig
+	if strings.TrimSpace(form.Host) != "" || form.Port > 0 || strings.TrimSpace(form.Username) != "" || form.Password != "" {
+		override = &routeros.NATConnConfig{
+			Host:     form.Host,
+			Port:     form.Port,
+			Username: form.Username,
+			Password: form.Password,
+		}
+	}
+	iface, state, err := a.routerOSNATService.DetectWANInterface(c.Request.Context(), override)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	if state != "ok" || iface == "" {
+		jsonMsgObj(c, state, gin.H{"interface": "", "state": state}, errors.New(state))
+		return
+	}
+	jsonObj(c, gin.H{"interface": iface, "state": "ok"}, nil)
+}
+
+func (a *SettingController) listRouterosNatRules(c *gin.Context) {
+	rules, err := a.routerOSNATService.ListManagedRules(c.Request.Context())
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonObj(c, rules, nil)
+}
+
+func (a *SettingController) cleanupRouterosNat(c *gin.Context) {
+	user := session.GetLoginUser(c)
+	inbounds, err := a.inboundService.GetInbounds(user.Id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	removed, err := a.routerOSNATService.CleanupOrphanedRules(c.Request.Context(), inbounds)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosNatCleanupSuccess"), gin.H{"removed": removed}, nil)
 }

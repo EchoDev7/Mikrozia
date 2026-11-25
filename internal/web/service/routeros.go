@@ -3,15 +3,17 @@ package service
 import (
 	"context"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/echodev7/mikrozia/v3/internal/config"
+	"github.com/echodev7/mikrozia/v3/internal/database"
 	"github.com/echodev7/mikrozia/v3/internal/routeros"
 )
 
 const (
-	routerOSProbeInterval  = 15 * time.Second
+	routerOSProbeInterval  = 2 * time.Second
 	routerOSStaleThreshold = 30 * time.Second
 	routerOSHistoryMax     = 60
 	routerOSHistoryWindow  = 15 * time.Minute
@@ -127,12 +129,51 @@ func (s *RouterOSAPIService) pruneAndSummarizeMemLocked(now time.Time) (*float64
 	return &avg, &peakRounded, history
 }
 
+// resolveRouterOSAPIConfig prefers the container environment configuration
+// and falls back to the unified Panel Settings RouterOS API credentials when
+// environment variables are unset, so operators can manage telemetry,
+// container reads, and NAT with one dedicated RouterOS API account.
+func resolveRouterOSAPIConfig() config.RouterOSAPIConfig {
+	cfg := config.GetRouterOSAPIConfig()
+	if cfg.State != "not_configured" {
+		return cfg
+	}
+	if database.GetDB() == nil {
+		return cfg
+	}
+	var settingService SettingService
+	allSetting, err := settingService.GetAllSetting()
+	if err != nil || allSetting == nil {
+		return cfg
+	}
+	host := strings.TrimSpace(allSetting.RouterosNatHost)
+	user := strings.TrimSpace(allSetting.RouterosNatUsername)
+	pass := allSetting.RouterosNatPassword
+	if host == "" && user == "" && pass == "" {
+		return cfg
+	}
+	validHost, ok := routeros.ValidatePrivateHost(host)
+	if !ok || user == "" || pass == "" {
+		return config.RouterOSAPIConfig{State: "invalid_configuration"}
+	}
+	return config.RouterOSAPIConfig{
+		State:    "connecting",
+		Host:     validHost,
+		Username: user,
+		Password: pass,
+	}
+}
+
+func (s *RouterOSAPIService) effectiveRouterOSAPIConfig() config.RouterOSAPIConfig {
+	return resolveRouterOSAPIConfig()
+}
+
 // Status coalesces all viewers into at most one four-second probe per fifteen seconds.
 func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.currentTime()
-	cfg := config.GetRouterOSAPIConfig()
+	cfg := s.effectiveRouterOSAPIConfig()
 	if cfg.State != "connecting" {
 		s.samples = nil
 		s.memSamples = nil
@@ -155,7 +196,7 @@ func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			doneAt := s.currentTime()
-			currentCfg := config.GetRouterOSAPIConfig()
+			currentCfg := s.effectiveRouterOSAPIConfig()
 			if currentCfg.State != "connecting" {
 				s.samples = nil
 				s.memSamples = nil

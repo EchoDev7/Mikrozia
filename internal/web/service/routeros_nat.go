@@ -164,6 +164,55 @@ func (s *RouterOSNATService) TestConnection(ctx context.Context, override *route
 	return s.client.TestNATConnection(ctx, cfg), nil
 }
 
+// DetectWANInterface detects the active default-route interface name on RouterOS.
+func (s *RouterOSNATService) DetectWANInterface(ctx context.Context, override *routeros.NATConnConfig) (string, string, error) {
+	_, cfg, _, err := s.loadEffectiveConfig(override)
+	if err != nil {
+		return "", "invalid_configuration", err
+	}
+	iface, state := s.client.DetectWANInterface(ctx, cfg)
+	return iface, state, nil
+}
+
+// ListManagedRules returns live Mikrozia-owned NAT rules from RouterOS.
+func (s *RouterOSNATService) ListManagedRules(ctx context.Context) ([]routeros.ManagedNATRule, error) {
+	_, cfg, _, err := s.loadEffectiveConfig(nil)
+	if err != nil {
+		return nil, err
+	}
+	rules, state := s.client.ListManagedNATRules(ctx, cfg)
+	if state != "ok" {
+		return nil, fmt.Errorf("failed to read RouterOS NAT rules (%s)", state)
+	}
+	return rules, nil
+}
+
+// CleanupOrphanedRules removes only Mikrozia-owned NAT rules whose inbound no longer exists locally.
+func (s *RouterOSNATService) CleanupOrphanedRules(ctx context.Context, inbounds []*model.Inbound) (int, error) {
+	allSetting, cfg, _, err := s.loadEffectiveConfig(nil)
+	if err != nil {
+		return 0, err
+	}
+	if !allSetting.RouterosNatEnable {
+		return 0, fmt.Errorf("RouterOS Managed NAT is disabled")
+	}
+	valid := make(map[int]bool, len(inbounds))
+	for _, ib := range inbounds {
+		if ib == nil || (ib.NodeID != nil && *ib.NodeID > 0) {
+			continue
+		}
+		valid[ib.Id] = true
+	}
+	removed, state, detail := s.client.CleanupOrphanedNAT(ctx, cfg, valid)
+	if state != "ok" {
+		if detail != "" {
+			return removed, fmt.Errorf("RouterOS NAT cleanup failed (%s): %s", state, detail)
+		}
+		return removed, fmt.Errorf("RouterOS NAT cleanup failed (%s)", state)
+	}
+	return removed, nil
+}
+
 // SyncInbound reconciles the RouterOS NAT rule(s) owned by one inbound when Managed NAT is enabled.
 func (s *RouterOSNATService) SyncInbound(ctx context.Context, inbound *model.Inbound) error {
 	if inbound == nil || inbound.Id <= 0 {
@@ -197,7 +246,8 @@ func (s *RouterOSNATService) SyncInbound(ctx context.Context, inbound *model.Inb
 			DstPort:         inbound.Port,
 			ToAddress:       targetIP,
 			ToPort:          inbound.Port,
-			InInterfaceList: strings.TrimSpace(allSetting.RouterosNatInInterfaceList),
+			InInterface:     strings.TrimSpace(allSetting.RouterosNatInInterface),
+			InInterfaceList: "",
 			Disabled:        !inbound.Enable,
 		})
 	}

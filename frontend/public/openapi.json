@@ -196,10 +196,16 @@
           "restartXrayOnClientDisable": {
             "type": "boolean"
           },
+          "routerosContainerComment": {
+            "type": "string"
+          },
           "routerosNatEnable": {
             "type": "boolean"
           },
           "routerosNatHost": {
+            "type": "string"
+          },
+          "routerosNatInInterface": {
             "type": "string"
           },
           "routerosNatInInterfaceList": {
@@ -694,8 +700,10 @@
           "realityScanCandidates",
           "remarkTemplate",
           "restartXrayOnClientDisable",
+          "routerosContainerComment",
           "routerosNatEnable",
           "routerosNatHost",
+          "routerosNatInInterface",
           "routerosNatInInterfaceList",
           "routerosNatPassword",
           "routerosNatPort",
@@ -1016,10 +1024,16 @@
           "restartXrayOnClientDisable": {
             "type": "boolean"
           },
+          "routerosContainerComment": {
+            "type": "string"
+          },
           "routerosNatEnable": {
             "type": "boolean"
           },
           "routerosNatHost": {
+            "type": "string"
+          },
+          "routerosNatInInterface": {
             "type": "string"
           },
           "routerosNatInInterfaceList": {
@@ -1523,8 +1537,10 @@
           "realityScanCandidates",
           "remarkTemplate",
           "restartXrayOnClientDisable",
+          "routerosContainerComment",
           "routerosNatEnable",
           "routerosNatHost",
+          "routerosNatInInterface",
           "routerosNatInInterfaceList",
           "routerosNatPassword",
           "routerosNatPort",
@@ -13929,6 +13945,144 @@
                   "obj": {
                     "synced": 3,
                     "failed": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/detectRouterosWanInterface": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Auto-detect the active RouterOS default-route WAN interface name (e.g. ether1, pppoe-out1) using saved settings or optional form overrides.",
+        "operationId": "post_panel_api_setting_detectRouterosWanInterface",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "host": "172.16.10.1",
+                "port": 8728,
+                "username": "mikrozia-nat",
+                "password": "secret"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "interface": "ether1",
+                    "state": "ok"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/routerosNatRules": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "List live Mikrozia-owned RouterOS /ip/firewall/nat rules with disabled state and byte/packet counters.",
+        "operationId": "get_panel_api_setting_routerosNatRules",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": [
+                    {
+                      "id": "*1",
+                      "inboundId": 1,
+                      "protocol": "tcp",
+                      "dstPort": "443",
+                      "toAddress": "172.16.10.2",
+                      "toPort": "443",
+                      "dstAddressType": "local",
+                      "disabled": false,
+                      "bytes": 1048576,
+                      "packets": 1200,
+                      "comment": "mikrozia:managed:inbound:1:tcp"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/cleanupRouterosNat": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Remove only Mikrozia-owned RouterOS /ip/firewall/nat rules whose inbound ID no longer exists in the local panel database.",
+        "operationId": "post_panel_api_setting_cleanupRouterosNat",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "Orphaned RouterOS NAT rules removed",
+                  "obj": {
+                    "removed": 2
                   }
                 }
               }

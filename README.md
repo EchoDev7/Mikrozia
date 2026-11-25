@@ -38,7 +38,7 @@ Mikrozia هیچ Rule مربوط به Firewall، NAT، Port Forward، Masquerade 
 ## نسخه فعلی
 
 ```text
-echodev7/mikrozia:v1.0.8-mikrozia
+echodev7/mikrozia:v1.0.9-mikrozia
 ```
 
 معماری‌های انتشار:
@@ -118,7 +118,7 @@ Mountهای پایدار و متغیرهای محیطی:
 
 ```routeros
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v1.0.8-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.8-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1.0.9-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.9-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 Monitor استخراج:
@@ -198,8 +198,8 @@ v<major>-mikrozia
 نمونه:
 
 ```bash
-git tag v1.0.8-mikrozia
-git push origin v1.0.8-mikrozia
+git tag v1.0.9-mikrozia
+git push origin v1.0.9-mikrozia
 ```
 
 Workflow تست‌ها و Smoke Test را برای **هر سه معماری منتشرشده** اجرا می‌کند و سپس Imageهای `amd64`، `arm64` و `arm/v7` را همراه SBOM، provenance و Digest در `echodev7/mikrozia` منتشر می‌کند. انتشار فقط از روی Tag نسخه‌دار یا Dispatch صریح همان نسخه انجام می‌شود؛ Push روی `main` یا Pull Request هیچ Image‌ای منتشر نمی‌کند.

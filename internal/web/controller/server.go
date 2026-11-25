@@ -98,7 +98,7 @@ func (a *ServerController) startTask() {
 		if status == nil {
 			return
 		}
-		a.xrayMetricsService.Sample(time.Now())
+		go a.xrayMetricsService.Sample(time.Now())
 		websocket.BroadcastStatus(status)
 	})
 	_, _ = c.AddFunc("@every 1m", func() {

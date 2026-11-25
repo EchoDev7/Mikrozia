@@ -9,7 +9,7 @@ Mikrozia 将 Mikrozia 与 Xray 打包为 **MikroTik RouterOS 容器** 产品。�
 ## 当前版本
 
 ```text
-echodev7/mikrozia:v1.0.8-mikrozia
+echodev7/mikrozia:v1.0.9-mikrozia
 ```
 
 生产环境请使用带版本号的标签，而不是 `latest`。
@@ -24,7 +24,7 @@ echodev7/mikrozia:v1.0.8-mikrozia
 ## 安装
 
 请在 RouterOS Terminal 或 WinBox 中按顺序执行以下命令。生产镜像是版本化标签
-`echodev7/mikrozia:v1.0.8-mikrozia`。
+`echodev7/mikrozia:v1.0.9-mikrozia`。
 
 > 这些说明遵循当前 RouterOS `7.25` 容器契约。P1-CHR-01 的干净 CHR 验收尚未
 > 完成；请先在一次性 CHR 上验证完整流程，再用于生产。本文不声称已完成真实
@@ -47,7 +47,7 @@ echodev7/mikrozia:v1.0.8-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v1.0.8-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.8-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v1.0.9-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.9-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **敏感值提示：** RouterOS Container Environment 是配置存储，而不是密钥存储。

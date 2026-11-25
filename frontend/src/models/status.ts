@@ -68,6 +68,14 @@ export interface AmneziaWGInfo {
   running: boolean;
 }
 
+export interface TlsCertInfo {
+  configured: boolean;
+  subject?: string;
+  notAfter?: number;
+  daysLeft?: number;
+  expired?: boolean;
+}
+
 interface StatusInput extends Pick<ParsedStatusInput, 'resourceScope' | 'unavailableMetrics'> {
   cpu?: number;
   cpuCores?: number;
@@ -88,6 +96,7 @@ interface StatusInput extends Pick<ParsedStatusInput, 'resourceScope' | 'unavail
   appStats?: AppStats;
   xray?: Partial<XrayInfo>;
   amneziawg?: Partial<AmneziaWGInfo>;
+  tlsCert?: TlsCertInfo | null;
 }
 
 export class Status {
@@ -117,6 +126,7 @@ export class Status {
   appStats: AppStats = { threads: 0, mem: 0, uptime: 0 };
   xray: XrayInfo = { state: 'stop', errorMsg: '', version: '', color: '' };
   amneziawg: AmneziaWGInfo = { configured: false, running: false };
+  tlsCert: TlsCertInfo | null = null;
 
   constructor(data?: StatusInput | null) {
     if (data == null) return;
@@ -143,5 +153,6 @@ export class Status {
     this.xray = { ...this.xray, ...(data.xray || {}) };
     this.xray.color = XRAY_STATE_COLORS[this.xray.state] ?? 'gray';
     this.amneziawg = { ...this.amneziawg, ...(data.amneziawg || {}) };
+    this.tlsCert = data.tlsCert ?? null;
   }
 }

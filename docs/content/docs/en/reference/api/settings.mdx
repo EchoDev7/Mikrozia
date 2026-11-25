@@ -73,6 +73,18 @@ _openapi:
         inbounds when Managed RouterOS NAT is enabled.
       url: '#reconcile-mikrozia-owned-routeros-ipfirewallnat-rules-for-all-local-inbounds-when-managed-routeros-nat-is-enabled'
     - depth: 2
+      title: Auto-detect the active RouterOS default-route WAN interface name (e.g.
+        ether1, pppoe-out1) using saved settings or optional form overrides.
+      url: '#auto-detect-the-active-routeros-default-route-wan-interface-name-eg-ether1-pppoe-out1-using-saved-settings-or-optional-form-overrides'
+    - depth: 2
+      title: List live Mikrozia-owned RouterOS /ip/firewall/nat rules with disabled
+        state and byte/packet counters.
+      url: '#list-live-mikrozia-owned-routeros-ipfirewallnat-rules-with-disabled-state-and-bytepacket-counters'
+    - depth: 2
+      title: Remove only Mikrozia-owned RouterOS /ip/firewall/nat rules whose inbound
+        ID no longer exists in the local panel database.
+      url: '#remove-only-mikrozia-owned-routeros-ipfirewallnat-rules-whose-inbound-id-no-longer-exists-in-the-local-panel-database'
+    - depth: 2
       title: Detect the container private IPv4 address used as the default dst-nat
         to-addresses target.
       url: '#detect-the-container-private-ipv4-address-used-as-the-default-dst-nat-to-addresses-target'
@@ -133,6 +145,15 @@ _openapi:
       - content: Reconcile Mikrozia-owned RouterOS /ip/firewall/nat rules for all local
           inbounds when Managed RouterOS NAT is enabled.
         id: reconcile-mikrozia-owned-routeros-ipfirewallnat-rules-for-all-local-inbounds-when-managed-routeros-nat-is-enabled
+      - content: Auto-detect the active RouterOS default-route WAN interface name (e.g.
+          ether1, pppoe-out1) using saved settings or optional form overrides.
+        id: auto-detect-the-active-routeros-default-route-wan-interface-name-eg-ether1-pppoe-out1-using-saved-settings-or-optional-form-overrides
+      - content: List live Mikrozia-owned RouterOS /ip/firewall/nat rules with disabled
+          state and byte/packet counters.
+        id: list-live-mikrozia-owned-routeros-ipfirewallnat-rules-with-disabled-state-and-bytepacket-counters
+      - content: Remove only Mikrozia-owned RouterOS /ip/firewall/nat rules whose
+          inbound ID no longer exists in the local panel database.
+        id: remove-only-mikrozia-owned-routeros-ipfirewallnat-rules-whose-inbound-id-no-longer-exists-in-the-local-panel-database
       - content: Detect the container private IPv4 address used as the default dst-nat
           to-addresses target.
         id: detect-the-container-private-ipv4-address-used-as-the-default-dst-nat-to-addresses-target
@@ -149,7 +170,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/panel/api/setting/all","method":"post"},{"path":"/panel/api/setting/defaultSettings","method":"post"},{"path":"/panel/api/setting/factoryDefaults","method":"post"},{"path":"/panel/api/setting/update","method":"post"},{"path":"/panel/api/setting/validateRegex","method":"post"},{"path":"/panel/api/setting/updateUser","method":"post"},{"path":"/panel/api/setting/adminCredentialState","method":"post"},{"path":"/panel/api/setting/restartPanel","method":"post"},{"path":"/panel/api/setting/testSmtp","method":"post"},{"path":"/panel/api/setting/testTgBot","method":"post"},{"path":"/panel/api/setting/tgBotCapabilities","method":"post"},{"path":"/panel/api/setting/testDiscord","method":"post"},{"path":"/panel/api/setting/testRouterosNat","method":"post"},{"path":"/panel/api/setting/syncRouterosNat","method":"post"},{"path":"/panel/api/setting/detectContainerIp","method":"get"},{"path":"/panel/api/setting/getDefaultJsonConfig","method":"get"}]} showTitle />
+      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/panel/api/setting/all","method":"post"},{"path":"/panel/api/setting/defaultSettings","method":"post"},{"path":"/panel/api/setting/factoryDefaults","method":"post"},{"path":"/panel/api/setting/update","method":"post"},{"path":"/panel/api/setting/validateRegex","method":"post"},{"path":"/panel/api/setting/updateUser","method":"post"},{"path":"/panel/api/setting/adminCredentialState","method":"post"},{"path":"/panel/api/setting/restartPanel","method":"post"},{"path":"/panel/api/setting/testSmtp","method":"post"},{"path":"/panel/api/setting/testTgBot","method":"post"},{"path":"/panel/api/setting/tgBotCapabilities","method":"post"},{"path":"/panel/api/setting/testDiscord","method":"post"},{"path":"/panel/api/setting/testRouterosNat","method":"post"},{"path":"/panel/api/setting/syncRouterosNat","method":"post"},{"path":"/panel/api/setting/detectRouterosWanInterface","method":"post"},{"path":"/panel/api/setting/routerosNatRules","method":"get"},{"path":"/panel/api/setting/cleanupRouterosNat","method":"post"},{"path":"/panel/api/setting/detectContainerIp","method":"get"},{"path":"/panel/api/setting/getDefaultJsonConfig","method":"get"}]} showTitle />
     </>
   );
 }

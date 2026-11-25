@@ -24,7 +24,7 @@ export function useRouterOSAPIStatus(enabled = true) {
     queryKey: keys.server.routerOSStatus(),
     queryFn: fetchStatus,
     enabled,
-    refetchInterval: 5000,
+    refetchInterval: 2000,
     refetchIntervalInBackground: false,
     staleTime: 0,
     retry: false,
