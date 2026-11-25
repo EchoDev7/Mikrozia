@@ -213,7 +213,7 @@ class VersionAndEvidenceTest(unittest.TestCase):
         docker = read(DOCKER_WORKFLOW)
         self.assertIn("type=raw,value=latest", docker)
         readme = read(REPO_ROOT / "README.md")
-        self.assertIn("برای محیط Production از Tag نسخه‌دار استفاده کنید، نه `latest`", readme)
+        self.assertIn("Always pin a versioned tag in production instead of `latest`", readme)
 
 
 class LocalPublicationSafetyTest(unittest.TestCase):
