@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	ManagedNATCommentPrefix = "mikrozia:managed:inbound:"
-	DefaultAPIPort          = 8728
-	maxNATRecords           = 4096
+	ManagedNATCommentPrefix     = "mikrozia:managed:inbound:"
+	ManagedServiceCommentPrefix = "mikrozia:managed:service:"
+	DefaultAPIPort              = 8728
+	maxNATRecords               = 4096
 )
 
 type NATConnConfig struct {
@@ -53,6 +54,7 @@ type NATTestResult struct {
 type ManagedNATRule struct {
 	ID             string `json:"id"`
 	InboundID      int    `json:"inboundId"`
+	Service        string `json:"service,omitempty"`
 	Protocol       string `json:"protocol"`
 	DstPort        string `json:"dstPort"`
 	ToAddress      string `json:"toAddress"`
@@ -63,6 +65,27 @@ type ManagedNATRule struct {
 	Bytes          uint64 `json:"bytes"`
 	Packets        uint64 `json:"packets"`
 	Comment        string `json:"comment"`
+}
+
+type DiagnosticCheck struct {
+	Key    string `json:"key"`
+	Status string `json:"status"` // "ok", "warn", "error"
+	Detail string `json:"detail"`
+}
+
+type DiagnosticsResult struct {
+	State  string            `json:"state"`
+	Checks []DiagnosticCheck `json:"checks"`
+}
+
+type InboundPortCheck struct {
+	InboundID int
+	Protocol  string
+	Port      int
+}
+
+func ManagedServiceNATComment(serviceName string) string {
+	return ManagedServiceCommentPrefix + strings.ToLower(strings.TrimSpace(serviceName))
 }
 
 type NATReconcileResult struct {
@@ -351,15 +374,25 @@ func (c Client) ListManagedNATRules(parent context.Context, cfg NATConnConfig) (
 	}
 	out := make([]ManagedNATRule, 0)
 	for _, row := range rows {
-		id, ok := parseManagedInboundID(row["comment"])
+		comment := row["comment"]
+		id, ok := parseManagedInboundID(comment)
+		serviceName := ""
 		if !ok {
-			continue
+			if strings.HasPrefix(comment, ManagedServiceCommentPrefix) {
+				serviceName = strings.TrimPrefix(comment, ManagedServiceCommentPrefix)
+				if serviceName == "" {
+					continue
+				}
+			} else {
+				continue
+			}
 		}
 		bytesVal, _ := strconv.ParseUint(strings.TrimSpace(row["bytes"]), 10, 64)
 		pktsVal, _ := strconv.ParseUint(strings.TrimSpace(row["packets"]), 10, 64)
 		out = append(out, ManagedNATRule{
 			ID:             row[".id"],
 			InboundID:      id,
+			Service:        serviceName,
 			Protocol:       row["protocol"],
 			DstPort:        row["dst-port"],
 			ToAddress:      row["to-addresses"],
@@ -369,10 +402,454 @@ func (c Client) ListManagedNATRules(parent context.Context, cfg NATConnConfig) (
 			Disabled:       row["disabled"] == "true" || row["disabled"] == "yes",
 			Bytes:          bytesVal,
 			Packets:        pktsVal,
-			Comment:        row["comment"],
+			Comment:        comment,
 		})
 	}
 	return out, "ok"
+}
+
+// ReconcileServiceNAT reconciles one Mikrozia-owned service NAT rule (panel or sub)
+// marked with comment="mikrozia:managed:service:<name>".
+func (c Client) ReconcileServiceNAT(parent context.Context, cfg NATConnConfig, serviceName string, port int, targetIP, inInterface string, disabled bool) NATReconcileResult {
+	serviceName = strings.ToLower(strings.TrimSpace(serviceName))
+	if serviceName != "panel" && serviceName != "sub" {
+		return NATReconcileResult{State: "invalid_configuration", Detail: "unsupported service name"}
+	}
+	if port < 1 || port > 65535 {
+		return NATReconcileResult{State: "invalid_configuration", Detail: "invalid service port"}
+	}
+	cleanIP, ok := ValidatePrivateIPv4(targetIP)
+	if !ok {
+		return NATReconcileResult{State: "invalid_configuration", Detail: "invalid private target IP"}
+	}
+	cleanIface, ok := sanitizeInterfaceList(inInterface)
+	if !ok {
+		return NATReconcileResult{State: "invalid_configuration", Detail: "invalid in-interface name"}
+	}
+
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return NATReconcileResult{State: state}
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{
+		"/ip/firewall/nat/print",
+		"=.proplist=.id,chain,action,protocol,dst-port,to-addresses,to-ports,in-interface,in-interface-list,dst-address-type,disabled,comment",
+	}) != nil {
+		return NATReconcileResult{State: "unreachable"}
+	}
+	state, rows := readNATRecords(r)
+	if state != "ok" {
+		return NATReconcileResult{State: state}
+	}
+
+	comment := ManagedServiceNATComment(serviceName)
+	var existing map[string]string
+	for _, row := range rows {
+		if row["comment"] == comment {
+			existing = row
+			continue
+		}
+		rowDisabled := row["disabled"] == "true" || row["disabled"] == "yes"
+		if !disabled && !rowDisabled && row["chain"] == "dstnat" &&
+			strings.EqualFold(row["protocol"], "tcp") && row["dst-port"] == strconv.Itoa(port) {
+			return NATReconcileResult{
+				State:  "conflict",
+				Detail: fmt.Sprintf("existing RouterOS dstnat rule already uses tcp/%d", port),
+			}
+		}
+	}
+
+	spec := NATRuleSpec{
+		InboundID:   1,
+		Protocol:    "tcp",
+		DstPort:     port,
+		ToAddress:   cleanIP,
+		ToPort:      port,
+		InInterface: cleanIface,
+		Disabled:    disabled,
+	}
+	disabledStr := "no"
+	if disabled {
+		disabledStr = "yes"
+	}
+
+	if existing != nil {
+		if rowMatchesSpec(existing, spec) {
+			return NATReconcileResult{State: "ok"}
+		}
+		words := []string{
+			"/ip/firewall/nat/set",
+			"=.id=" + existing[".id"],
+			"=chain=dstnat",
+			"=action=dst-nat",
+			"=protocol=tcp",
+			"=dst-port=" + strconv.Itoa(port),
+			"=to-addresses=" + cleanIP,
+			"=to-ports=" + strconv.Itoa(port),
+			"=disabled=" + disabledStr,
+			"=comment=" + comment,
+		}
+		if cleanIface != "" {
+			words = append(words, "=in-interface="+cleanIface, "=!in-interface-list", "=!dst-address-type")
+		} else {
+			words = append(words, "=dst-address-type=local", "=!in-interface", "=!in-interface-list")
+		}
+		if writeSentence(conn, words) != nil {
+			return NATReconcileResult{State: "unreachable"}
+		}
+		st, _, detail := readCommandResult(r)
+		if st != "ok" {
+			return NATReconcileResult{State: st, Detail: detail}
+		}
+		return NATReconcileResult{State: "ok", Updated: 1}
+	}
+
+	words := []string{
+		"/ip/firewall/nat/add",
+		"=chain=dstnat",
+		"=action=dst-nat",
+		"=protocol=tcp",
+		"=dst-port=" + strconv.Itoa(port),
+		"=to-addresses=" + cleanIP,
+		"=to-ports=" + strconv.Itoa(port),
+		"=disabled=" + disabledStr,
+		"=comment=" + comment,
+	}
+	if cleanIface != "" {
+		words = append(words, "=in-interface="+cleanIface)
+	} else {
+		words = append(words, "=dst-address-type=local")
+	}
+	if writeSentence(conn, words) != nil {
+		return NATReconcileResult{State: "unreachable"}
+	}
+	st, _, detail := readCommandResult(r)
+	if st != "ok" {
+		return NATReconcileResult{State: st, Detail: detail}
+	}
+	return NATReconcileResult{State: "ok", Added: 1}
+}
+
+// RunDiagnostics performs read-only RouterOS pre-flight checks:
+// free disk space, VETH interface status, container gateway IP, masquerade NAT, and inbound port conflicts.
+func (c Client) RunDiagnostics(parent context.Context, cfg NATConnConfig, targetIP string, inbounds []InboundPortCheck) DiagnosticsResult {
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return DiagnosticsResult{State: state}
+	}
+	defer conn.Close()
+
+	checks := make([]DiagnosticCheck, 0, 5)
+
+	// 1. RouterOS resource & free disk space
+	if writeSentence(conn, []string{"/system/resource/print", "=.proplist=version,board-name,free-hdd-space,total-hdd-space"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" && len(rows) > 0 {
+			ver := strings.TrimSpace(rows[0]["version"])
+			board := strings.TrimSpace(rows[0]["board-name"])
+			freeBytes, _ := strconv.ParseUint(strings.TrimSpace(rows[0]["free-hdd-space"]), 10, 64)
+			totalBytes, _ := strconv.ParseUint(strings.TrimSpace(rows[0]["total-hdd-space"]), 10, 64)
+			freeMB := freeBytes / (1024 * 1024)
+			totalMB := totalBytes / (1024 * 1024)
+			status := "ok"
+			if freeBytes > 0 && freeMB < 64 {
+				status = "error"
+			} else if freeBytes > 0 && freeMB < 256 {
+				status = "warn"
+			}
+			checks = append(checks, DiagnosticCheck{
+				Key:    "disk",
+				Status: status,
+				Detail: fmt.Sprintf("RouterOS %s (%s) · Free disk: %d MB / %d MB", ver, board, freeMB, totalMB),
+			})
+		}
+	}
+
+	// 2. VETH interface running check
+	if writeSentence(conn, []string{"/interface/print", "=.proplist=name,type,running,disabled"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" {
+			foundName := ""
+			running := false
+			for _, row := range rows {
+				if row["type"] == "veth" || strings.Contains(strings.ToLower(row["name"]), "veth") {
+					foundName = row["name"]
+					if (row["running"] == "true" || row["running"] == "yes") &&
+						row["disabled"] != "true" && row["disabled"] != "yes" {
+						running = true
+						break
+					}
+				}
+			}
+			switch {
+			case running:
+				checks = append(checks, DiagnosticCheck{Key: "veth", Status: "ok", Detail: fmt.Sprintf("%s is up and running", foundName)})
+			case foundName != "":
+				checks = append(checks, DiagnosticCheck{Key: "veth", Status: "error", Detail: fmt.Sprintf("%s exists but is not running", foundName)})
+			default:
+				checks = append(checks, DiagnosticCheck{Key: "veth", Status: "warn", Detail: "No VETH interface found on RouterOS"})
+			}
+		}
+	}
+
+	// 3. Container gateway IP check
+	if writeSentence(conn, []string{"/ip/address/print", "=.proplist=address,interface,disabled"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" {
+			targetPrefix := ""
+			if parts := strings.Split(strings.TrimSpace(targetIP), "."); len(parts) == 4 {
+				targetPrefix = parts[0] + "." + parts[1] + "." + parts[2] + "."
+			}
+			matchedAddr := ""
+			matchedIface := ""
+			for _, row := range rows {
+				if row["disabled"] == "true" || row["disabled"] == "yes" {
+					continue
+				}
+				addr := strings.TrimSpace(row["address"])
+				if targetPrefix != "" && strings.HasPrefix(addr, targetPrefix) {
+					matchedAddr = addr
+					matchedIface = row["interface"]
+					break
+				}
+			}
+			if matchedAddr != "" {
+				checks = append(checks, DiagnosticCheck{Key: "gateway", Status: "ok", Detail: fmt.Sprintf("%s on %s", matchedAddr, matchedIface)})
+			} else {
+				checks = append(checks, DiagnosticCheck{Key: "gateway", Status: "warn", Detail: fmt.Sprintf("No active gateway IP matching container target %s", targetIP)})
+			}
+		}
+	}
+
+	// 4 & 5. Masquerade check + inbound port conflict check
+	if writeSentence(conn, []string{"/ip/firewall/nat/print", "=.proplist=.id,chain,action,protocol,dst-port,disabled,comment"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" {
+			hasMasq := false
+			var conflicts []string
+			for _, row := range rows {
+				rowDisabled := row["disabled"] == "true" || row["disabled"] == "yes"
+				if rowDisabled {
+					continue
+				}
+				if row["chain"] == "srcnat" && row["action"] == "masquerade" {
+					hasMasq = true
+				}
+				if row["chain"] == "dstnat" &&
+					!strings.HasPrefix(row["comment"], ManagedNATCommentPrefix) &&
+					!strings.HasPrefix(row["comment"], ManagedServiceCommentPrefix) {
+					for _, ib := range inbounds {
+						if strings.EqualFold(row["protocol"], ib.Protocol) && row["dst-port"] == strconv.Itoa(ib.Port) {
+							conflicts = append(conflicts, fmt.Sprintf("#%d (%s/%d)", ib.InboundID, ib.Protocol, ib.Port))
+						}
+					}
+				}
+			}
+			if hasMasq {
+				checks = append(checks, DiagnosticCheck{Key: "masquerade", Status: "ok", Detail: "Active srcnat masquerade rule found"})
+			} else {
+				checks = append(checks, DiagnosticCheck{Key: "masquerade", Status: "error", Detail: "No active srcnat masquerade rule found; container may lack outbound internet"})
+			}
+			if len(conflicts) == 0 {
+				checks = append(checks, DiagnosticCheck{Key: "conflicts", Status: "ok", Detail: "No port conflicts with manual RouterOS dstnat rules"})
+			} else {
+				checks = append(checks, DiagnosticCheck{Key: "conflicts", Status: "warn", Detail: "Manual dstnat conflict on: " + strings.Join(conflicts, ", ")})
+			}
+		}
+	}
+
+	// 6. RouterOS built-in /ip/service conflict check (www:80, www-ssl:443, or inbound ports)
+	if writeSentence(conn, []string{"/ip/service/print", "=.proplist=name,port,disabled"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" {
+			inboundPorts := map[int]bool{80: true, 443: true}
+			for _, ib := range inbounds {
+				if ib.Port > 0 {
+					inboundPorts[ib.Port] = true
+				}
+			}
+			var svcConflicts []string
+			for _, row := range rows {
+				if row["disabled"] == "true" || row["disabled"] == "yes" {
+					continue
+				}
+				portNum, err := strconv.Atoi(strings.TrimSpace(row["port"]))
+				if err != nil || !inboundPorts[portNum] {
+					continue
+				}
+				name := strings.TrimSpace(row["name"])
+				if name == "" {
+					name = "service"
+				}
+				svcConflicts = append(svcConflicts, fmt.Sprintf("%s:%d", name, portNum))
+			}
+			if len(svcConflicts) == 0 {
+				checks = append(checks, DiagnosticCheck{Key: "services", Status: "ok", Detail: "No conflicting RouterOS /ip/service listeners on port 80, 443, or inbound ports"})
+			} else {
+				checks = append(checks, DiagnosticCheck{Key: "services", Status: "warn", Detail: "Active RouterOS service(s) may conflict: " + strings.Join(svcConflicts, ", ")})
+			}
+		}
+	}
+
+	// 7. Connection tracking table usage (/ip/firewall/connection/tracking/print)
+	if writeSentence(conn, []string{"/ip/firewall/connection/tracking/print", "=.proplist=enabled,total-entries,max-entries"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" && len(rows) > 0 {
+			row := rows[0]
+			enabled := strings.ToLower(strings.TrimSpace(row["enabled"]))
+			if enabled == "no" || enabled == "false" {
+				checks = append(checks, DiagnosticCheck{Key: "conntrack", Status: "warn", Detail: "Connection tracking is disabled on RouterOS"})
+			} else {
+				total, errT := strconv.ParseUint(strings.TrimSpace(row["total-entries"]), 10, 64)
+				maxVal, errM := strconv.ParseUint(strings.TrimSpace(row["max-entries"]), 10, 64)
+				if errT == nil && errM == nil && maxVal > 0 {
+					pct := float64(total) * 100.0 / float64(maxVal)
+					detail := fmt.Sprintf("%d / %d entries (%.1f%%)", total, maxVal, pct)
+					switch {
+					case pct >= 90:
+						checks = append(checks, DiagnosticCheck{Key: "conntrack", Status: "error", Detail: detail})
+					case pct >= 75:
+						checks = append(checks, DiagnosticCheck{Key: "conntrack", Status: "warn", Detail: detail})
+					default:
+						checks = append(checks, DiagnosticCheck{Key: "conntrack", Status: "ok", Detail: detail})
+					}
+				} else {
+					checks = append(checks, DiagnosticCheck{Key: "conntrack", Status: "ok", Detail: "Connection tracking active"})
+				}
+			}
+		}
+	}
+
+	// 8. RouterOS hardware health sensors (/system/health/print)
+	if writeSentence(conn, []string{"/system/health/print", "=.proplist=name,value,type"}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" {
+			if len(rows) == 0 {
+				checks = append(checks, DiagnosticCheck{Key: "hardware", Status: "ok", Detail: "No hardware sensors reported (normal on CHR / virtualized RouterOS)"})
+			} else {
+				var parts []string
+				hwStatus := "ok"
+				for _, row := range rows {
+					name := strings.TrimSpace(row["name"])
+					val := strings.TrimSpace(row["value"])
+					unit := strings.TrimSpace(row["type"])
+					if name == "" || val == "" {
+						continue
+					}
+					parts = append(parts, fmt.Sprintf("%s: %s%s", name, val, unit))
+					if strings.Contains(strings.ToLower(name), "temp") {
+						if temp, err := strconv.ParseFloat(val, 64); err == nil {
+							if temp >= 80 {
+								hwStatus = "error"
+							} else if temp >= 70 && hwStatus != "error" {
+								hwStatus = "warn"
+							}
+						}
+					}
+				}
+				if len(parts) == 0 {
+					checks = append(checks, DiagnosticCheck{Key: "hardware", Status: "ok", Detail: "No hardware sensors reported (normal on CHR / virtualized RouterOS)"})
+				} else {
+					checks = append(checks, DiagnosticCheck{Key: "hardware", Status: hwStatus, Detail: strings.Join(parts, " · ")})
+				}
+			}
+		}
+	}
+
+	return DiagnosticsResult{State: "ok", Checks: checks}
+}
+
+type Port80Snapshot struct {
+	Port80Status    string
+	ServiceConflict string
+}
+
+func dstPortIncludes(raw string, target int) bool {
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if loStr, hiStr, ok := strings.Cut(part, "-"); ok {
+			lo, err1 := strconv.Atoi(strings.TrimSpace(loStr))
+			hi, err2 := strconv.Atoi(strings.TrimSpace(hiStr))
+			if err1 == nil && err2 == nil && target >= lo && target <= hi {
+				return true
+			}
+			continue
+		}
+		if p, err := strconv.Atoi(part); err == nil && p == target {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckPort80AndServices inspects RouterOS /ip/firewall/nat and /ip/service in
+// one read-only session to report port 80 dst-nat state and whether built-in
+// RouterOS services (such as www:80 or www-ssl:443) are enabled on ports 80/443.
+func (c Client) CheckPort80AndServices(parent context.Context, cfg NATConnConfig) Port80Snapshot {
+	out := Port80Snapshot{Port80Status: "unknown"}
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return out
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{
+		"/ip/firewall/nat/print",
+		"=.proplist=chain,action,protocol,dst-port,disabled",
+	}) != nil {
+		return out
+	}
+	state, rows := readNATRecords(r)
+	if state != "ok" {
+		return out
+	}
+	out.Port80Status = "closed"
+	for _, row := range rows {
+		if row["disabled"] == "true" || row["disabled"] == "yes" {
+			continue
+		}
+		if row["chain"] != "dstnat" || row["action"] != "dst-nat" {
+			continue
+		}
+		proto := strings.ToLower(strings.TrimSpace(row["protocol"]))
+		if proto != "" && proto != "tcp" {
+			continue
+		}
+		if dstPortIncludes(row["dst-port"], 80) {
+			out.Port80Status = "open"
+			break
+		}
+	}
+
+	if writeSentence(conn, []string{
+		"/ip/service/print",
+		"=.proplist=name,port,disabled",
+	}) == nil {
+		if st, svcRows := readNATRecords(r); st == "ok" {
+			var conflicts []string
+			for _, row := range svcRows {
+				if row["disabled"] == "true" || row["disabled"] == "yes" {
+					continue
+				}
+				portNum, err := strconv.Atoi(strings.TrimSpace(row["port"]))
+				if err != nil || (portNum != 80 && portNum != 443) {
+					continue
+				}
+				name := strings.TrimSpace(row["name"])
+				if name == "" {
+					name = "service"
+				}
+				conflicts = append(conflicts, fmt.Sprintf("%s:%d", name, portNum))
+			}
+			out.ServiceConflict = strings.Join(conflicts, ", ")
+		}
+	}
+	return out
+}
+
+// CheckPort80Status inspects RouterOS /ip/firewall/nat in read-only mode to
+// report whether an enabled TCP dst-nat rule currently forwards port 80.
+// Returns "open", "closed", or "unknown".
+func (c Client) CheckPort80Status(parent context.Context, cfg NATConnConfig) string {
+	return c.CheckPort80AndServices(parent, cfg).Port80Status
 }
 
 // CleanupOrphanedNAT removes only Mikrozia-owned NAT rules whose inbound ID is not present in validInboundIDs.

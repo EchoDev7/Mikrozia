@@ -203,11 +203,18 @@ describe('IndexPage Top Inbounds placement', () => {
     expect(screen.getByText('4.00 KB')).toBeInTheDocument();
 
     const cards = Array.from(container.querySelectorAll('.ov-vitals > *'));
-    expect(cards).toHaveLength(5);
+    expect(cards).toHaveLength(6);
     const kickers = cards.map(
       (card) => card.querySelector('.ov-kicker')?.textContent?.trim() ?? '',
     );
-    expect(kickers).toEqual(['CPU', 'RAM', 'Clients', 'Top Inbounds', 'Storage']);
+    expect(kickers).toEqual([
+      'CPU',
+      'RAM',
+      'Clients',
+      'Top Inbounds',
+      'Storage',
+      'SSL Certificate',
+    ]);
 
     expect(screen.getByText('Overall Speed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xray Metrics' })).toBeInTheDocument();

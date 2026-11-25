@@ -662,6 +662,7 @@ func (s *Server) start(restartXray bool, startTgBot bool) (err error) {
 		logger.Info("Web server running HTTP on", listener.Addr())
 	}
 	s.listener = listener
+	go (&service.RouterOSUpdaterService{}).RunDeferredPreviousCleanupIfArmed()
 
 	s.httpServer = &http.Server{
 		Handler:           engine,

@@ -222,6 +222,7 @@ type AllSetting struct {
 	RouterosNatTargetIP        string `json:"routerosNatTargetIP" form:"routerosNatTargetIP"`
 	RouterosNatInInterface     string `json:"routerosNatInInterface" form:"routerosNatInInterface"`
 	RouterosNatInInterfaceList string `json:"routerosNatInInterfaceList" form:"routerosNatInInterfaceList"`
+	RouterosNatManageServices  bool   `json:"routerosNatManageServices" form:"routerosNatManageServices"`
 	RouterosContainerComment   string `json:"routerosContainerComment" form:"routerosContainerComment"`
 }
 

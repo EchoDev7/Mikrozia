@@ -211,6 +211,9 @@
           "routerosNatInInterfaceList": {
             "type": "string"
           },
+          "routerosNatManageServices": {
+            "type": "boolean"
+          },
           "routerosNatPassword": {
             "type": "string"
           },
@@ -705,6 +708,7 @@
           "routerosNatHost",
           "routerosNatInInterface",
           "routerosNatInInterfaceList",
+          "routerosNatManageServices",
           "routerosNatPassword",
           "routerosNatPort",
           "routerosNatTargetIP",
@@ -1038,6 +1042,9 @@
           },
           "routerosNatInInterfaceList": {
             "type": "string"
+          },
+          "routerosNatManageServices": {
+            "type": "boolean"
           },
           "routerosNatPassword": {
             "type": "string"
@@ -1542,6 +1549,7 @@
           "routerosNatHost",
           "routerosNatInInterface",
           "routerosNatInInterfaceList",
+          "routerosNatManageServices",
           "routerosNatPassword",
           "routerosNatPort",
           "routerosNatTargetIP",
@@ -6689,6 +6697,51 @@
                 "example": {
                   "success": true,
                   "msg": "Inbound updated"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/inbounds/{id}/syncRouterosNat": {
+      "post": {
+        "tags": [
+          "Inbounds"
+        ],
+        "summary": "Reconcile Managed RouterOS NAT rule(s) for a single local inbound using the saved RouterOS API settings.",
+        "operationId": "post_panel_api_inbounds_id_syncRouterosNat",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Inbound ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "RouterOS NAT synced"
                 }
               }
             }
@@ -14083,6 +14136,255 @@
                   "msg": "Orphaned RouterOS NAT rules removed",
                   "obj": {
                     "removed": 2
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/routerosDiagnostics": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Run read-only RouterOS pre-flight diagnostics (free disk space, VETH interface state, container gateway IP, active srcnat masquerade, and manual dstnat port conflicts).",
+        "operationId": "get_panel_api_setting_routerosDiagnostics",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "state": "ok",
+                    "checks": [
+                      {
+                        "key": "disk",
+                        "status": "ok",
+                        "detail": "240 MiB free / 512 MiB total"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/syncRouterosServices": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Reconcile opt-in Mikrozia-owned RouterOS NAT rules for the panel and subscription service ports (mikrozia:managed:service:panel and mikrozia:managed:service:sub).",
+        "operationId": "post_panel_api_setting_syncRouterosServices",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "RouterOS service NAT ports synced",
+                  "obj": {
+                    "synced": 2,
+                    "failed": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/routerosUpdateInfo": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Check the latest published echodev7/mikrozia release tag on Docker Hub, inspect active/staged/previous Mikrozia containers on RouterOS, and generate ready-to-copy RouterOS update commands.",
+        "operationId": "get_panel_api_setting_routerosUpdateInfo",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "currentVersion": "v1.0.9-mikrozia",
+                    "latestVersion": "v1.0.10-mikrozia",
+                    "updateAvailable": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/routerosUpdateStage": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Stage a new versioned Mikrozia container on RouterOS using the current container mountlists and envlist with a new root-dir.",
+        "operationId": "post_panel_api_setting_routerosUpdateStage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "targetVersion": "v1.0.10-mikrozia"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "Staging started"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/routerosUpdateCutover": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Schedule a one-shot RouterOS cutover that stops the current container and starts the newly staged container, optionally cleaning up the previous stopped container after boot.",
+        "operationId": "post_panel_api_setting_routerosUpdateCutover",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "cleanupPrevious": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "Cutover scheduled"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/setting/routerosUpdateCleanupPrevious": {
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Remove stopped previous Mikrozia containers marked with [Mikrozia:previous] without touching persistent data or certificate mounts.",
+        "operationId": "post_panel_api_setting_routerosUpdateCleanupPrevious",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "removed": 1
                   }
                 }
               }

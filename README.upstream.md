@@ -1,4 +1,4 @@
-[فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [Upstream history](/README.upstream.md)
 
 > [!CAUTION]
 > **HISTORICAL — SUPERSEDED / سند تاریخی — منسوخ‌شده.** این فایل راهنمای اصلی

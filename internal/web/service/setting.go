@@ -270,6 +270,7 @@ var defaultValueMap = map[string]string{
 	"routerosNatTargetIP":        "",
 	"routerosNatInInterface":     "",
 	"routerosNatInInterfaceList": "",
+	"routerosNatManageServices":  "false",
 	"routerosContainerComment":   "",
 }
 

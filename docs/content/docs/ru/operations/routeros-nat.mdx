@@ -13,7 +13,7 @@ icon: Network
 ## Настройка MikroTik RouterOS
 
 ```bash
-/user/group/add name=mikrozia-nat policy=read,write,api
+/user/group/add name=mikrozia-nat policy=read,write,policy,api
 /user/add name=mikrozia-nat group=mikrozia-nat password="YOUR_STRONG_PASSWORD"
 /ip/service/set api disabled=no port=8728 address=172.16.10.0/24
 /ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8728 src-address=172.16.10.0/24 comment="Allow Mikrozia container API"

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card } from 'antd';
+import { Card, Space, Tag, Tooltip } from 'antd';
 import { SafetyCertificateOutlined } from '@ant-design/icons';
 
 import type { TlsCertInfo } from '@/models/status';
@@ -67,6 +67,35 @@ export default function SslCertTile({ tlsCert }: SslCertTileProps) {
         ) : (
           <div className="ov-tile-number ov-tile-number--unavailable">—</div>
         )}
+        <Space size={4} wrap>
+          <Tag
+            color={
+              tlsCert?.port80Status === 'open'
+                ? 'warning'
+                : tlsCert?.port80Status === 'closed'
+                  ? 'success'
+                  : 'default'
+            }
+            style={{ marginInlineEnd: 0 }}
+          >
+            {tlsCert?.port80Status === 'open'
+              ? t('pages.index.port80Open')
+              : tlsCert?.port80Status === 'closed'
+                ? t('pages.index.port80Closed')
+                : t('pages.index.port80Unknown')}
+          </Tag>
+          {tlsCert?.routerServiceConflict && (
+            <Tooltip
+              title={t('pages.index.routerServiceConflictHint', {
+                services: tlsCert.routerServiceConflict,
+              })}
+            >
+              <Tag color="error" style={{ marginInlineEnd: 0 }}>
+                {t('pages.index.routerServiceConflict')}: {tlsCert.routerServiceConflict}
+              </Tag>
+            </Tooltip>
+          )}
+        </Space>
       </div>
 
       <div className="ov-tile-foot">

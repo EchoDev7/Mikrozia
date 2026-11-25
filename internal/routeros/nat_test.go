@@ -10,6 +10,9 @@ import (
 
 type fakeNATServer struct {
 	rules       []map[string]string
+	services    []map[string]string
+	conntrack   []map[string]string
+	health      []map[string]string
 	nextID      int
 	failOnCmd   string
 	failAttempt int
@@ -51,6 +54,33 @@ func (f *fakeNATServer) serve(conn net.Conn) {
 			_ = writeSentence(conn, []string{"!done"})
 		case "/ip/firewall/nat/print":
 			for _, row := range f.rules {
+				out := []string{"!re"}
+				for k, v := range row {
+					out = append(out, "="+k+"="+v)
+				}
+				_ = writeSentence(conn, out)
+			}
+			_ = writeSentence(conn, []string{"!done"})
+		case "/ip/service/print":
+			for _, row := range f.services {
+				out := []string{"!re"}
+				for k, v := range row {
+					out = append(out, "="+k+"="+v)
+				}
+				_ = writeSentence(conn, out)
+			}
+			_ = writeSentence(conn, []string{"!done"})
+		case "/ip/firewall/connection/tracking/print":
+			for _, row := range f.conntrack {
+				out := []string{"!re"}
+				for k, v := range row {
+					out = append(out, "="+k+"="+v)
+				}
+				_ = writeSentence(conn, out)
+			}
+			_ = writeSentence(conn, []string{"!done"})
+		case "/system/health/print":
+			for _, row := range f.health {
 				out := []string{"!re"}
 				for k, v := range row {
 					out = append(out, "="+k+"="+v)
@@ -190,5 +220,119 @@ func TestParseManagedInboundID(t *testing.T) {
 	}
 	if _, ok := parseManagedInboundID("mikrozia:managed:inbound:0:udp"); ok {
 		t.Fatal("inbound id 0 should be rejected")
+	}
+}
+
+func TestReconcileServiceNAT_LifecycleAndConflict(t *testing.T) {
+	srv := &fakeNATServer{
+		rules: []map[string]string{
+			{".id": "*50", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "9999", "comment": "manual-service", "disabled": "false"},
+		},
+	}
+	client := Client{Dial: srv.dial}
+	cfg := NATConnConfig{Host: "172.16.10.1", Port: 8728, Username: "mikrozia", Password: "secret"}
+
+	if got := ManagedServiceNATComment("panel"); got != "mikrozia:managed:service:panel" {
+		t.Fatalf("ManagedServiceNATComment(panel) = %q", got)
+	}
+
+	// 1. Add panel service rule on port 2053
+	res := client.ReconcileServiceNAT(context.Background(), cfg, "panel", 2053, "172.16.10.2", "", false)
+	if res.State != "ok" || res.Added != 1 || res.Updated != 0 {
+		t.Fatalf("add service rule = %+v", res)
+	}
+
+	// 2. Update panel service port to 2083 in-place
+	res = client.ReconcileServiceNAT(context.Background(), cfg, "panel", 2083, "172.16.10.2", "ether1", false)
+	if res.State != "ok" || res.Updated != 1 || res.Added != 0 {
+		t.Fatalf("update service rule = %+v", res)
+	}
+
+	// 3. Conflict with manual rule on port 9999 fails closed
+	res = client.ReconcileServiceNAT(context.Background(), cfg, "sub", 9999, "172.16.10.2", "", false)
+	if res.State != "conflict" {
+		t.Fatalf("expected conflict, got %+v", res)
+	}
+}
+
+func TestRunDiagnostics_ReadOnlyChecks(t *testing.T) {
+	srv := &fakeNATServer{
+		rules: []map[string]string{
+			{".id": "*1", "chain": "srcnat", "action": "masquerade", "disabled": "false"},
+			{".id": "*2", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "443", "comment": "manual-https", "disabled": "false"},
+		},
+		services: []map[string]string{
+			{"name": "www", "port": "80", "disabled": "false"},
+		},
+		conntrack: []map[string]string{
+			{"enabled": "auto", "total-entries": "8000", "max-entries": "10000"},
+		},
+		health: []map[string]string{
+			{"name": "cpu-temperature", "value": "52", "type": "C"},
+			{"name": "voltage", "value": "24.1", "type": "V"},
+		},
+	}
+	client := Client{Dial: srv.dial}
+	cfg := NATConnConfig{Host: "172.16.10.1", Port: 8728, Username: "mikrozia", Password: "secret"}
+
+	res := client.RunDiagnostics(context.Background(), cfg, "172.16.10.2", []InboundPortCheck{
+		{InboundID: 3, Protocol: "tcp", Port: 443},
+	})
+	if res.State != "ok" {
+		t.Fatalf("RunDiagnostics state = %q, want ok", res.State)
+	}
+	byKey := map[string]DiagnosticCheck{}
+	for _, c := range res.Checks {
+		byKey[c.Key] = c
+	}
+	if byKey["masquerade"].Status != "ok" {
+		t.Fatalf("masquerade check = %+v, want ok", byKey["masquerade"])
+	}
+	if byKey["conflicts"].Status != "warn" {
+		t.Fatalf("conflicts check = %+v, want warn", byKey["conflicts"])
+	}
+	if byKey["services"].Status != "warn" {
+		t.Fatalf("services check = %+v, want warn", byKey["services"])
+	}
+	if byKey["conntrack"].Status != "warn" {
+		t.Fatalf("conntrack check = %+v, want warn (80%%)", byKey["conntrack"])
+	}
+	if byKey["hardware"].Status != "ok" || !strings.Contains(byKey["hardware"].Detail, "cpu-temperature: 52C") {
+		t.Fatalf("hardware check = %+v, want ok with cpu-temperature", byKey["hardware"])
+	}
+}
+
+func TestCheckPort80Status(t *testing.T) {
+	cfg := NATConnConfig{Host: "172.16.10.1", Port: 8728, Username: "mikrozia", Password: "secret"}
+
+	// Enabled port 80 dst-nat + enabled www:80 service -> open + conflict
+	srvOpen := &fakeNATServer{
+		rules: []map[string]string{
+			{".id": "*1", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "80", "disabled": "false"},
+		},
+		services: []map[string]string{
+			{"name": "www", "port": "80", "disabled": "false"},
+			{"name": "www-ssl", "port": "443", "disabled": "true"},
+		},
+	}
+	snap := (Client{Dial: srvOpen.dial}).CheckPort80AndServices(context.Background(), cfg)
+	if snap.Port80Status != "open" || snap.ServiceConflict != "www:80" {
+		t.Fatalf("CheckPort80AndServices(open) = %+v, want open + www:80", snap)
+	}
+
+	// Disabled port 80 dst-nat + disabled services -> closed + no conflict
+	srvClosed := &fakeNATServer{
+		rules: []map[string]string{
+			{".id": "*1", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "80", "disabled": "true"},
+			{".id": "*2", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "443", "disabled": "false"},
+		},
+		services: []map[string]string{
+			{"name": "www", "port": "80", "disabled": "true"},
+			{"name": "www-ssl", "port": "443", "disabled": "true"},
+		},
+	}
+	snap = (Client{Dial: srvClosed.dial}).CheckPort80AndServices(context.Background(), cfg)
+	if snap.Port80Status != "closed" || snap.ServiceConflict != "" {
+		t.Fatalf("CheckPort80AndServices(closed) = %+v, want closed + empty conflict", snap)
 	}
 }

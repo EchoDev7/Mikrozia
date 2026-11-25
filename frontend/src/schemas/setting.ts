@@ -193,6 +193,7 @@ export const AllSettingSchema = z
     routerosNatTargetIP: z.string().optional(),
     routerosNatInInterface: z.string().optional(),
     routerosNatInInterfaceList: z.string().optional(),
+    routerosNatManageServices: z.boolean().optional(),
     routerosContainerComment: z.string().optional(),
   })
   .loose();

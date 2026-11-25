@@ -74,6 +74,8 @@ export interface TlsCertInfo {
   notAfter?: number;
   daysLeft?: number;
   expired?: boolean;
+  port80Status?: 'open' | 'closed' | 'unknown';
+  routerServiceConflict?: string;
 }
 
 interface StatusInput extends Pick<ParsedStatusInput, 'resourceScope' | 'unavailableMetrics'> {

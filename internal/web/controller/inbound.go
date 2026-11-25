@@ -88,6 +88,7 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g.POST("/bulkDel", a.bulkDelInbounds)
 	g.POST("/update/:id", a.updateInbound)
 	g.POST("/setEnable/:id", a.setInboundEnable)
+	g.POST("/:id/syncRouterosNat", a.syncInboundRouterosNat)
 	g.POST("/:id/subSortIndex", a.setInboundSubSortIndex)
 	g.POST("/:id/resetTraffic", a.resetInboundTraffic)
 	g.POST("/:id/delAllClients", a.delAllInboundClients)
@@ -370,6 +371,24 @@ func (a *InboundController) setInboundEnable(c *gin.Context) {
 		}
 	}
 	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundUpdateSuccess"), nil)
+}
+
+func (a *InboundController) syncInboundRouterosNat(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	ib, err := a.inboundService.GetInbound(id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	if err := a.routerOSNATService.SyncInbound(c.Request.Context(), ib); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsg(c, I18nWeb(c, "pages.settings.routerosNatSyncSuccess"), nil)
 }
 
 // resetInboundTraffic resets traffic counters for a specific inbound.

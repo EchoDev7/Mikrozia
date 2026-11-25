@@ -213,6 +213,57 @@ func (s *RouterOSNATService) CleanupOrphanedRules(ctx context.Context, inbounds 
 	return removed, nil
 }
 
+// RunDiagnostics runs read-only RouterOS pre-flight checks for the container and local inbounds.
+func (s *RouterOSNATService) RunDiagnostics(ctx context.Context, inbounds []*model.Inbound) (routeros.DiagnosticsResult, error) {
+	_, cfg, targetIP, err := s.loadEffectiveConfig(nil)
+	if err != nil {
+		return routeros.DiagnosticsResult{State: "invalid_configuration"}, err
+	}
+	var checks []routeros.InboundPortCheck
+	for _, ib := range inbounds {
+		if ib == nil || !ib.Enable || (ib.NodeID != nil && *ib.NodeID > 0) {
+			continue
+		}
+		for _, proto := range ProtocolsForInbound(ib) {
+			checks = append(checks, routeros.InboundPortCheck{
+				InboundID: ib.Id,
+				Protocol:  proto,
+				Port:      ib.Port,
+			})
+		}
+	}
+	res := s.client.RunDiagnostics(ctx, cfg, targetIP, checks)
+	if res.State != "ok" {
+		return res, fmt.Errorf("RouterOS diagnostics failed (%s)", res.State)
+	}
+	return res, nil
+}
+
+// SyncServicePorts reconciles Mikrozia-owned NAT rules for the Panel (webPort) and
+// Subscription (subPort) services when opt-in RouterosNatManageServices is enabled.
+func (s *RouterOSNATService) SyncServicePorts(ctx context.Context) error {
+	allSetting, cfg, targetIP, err := s.loadEffectiveConfig(nil)
+	if err != nil {
+		return err
+	}
+	if !allSetting.RouterosNatEnable || !allSetting.RouterosNatManageServices {
+		return fmt.Errorf("RouterOS service port NAT management is disabled")
+	}
+	if targetIP == "" {
+		return fmt.Errorf("RouterOS NAT target container IP is not configured and could not be auto-detected")
+	}
+	inIface := strings.TrimSpace(allSetting.RouterosNatInInterface)
+	panelRes := s.client.ReconcileServiceNAT(ctx, cfg, "panel", allSetting.WebPort, targetIP, inIface, false)
+	if panelRes.State != "ok" {
+		return fmt.Errorf("panel port NAT sync failed (%s): %s", panelRes.State, panelRes.Detail)
+	}
+	subRes := s.client.ReconcileServiceNAT(ctx, cfg, "sub", allSetting.SubPort, targetIP, inIface, !allSetting.SubEnable)
+	if subRes.State != "ok" {
+		return fmt.Errorf("subscription port NAT sync failed (%s): %s", subRes.State, subRes.Detail)
+	}
+	return nil
+}
+
 // SyncInbound reconciles the RouterOS NAT rule(s) owned by one inbound when Managed NAT is enabled.
 func (s *RouterOSNATService) SyncInbound(ctx context.Context, inbound *model.Inbound) error {
 	if inbound == nil || inbound.Id <= 0 {

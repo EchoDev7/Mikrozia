@@ -34,6 +34,7 @@ import (
 	"github.com/echodev7/mikrozia/v3/internal/database"
 	"github.com/echodev7/mikrozia/v3/internal/database/model"
 	"github.com/echodev7/mikrozia/v3/internal/logger"
+	"github.com/echodev7/mikrozia/v3/internal/routeros"
 	"github.com/echodev7/mikrozia/v3/internal/util/common"
 	"github.com/echodev7/mikrozia/v3/internal/util/netsafe"
 	"github.com/echodev7/mikrozia/v3/internal/util/sys"
@@ -135,11 +136,13 @@ type Status struct {
 
 // TlsCertInfo summarizes the active panel TLS certificate for the Overview card.
 type TlsCertInfo struct {
-	Configured bool   `json:"configured"`
-	Subject    string `json:"subject,omitempty"`
-	NotAfter   int64  `json:"notAfter,omitempty"`
-	DaysLeft   int    `json:"daysLeft,omitempty"`
-	Expired    bool   `json:"expired,omitempty"`
+	Configured            bool   `json:"configured"`
+	Subject               string `json:"subject,omitempty"`
+	NotAfter              int64  `json:"notAfter,omitempty"`
+	DaysLeft              int    `json:"daysLeft,omitempty"`
+	Expired               bool   `json:"expired,omitempty"`
+	Port80Status          string `json:"port80Status,omitempty"`
+	RouterServiceConflict string `json:"routerServiceConflict,omitempty"`
 }
 
 // ServerService provides business logic for server monitoring and management.
@@ -173,6 +176,12 @@ type ServerService struct {
 	tlsCertCached   *TlsCertInfo
 	tlsCertPath     string
 	tlsCertCachedAt time.Time
+
+	port80Mu              sync.Mutex
+	port80Status          string
+	routerServiceConflict string
+	port80CheckedAt       time.Time
+	port80Checking        bool
 }
 
 // allowedHistoryBuckets is the bucket-second whitelist for time-series
@@ -691,8 +700,60 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 	}
 
 	status.TlsCert = s.readPanelTLSCertInfo(now)
+	p80, svcConflict := s.readPort80Status(now)
+	status.TlsCert.Port80Status = p80
+	status.TlsCert.RouterServiceConflict = svcConflict
 
 	return status
+}
+
+func (s *ServerService) readPort80Status(now time.Time) (string, string) {
+	cfg := resolveRouterOSAPIConfig()
+	if cfg.State != "connecting" {
+		s.port80Mu.Lock()
+		s.port80Status = "unknown"
+		s.routerServiceConflict = ""
+		s.port80Mu.Unlock()
+		return "unknown", ""
+	}
+
+	s.port80Mu.Lock()
+	cached := s.port80Status
+	cachedConflict := s.routerServiceConflict
+	if cached == "" {
+		cached = "unknown"
+	}
+	shouldProbe := !s.port80Checking && (s.port80CheckedAt.IsZero() || now.Sub(s.port80CheckedAt) >= 5*time.Second)
+	if shouldProbe {
+		s.port80Checking = true
+	}
+	s.port80Mu.Unlock()
+
+	if shouldProbe {
+		port := routeros.DefaultAPIPort
+		if database.GetDB() != nil {
+			if allSetting, err := s.settingService.GetAllSetting(); err == nil && allSetting != nil && allSetting.RouterosNatPort > 0 {
+				port = allSetting.RouterosNatPort
+			}
+		}
+		go func(natCfg routeros.NATConnConfig) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			snap := (routeros.Client{}).CheckPort80AndServices(ctx, natCfg)
+			s.port80Mu.Lock()
+			s.port80Status = snap.Port80Status
+			s.routerServiceConflict = snap.ServiceConflict
+			s.port80CheckedAt = time.Now()
+			s.port80Checking = false
+			s.port80Mu.Unlock()
+		}(routeros.NATConnConfig{
+			Host:     cfg.Host,
+			Port:     port,
+			Username: cfg.Username,
+			Password: cfg.Password,
+		})
+	}
+	return cached, cachedConflict
 }
 
 func (s *ServerService) readPanelTLSCertInfo(now time.Time) *TlsCertInfo {

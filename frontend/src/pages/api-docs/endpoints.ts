@@ -436,6 +436,14 @@ export const sections: readonly Section[] = [
         body: '{\n  "fallbacks": [\n    { "childId": 11, "path": "/vlws", "xver": 2 },\n    { "childId": 12, "alpn": "h2", "dest": "8443" }\n  ]\n}',
         response: '{\n  "success": true,\n  "msg": "Inbound updated"\n}',
       },
+      {
+        method: 'POST',
+        path: '/panel/api/inbounds/:id/syncRouterosNat',
+        summary:
+          'Reconcile Managed RouterOS NAT rule(s) for a single local inbound using the saved RouterOS API settings.',
+        params: [{ name: 'id', in: 'path', type: 'number', desc: 'Inbound ID.' }],
+        response: '{\n  "success": true,\n  "msg": "RouterOS NAT synced"\n}',
+      },
     ],
   },
 
@@ -2040,6 +2048,53 @@ export const sections: readonly Section[] = [
           'Remove only Mikrozia-owned RouterOS /ip/firewall/nat rules whose inbound ID no longer exists in the local panel database.',
         response:
           '{\n  "success": true,\n  "msg": "Orphaned RouterOS NAT rules removed",\n  "obj": {\n    "removed": 2\n  }\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/setting/routerosDiagnostics',
+        summary:
+          'Run read-only RouterOS pre-flight diagnostics (free disk space, VETH interface state, container gateway IP, active srcnat masquerade, and manual dstnat port conflicts).',
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "state": "ok",\n    "checks": [\n      { "key": "disk", "status": "ok", "detail": "240 MiB free / 512 MiB total" }\n    ]\n  }\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/syncRouterosServices',
+        summary:
+          'Reconcile opt-in Mikrozia-owned RouterOS NAT rules for the panel and subscription service ports (mikrozia:managed:service:panel and mikrozia:managed:service:sub).',
+        response:
+          '{\n  "success": true,\n  "msg": "RouterOS service NAT ports synced",\n  "obj": {\n    "synced": 2,\n    "failed": 0\n  }\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/setting/routerosUpdateInfo',
+        summary:
+          'Check the latest published echodev7/mikrozia release tag on Docker Hub, inspect active/staged/previous Mikrozia containers on RouterOS, and generate ready-to-copy RouterOS update commands.',
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "currentVersion": "v1.0.9-mikrozia",\n    "latestVersion": "v1.0.10-mikrozia",\n    "updateAvailable": true\n  }\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/routerosUpdateStage',
+        summary:
+          'Stage a new versioned Mikrozia container on RouterOS using the current container mountlists and envlist with a new root-dir.',
+        body: '{\n  "targetVersion": "v1.0.10-mikrozia"\n}',
+        response: '{\n  "success": true,\n  "msg": "Staging started"\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/routerosUpdateCutover',
+        summary:
+          'Schedule a one-shot RouterOS cutover that stops the current container and starts the newly staged container, optionally cleaning up the previous stopped container after boot.',
+        body: '{\n  "cleanupPrevious": true\n}',
+        response: '{\n  "success": true,\n  "msg": "Cutover scheduled"\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/setting/routerosUpdateCleanupPrevious',
+        summary:
+          'Remove stopped previous Mikrozia containers marked with [Mikrozia:previous] without touching persistent data or certificate mounts.',
+        response: '{\n  "success": true,\n  "obj": {\n    "removed": 1\n  }\n}',
       },
       {
         method: 'GET',

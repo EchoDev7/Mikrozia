@@ -1,4 +1,4 @@
-[فارسی](/README.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [English (upstream history)](/README.upstream.md)
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md) | [Upstream history](/README.upstream.md)
 
 # Mikrozia — панель управления контейнером RouterOS
 
@@ -10,7 +10,7 @@ OCI-образ с постоянными монтированиями. Полн�
 ## Текущая версия
 
 ```text
-echodev7/mikrozia:v1.0.9-mikrozia
+echodev7/mikrozia:v2.0.0-mikrozia
 ```
 
 В production используйте версионируемый тег, а не `latest`.
@@ -25,7 +25,7 @@ echodev7/mikrozia:v1.0.9-mikrozia
 ## Установка
 
 Выполняйте команды по порядку в терминале RouterOS или WinBox. Production-образ —
-версионированный тег `echodev7/mikrozia:v1.0.9-mikrozia`.
+версионированный тег `echodev7/mikrozia:v2.0.0-mikrozia`.
 
 > Эти инструкции соответствуют текущему контракту контейнеров RouterOS `7.25`.
 > Приёмка на чистом CHR для P1-CHR-01 ещё не завершена; проверьте весь путь на
@@ -49,7 +49,7 @@ echodev7/mikrozia:v1.0.9-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v1.0.9-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v1.0.9-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v2.0.0-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.0.0-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **Чувствительные значения:** Environment контейнера RouterOS — это хранилище

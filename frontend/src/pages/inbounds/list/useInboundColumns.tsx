@@ -1,12 +1,13 @@
 import { useMemo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Popover, Switch, Tag, Tooltip, type TableColumnType } from 'antd';
-import { TeamOutlined } from '@ant-design/icons';
+import { Button, Popover, Space, Switch, Tag, Tooltip, type TableColumnType } from 'antd';
+import { SyncOutlined, TeamOutlined } from '@ant-design/icons';
 
 import { SizeFormatter, IntlUtil, ColorUtils } from '@/utils';
 import { InfinityIcon } from '@/components/ui';
 import { useDatepicker } from '@/hooks/useDatepicker';
 import type { NodeRecord } from '@/api/queries/useNodesQuery';
+import type { ManagedNatRule } from '@/api/queries/useRouterosNatRules';
 import { coerceInboundJsonField } from '@/models/dbinbound';
 
 import { RowActionsCell } from './RowActions';
@@ -38,6 +39,10 @@ interface UseInboundColumnsParams {
   subEnable: boolean;
   expireDiff: number;
   trafficDiff: number;
+  routerosNatEnable: boolean;
+  natRulesByInboundId: Map<number, ManagedNatRule[]>;
+  syncingNatId: number | null;
+  onSyncNat: (id: number) => void;
   onRowAction: (action: { key: RowAction; dbInbound: DBInboundRecord }) => void;
   onSwitchEnable: (dbInbound: DBInboundRecord, next: boolean) => void;
 }
@@ -53,6 +58,10 @@ export function useInboundColumns({
   subEnable,
   expireDiff,
   trafficDiff,
+  routerosNatEnable,
+  natRulesByInboundId,
+  syncingNatId,
+  onSyncNat,
   onRowAction,
   onSwitchEnable,
 }: UseInboundColumnsParams): TableColumnType<DBInboundRecord>[] {
@@ -138,6 +147,57 @@ export function useInboundColumns({
         ),
       },
     ];
+
+    if (routerosNatEnable) {
+      cols.push({
+        title: 'NAT',
+        key: 'routerosNat',
+        align: 'center',
+        width: 165,
+        render: (_, record) => {
+          if (record.nodeId != null) return '—';
+          const rules = natRulesByInboundId.get(record.id) ?? [];
+          const totalBytes = rules.reduce((s, r) => s + (r.bytes || 0), 0);
+          const totalPkts = rules.reduce((s, r) => s + (r.packets || 0), 0);
+          const portStr = String(record.port);
+          const portMatches = rules.length > 0 && rules.every((r) => r.dstPort === portStr);
+
+          let color: 'success' | 'warning' | 'error' = 'error';
+          let label = t('pages.inbounds.natMissingDrift');
+          if (portMatches && record.enable && rules.every((r) => !r.disabled)) {
+            color = 'success';
+            label = t('pages.inbounds.natActive');
+          } else if (portMatches && !record.enable && rules.every((r) => r.disabled)) {
+            color = 'warning';
+            label = t('pages.inbounds.natDisabled');
+          }
+
+          const tip =
+            rules.length > 0
+              ? `${rules.map((r) => `${r.protocol.toUpperCase()}/${r.dstPort}`).join(', ')} · ${SizeFormatter.sizeFormat(totalBytes)} (${totalPkts.toLocaleString()} pkts)`
+              : t('pages.inbounds.natNoRuleHint');
+
+          return (
+            <Space size={4}>
+              <Tooltip title={tip}>
+                <Tag color={color} style={{ marginInlineEnd: 0 }}>
+                  {label}
+                </Tag>
+              </Tooltip>
+              <Tooltip title={t('pages.inbounds.syncRouterosNat')}>
+                <Button
+                  size="small"
+                  type="text"
+                  aria-label={t('pages.inbounds.syncRouterosNat')}
+                  icon={<SyncOutlined spin={syncingNatId === record.id} aria-hidden />}
+                  onClick={() => onSyncNat(record.id)}
+                />
+              </Tooltip>
+            </Space>
+          );
+        },
+      });
+    }
 
     if (hasAnyRemark) {
       cols.push({
@@ -484,5 +544,9 @@ export function useInboundColumns({
     datepicker,
     onRowAction,
     onSwitchEnable,
+    routerosNatEnable,
+    natRulesByInboundId,
+    syncingNatId,
+    onSyncNat,
   ]);
 }

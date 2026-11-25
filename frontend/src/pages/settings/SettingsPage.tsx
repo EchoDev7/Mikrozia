@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import {
@@ -97,6 +97,12 @@ export default function SettingsPage() {
   const [entryIsIP] = useState(() => isIp(window.location.hostname));
 
   const [alertVisible, setAlertVisible] = useState(true);
+  const savedPortsRef = useRef<{ webPort: number; subPort: number } | null>(null);
+  useEffect(() => {
+    if (fetched && savedPortsRef.current === null) {
+      savedPortsRef.current = { webPort: allSetting.webPort, subPort: allSetting.subPort };
+    }
+  }, [fetched, allSetting.webPort, allSetting.subPort]);
   const location = useLocation();
   const slug = location.hash.replace(/^#/, '');
   const activeSlug = tabSlugs.includes(slug) ? slug : 'general';
@@ -135,7 +141,29 @@ export default function SettingsPage() {
       messageApi.error(`${fieldPath}: ${t(msgKey, { defaultValue: msgKey })}`);
       return;
     }
+    const prevPorts = savedPortsRef.current;
+    const portsChanged =
+      prevPorts !== null &&
+      (prevPorts.webPort !== allSetting.webPort || prevPorts.subPort !== allSetting.subPort);
+    if (allSetting.routerosNatEnable && allSetting.routerosNatManageServices && portsChanged) {
+      modal.confirm({
+        title: t('pages.settings.routerosNatServicesConfirmTitle'),
+        content: t('pages.settings.routerosNatServicesConfirmDesc', {
+          webPort: allSetting.webPort,
+          subPort: allSetting.subPort,
+        }),
+        okText: t('confirm'),
+        cancelText: t('cancel'),
+        onOk: async () => {
+          await saveAll();
+          savedPortsRef.current = { webPort: allSetting.webPort, subPort: allSetting.subPort };
+          await HttpUtil.post('/panel/api/setting/syncRouterosServices');
+        },
+      });
+      return;
+    }
     await saveAll();
+    savedPortsRef.current = { webPort: allSetting.webPort, subPort: allSetting.subPort };
   }
 
   function restartPanel() {

@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Button,
+  Card,
   Descriptions,
   Input,
   InputNumber,
+  Modal,
   Space,
   Switch,
   Table,
@@ -17,9 +19,11 @@ import type { TableColumnsType } from 'antd';
 import {
   ApiOutlined,
   BookOutlined,
+  CloudDownloadOutlined,
   DeleteOutlined,
   RadarChartOutlined,
   ReloadOutlined,
+  SafetyCertificateOutlined,
   SettingOutlined,
   SyncOutlined,
   TableOutlined,
@@ -27,9 +31,11 @@ import {
 import { HttpUtil, SizeFormatter } from '@/utils';
 import { onNumber } from '@/utils/onNumber';
 import type { AllSetting } from '@/models/setting';
+import type { ManagedNatRule } from '@/api/queries/useRouterosNatRules';
 import { SettingListItem } from '@/components/ui';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { catTabLabel } from './catTabLabel';
+import RouterosUpdatePane from './RouterosUpdatePane';
 import SecretInput from './SecretInput';
 
 interface RouterosNatTabProps {
@@ -59,19 +65,16 @@ interface SyncNatObj {
   errors?: string[];
 }
 
-interface ManagedNatRule {
-  id: string;
-  inboundId: number;
-  protocol: string;
-  dstPort: string;
-  toAddress: string;
-  toPort: string;
-  inInterface?: string;
-  dstAddressType?: string;
-  disabled: boolean;
-  bytes: number;
-  packets: number;
-  comment: string;
+interface DiagnosticCheck {
+  key: string;
+  status: 'ok' | 'warn' | 'error';
+  detail: string;
+}
+
+interface DiagnosticsResult {
+  state: string;
+  checks: DiagnosticCheck[];
+  detail?: string;
 }
 
 function subnetHint(ip: string): string {
@@ -86,8 +89,10 @@ function subnetHint(ip: string): string {
 export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNatTabProps) {
   const { t } = useTranslation();
   const { isMobile } = useMediaQuery();
+  const [modal, modalContextHolder] = Modal.useModal();
   const [testLoading, setTestLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [syncServicesLoading, setSyncServicesLoading] = useState(false);
   const [detectLoading, setDetectLoading] = useState(false);
   const [detectWanLoading, setDetectWanLoading] = useState(false);
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -98,12 +103,16 @@ export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNa
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [rulesResult, setRulesResult] = useState<ActionResult | null>(null);
 
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagResult, setDiagResult] = useState<DiagnosticsResult | null>(null);
+  const [diagError, setDiagError] = useState<string | null>(null);
+
   const cliSnippets = useMemo(() => {
     const user = (allSetting.routerosNatUsername || 'mikrozia-nat').trim() || 'mikrozia-nat';
     const port = allSetting.routerosNatPort > 0 ? allSetting.routerosNatPort : 8728;
     const subnet = subnetHint(allSetting.routerosNatTargetIP || allSetting.routerosNatHost);
     return {
-      userCmd: `/user/group/add name=mikrozia-nat policy=read,write,api\n/user/add name=${user} group=mikrozia-nat password="CHANGE_ME_STRONG_PASSWORD"`,
+      userCmd: `/user/group/add name=mikrozia-nat policy=read,write,policy,api\n/user/add name=${user} group=mikrozia-nat password="CHANGE_ME_STRONG_PASSWORD"`,
       apiCmd: `/ip/service/set api disabled=no port=${port} address=${subnet}`,
       firewallCmd: `/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=${port} src-address=${subnet} comment="Allow Mikrozia container API"`,
       verifyCmd: `/ip/firewall/nat/print where comment~"^mikrozia:managed:inbound:"`,
@@ -299,14 +308,107 @@ export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNa
     }
   }
 
+  const loadDiagnostics = useCallback(async () => {
+    setDiagLoading(true);
+    setDiagError(null);
+    try {
+      const res = (await HttpUtil.get('/panel/api/setting/routerosDiagnostics', undefined, {
+        silent: true,
+      })) as { success?: boolean; msg?: string; obj?: DiagnosticsResult };
+      if (res?.success && res.obj) {
+        setDiagResult(res.obj);
+      } else {
+        setDiagResult(null);
+        setDiagError(res?.msg || t('pages.settings.requestFailed'));
+      }
+    } catch (e: unknown) {
+      setDiagResult(null);
+      setDiagError(e instanceof Error ? e.message : t('pages.settings.requestFailed'));
+    } finally {
+      setDiagLoading(false);
+    }
+  }, [t]);
+
+  function handleSyncServices() {
+    modal.confirm({
+      title: t('pages.settings.routerosNatServicesConfirmTitle'),
+      content: t('pages.settings.routerosNatServicesConfirmDesc', {
+        webPort: allSetting.webPort,
+        subPort: allSetting.subPort,
+      }),
+      okText: t('confirm'),
+      cancelText: t('cancel'),
+      onOk: async () => {
+        setSyncServicesLoading(true);
+        setResult(null);
+        try {
+          const res = (await HttpUtil.post('/panel/api/setting/syncRouterosServices', undefined, {
+            silent: true,
+          })) as { success?: boolean; msg?: string; obj?: SyncNatObj };
+          if (res?.success) {
+            const synced = res.obj?.synced ?? 0;
+            setResult({
+              success: true,
+              msg: `${t('pages.settings.routerosNatServicesSyncSuccess')} (${synced})`,
+            });
+          } else {
+            setResult({
+              success: false,
+              msg: res?.msg || t('pages.settings.routerosNatSyncPartial'),
+            });
+          }
+        } catch (e: unknown) {
+          setResult({
+            success: false,
+            msg: e instanceof Error ? e.message : t('pages.settings.requestFailed'),
+          });
+        } finally {
+          setSyncServicesLoading(false);
+        }
+      },
+    });
+  }
+
+  function diagCheckTitle(key: string): string {
+    switch (key) {
+      case 'disk':
+        return t('pages.settings.routerosDiagDisk');
+      case 'veth':
+        return t('pages.settings.routerosDiagVeth');
+      case 'gateway':
+        return t('pages.settings.routerosDiagGateway');
+      case 'masquerade':
+        return t('pages.settings.routerosDiagMasquerade');
+      case 'conflicts':
+        return t('pages.settings.routerosDiagConflicts');
+      case 'services':
+        return t('pages.settings.routerosDiagServices');
+      case 'conntrack':
+        return t('pages.settings.routerosDiagConntrack');
+      case 'hardware':
+        return t('pages.settings.routerosDiagHardware');
+      default:
+        return key;
+    }
+  }
+
   const ruleColumns = useMemo<TableColumnsType<ManagedNatRule>>(
     () => [
       {
         title: t('pages.settings.routerosNatColInbound'),
         dataIndex: 'inboundId',
         key: 'inboundId',
-        width: 90,
-        render: (id: number) => <Tag>#{id}</Tag>,
+        width: 100,
+        render: (id: number, row: ManagedNatRule) =>
+          row.service ? (
+            <Tag color="purple">
+              {row.service === 'panel'
+                ? t('pages.settings.routerosNatServicePanel')
+                : t('pages.settings.routerosNatServiceSub')}
+            </Tag>
+          ) : (
+            <Tag>#{id}</Tag>
+          ),
       },
       {
         title: t('protocol'),
@@ -354,372 +456,506 @@ export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNa
   );
 
   return (
-    <Tabs
-      defaultActiveKey="1"
-      onChange={(key) => {
-        if (key === '2') {
-          void loadRules();
-        }
-      }}
-      items={[
-        {
-          key: '1',
-          label: catTabLabel(
-            <SettingOutlined aria-hidden />,
-            t('pages.settings.routerosNatTabSettings'),
-            isMobile,
-          ),
-          children: (
-            <>
-              <Alert
-                type="info"
-                showIcon
-                title={t('pages.settings.routerosNatNoticeTitle')}
-                description={t('pages.settings.routerosNatNoticeDesc')}
-                style={{ marginBottom: 16 }}
-              />
-
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatEnable')}
-                description={t('pages.settings.routerosNatEnableDesc')}
-              >
-                <Switch
-                  checked={allSetting.routerosNatEnable}
-                  onChange={(v) => updateSetting({ routerosNatEnable: v })}
+    <>
+      {modalContextHolder}
+      <Tabs
+        defaultActiveKey="1"
+        onChange={(key) => {
+          if (key === '2') {
+            void loadRules();
+          } else if (key === '4' && !diagResult && !diagLoading) {
+            void loadDiagnostics();
+          }
+        }}
+        items={[
+          {
+            key: '1',
+            label: catTabLabel(
+              <SettingOutlined aria-hidden />,
+              t('pages.settings.routerosNatTabSettings'),
+              isMobile,
+            ),
+            children: (
+              <>
+                <Alert
+                  type="info"
+                  showIcon
+                  title={t('pages.settings.routerosNatNoticeTitle')}
+                  description={t('pages.settings.routerosNatNoticeDesc')}
+                  style={{ marginBottom: 16 }}
                 />
-              </SettingListItem>
 
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatHost')}
-                description={t('pages.settings.routerosNatHostDesc')}
-              >
-                <Input
-                  value={allSetting.routerosNatHost}
-                  placeholder="172.16.10.1"
-                  onChange={(e) => updateSetting({ routerosNatHost: e.target.value })}
-                  style={{ width: '100%' }}
-                />
-              </SettingListItem>
-
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatPort')}
-                description={t('pages.settings.routerosNatPortDesc')}
-              >
-                <InputNumber
-                  value={allSetting.routerosNatPort}
-                  min={1}
-                  max={65535}
-                  onChange={onNumber((v) => updateSetting({ routerosNatPort: v }))}
-                  style={{ width: '100%' }}
-                />
-              </SettingListItem>
-
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatUsername')}
-                description={t('pages.settings.routerosNatUsernameDesc')}
-              >
-                <Input
-                  value={allSetting.routerosNatUsername}
-                  placeholder="mikrozia-nat"
-                  autoComplete="off"
-                  onChange={(e) => updateSetting({ routerosNatUsername: e.target.value })}
-                  style={{ width: '100%' }}
-                />
-              </SettingListItem>
-
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatPassword')}
-                description={
-                  allSetting.hasRouterosNatPassword && !allSetting.clearRouterosNatPassword
-                    ? t('pages.settings.routerosNatPasswordConfigured')
-                    : t('pages.settings.routerosNatPasswordDesc')
-                }
-              >
-                <SecretInput
-                  value={allSetting.routerosNatPassword}
-                  configured={allSetting.hasRouterosNatPassword}
-                  clearArmed={allSetting.clearRouterosNatPassword}
-                  placeholder={t('pages.settings.routerosNatPasswordPlaceholder')}
-                  onChange={(v) => updateSetting({ routerosNatPassword: v })}
-                  onClearArmedChange={(armed) => updateSetting({ clearRouterosNatPassword: armed })}
-                />
-              </SettingListItem>
-
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatTargetIP')}
-                description={t('pages.settings.routerosNatTargetIPDesc')}
-              >
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    aria-label={t('pages.settings.routerosNatTargetIP')}
-                    value={allSetting.routerosNatTargetIP}
-                    placeholder="172.16.10.2"
-                    onChange={(e) => updateSetting({ routerosNatTargetIP: e.target.value })}
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatEnable')}
+                  description={t('pages.settings.routerosNatEnableDesc')}
+                >
+                  <Switch
+                    checked={allSetting.routerosNatEnable}
+                    onChange={(v) => updateSetting({ routerosNatEnable: v })}
                   />
-                  <Button
-                    icon={<RadarChartOutlined aria-hidden />}
-                    loading={detectLoading}
-                    onClick={handleDetectIp}
-                  >
-                    {t('pages.settings.routerosNatDetectIP')}
-                  </Button>
-                </Space.Compact>
-              </SettingListItem>
+                </SettingListItem>
 
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosNatInInterface')}
-                description={t('pages.settings.routerosNatInInterfaceDesc')}
-              >
-                <Space.Compact style={{ width: '100%' }}>
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatHost')}
+                  description={t('pages.settings.routerosNatHostDesc')}
+                >
                   <Input
-                    aria-label={t('pages.settings.routerosNatInInterface')}
-                    value={allSetting.routerosNatInInterface}
-                    placeholder="ether1 / pppoe-out1"
-                    onChange={(e) => updateSetting({ routerosNatInInterface: e.target.value })}
+                    value={allSetting.routerosNatHost}
+                    placeholder="172.16.10.1"
+                    onChange={(e) => updateSetting({ routerosNatHost: e.target.value })}
+                    style={{ width: '100%' }}
                   />
-                  <Button
-                    icon={<RadarChartOutlined aria-hidden />}
-                    loading={detectWanLoading}
-                    onClick={handleDetectWanInterface}
-                  >
-                    {t('pages.settings.routerosNatDetectIP')}
-                  </Button>
-                </Space.Compact>
-              </SettingListItem>
+                </SettingListItem>
 
-              <SettingListItem
-                paddings="small"
-                title={t('pages.settings.routerosContainerComment')}
-                description={t('pages.settings.routerosContainerCommentDesc')}
-              >
-                <Input
-                  value={allSetting.routerosContainerComment}
-                  placeholder="[Mikrozia:container] Container"
-                  onChange={(e) => updateSetting({ routerosContainerComment: e.target.value })}
-                  style={{ width: '100%' }}
-                />
-              </SettingListItem>
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatPort')}
+                  description={t('pages.settings.routerosNatPortDesc')}
+                >
+                  <InputNumber
+                    value={allSetting.routerosNatPort}
+                    min={1}
+                    max={65535}
+                    onChange={onNumber((v) => updateSetting({ routerosNatPort: v }))}
+                    style={{ width: '100%' }}
+                  />
+                </SettingListItem>
 
-              <Space orientation="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatUsername')}
+                  description={t('pages.settings.routerosNatUsernameDesc')}
+                >
+                  <Input
+                    value={allSetting.routerosNatUsername}
+                    placeholder="mikrozia-nat"
+                    autoComplete="off"
+                    onChange={(e) => updateSetting({ routerosNatUsername: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </SettingListItem>
+
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatPassword')}
+                  description={
+                    allSetting.hasRouterosNatPassword && !allSetting.clearRouterosNatPassword
+                      ? t('pages.settings.routerosNatPasswordConfigured')
+                      : t('pages.settings.routerosNatPasswordDesc')
+                  }
+                >
+                  <SecretInput
+                    value={allSetting.routerosNatPassword}
+                    configured={allSetting.hasRouterosNatPassword}
+                    clearArmed={allSetting.clearRouterosNatPassword}
+                    placeholder={t('pages.settings.routerosNatPasswordPlaceholder')}
+                    onChange={(v) => updateSetting({ routerosNatPassword: v })}
+                    onClearArmedChange={(armed) =>
+                      updateSetting({ clearRouterosNatPassword: armed })
+                    }
+                  />
+                </SettingListItem>
+
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatTargetIP')}
+                  description={t('pages.settings.routerosNatTargetIPDesc')}
+                >
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input
+                      aria-label={t('pages.settings.routerosNatTargetIP')}
+                      value={allSetting.routerosNatTargetIP}
+                      placeholder="172.16.10.2"
+                      onChange={(e) => updateSetting({ routerosNatTargetIP: e.target.value })}
+                    />
+                    <Button
+                      icon={<RadarChartOutlined aria-hidden />}
+                      loading={detectLoading}
+                      onClick={handleDetectIp}
+                    >
+                      {t('pages.settings.routerosNatDetectIP')}
+                    </Button>
+                  </Space.Compact>
+                </SettingListItem>
+
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatInInterface')}
+                  description={t('pages.settings.routerosNatInInterfaceDesc')}
+                >
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input
+                      aria-label={t('pages.settings.routerosNatInInterface')}
+                      value={allSetting.routerosNatInInterface}
+                      placeholder="ether1 / pppoe-out1"
+                      onChange={(e) => updateSetting({ routerosNatInInterface: e.target.value })}
+                    />
+                    <Button
+                      icon={<RadarChartOutlined aria-hidden />}
+                      loading={detectWanLoading}
+                      onClick={handleDetectWanInterface}
+                    >
+                      {t('pages.settings.routerosNatDetectIP')}
+                    </Button>
+                  </Space.Compact>
+                </SettingListItem>
+
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosContainerComment')}
+                  description={t('pages.settings.routerosContainerCommentDesc')}
+                >
+                  <Input
+                    value={allSetting.routerosContainerComment}
+                    placeholder="[Mikrozia:container] Container"
+                    onChange={(e) => updateSetting({ routerosContainerComment: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </SettingListItem>
+
+                <SettingListItem
+                  paddings="small"
+                  title={t('pages.settings.routerosNatManageServices')}
+                  description={t('pages.settings.routerosNatManageServicesDesc')}
+                >
+                  <Switch
+                    checked={allSetting.routerosNatManageServices}
+                    disabled={!allSetting.routerosNatEnable}
+                    onChange={(v) => updateSetting({ routerosNatManageServices: v })}
+                  />
+                </SettingListItem>
+
+                <Space orientation="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
+                  <Space wrap>
+                    <Button
+                      type="primary"
+                      icon={<ApiOutlined aria-hidden />}
+                      loading={testLoading}
+                      onClick={handleTestConnection}
+                    >
+                      {t('pages.settings.routerosNatTestConnection')}
+                    </Button>
+                    <Button
+                      icon={<SyncOutlined aria-hidden />}
+                      loading={syncLoading}
+                      disabled={!allSetting.routerosNatEnable}
+                      onClick={handleSyncAll}
+                    >
+                      {t('pages.settings.routerosNatSyncAll')}
+                    </Button>
+                    <Button
+                      icon={<SyncOutlined aria-hidden />}
+                      loading={syncServicesLoading}
+                      disabled={
+                        !allSetting.routerosNatEnable || !allSetting.routerosNatManageServices
+                      }
+                      onClick={handleSyncServices}
+                    >
+                      {t('pages.settings.routerosNatSyncServices')}
+                    </Button>
+                  </Space>
+
+                  {result && (
+                    <Alert
+                      type={result.success ? 'success' : 'error'}
+                      title={result.msg}
+                      showIcon
+                      closable={{ onClose: () => setResult(null) }}
+                    />
+                  )}
+
+                  {health && (
+                    <Descriptions
+                      bordered
+                      size="small"
+                      column={isMobile ? 1 : 2}
+                      items={[
+                        {
+                          key: 'identity',
+                          label: t('pages.settings.routerosHealthIdentity'),
+                          children: health.identity || '—',
+                        },
+                        {
+                          key: 'version',
+                          label: t('pages.settings.routerosHealthVersion'),
+                          children:
+                            [health.version, health.boardName].filter(Boolean).join(' · ') || '—',
+                        },
+                        {
+                          key: 'disk',
+                          label: t('pages.settings.routerosHealthFreeDisk'),
+                          children:
+                            health.freeHddSpace && health.totalHddSpace
+                              ? `${SizeFormatter.sizeFormat(health.freeHddSpace)} / ${SizeFormatter.sizeFormat(health.totalHddSpace)}`
+                              : '—',
+                        },
+                        {
+                          key: 'masq',
+                          label: t('pages.settings.routerosHealthMasquerade'),
+                          children: (
+                            <Tag color={health.hasMasquerade ? 'success' : 'warning'}>
+                              {health.hasMasquerade
+                                ? t('pages.settings.routerosHealthMasqOk')
+                                : t('pages.settings.routerosHealthMasqMissing')}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          key: 'rules',
+                          label: t('pages.settings.routerosHealthManagedRules'),
+                          children: `${health.managedRules ?? 0} / ${health.natRules ?? 0}`,
+                        },
+                      ]}
+                    />
+                  )}
+                </Space>
+              </>
+            ),
+          },
+          {
+            key: '2',
+            label: catTabLabel(
+              <TableOutlined aria-hidden />,
+              t('pages.settings.routerosNatTabRules'),
+              isMobile,
+            ),
+            children: (
+              <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                 <Space wrap>
                   <Button
-                    type="primary"
-                    icon={<ApiOutlined aria-hidden />}
-                    loading={testLoading}
-                    onClick={handleTestConnection}
+                    icon={<ReloadOutlined aria-hidden />}
+                    loading={rulesLoading}
+                    onClick={() => void loadRules()}
                   >
-                    {t('pages.settings.routerosNatTestConnection')}
+                    {t('refresh')}
                   </Button>
                   <Button
-                    icon={<SyncOutlined aria-hidden />}
-                    loading={syncLoading}
+                    danger
+                    icon={<DeleteOutlined aria-hidden />}
+                    loading={cleanupLoading}
                     disabled={!allSetting.routerosNatEnable}
-                    onClick={handleSyncAll}
+                    onClick={handleCleanupOrphans}
                   >
-                    {t('pages.settings.routerosNatSyncAll')}
+                    {t('pages.settings.routerosNatCleanupOrphans')}
                   </Button>
                 </Space>
 
-                {result && (
+                {rulesResult && (
                   <Alert
-                    type={result.success ? 'success' : 'error'}
-                    title={result.msg}
+                    type={rulesResult.success ? 'success' : 'error'}
+                    title={rulesResult.msg}
                     showIcon
-                    closable={{ onClose: () => setResult(null) }}
+                    closable={{ onClose: () => setRulesResult(null) }}
                   />
                 )}
 
-                {health && (
-                  <Descriptions
-                    bordered
-                    size="small"
-                    column={isMobile ? 1 : 2}
-                    items={[
-                      {
-                        key: 'identity',
-                        label: t('pages.settings.routerosHealthIdentity'),
-                        children: health.identity || '—',
-                      },
-                      {
-                        key: 'version',
-                        label: t('pages.settings.routerosHealthVersion'),
-                        children:
-                          [health.version, health.boardName].filter(Boolean).join(' · ') || '—',
-                      },
-                      {
-                        key: 'disk',
-                        label: t('pages.settings.routerosHealthFreeDisk'),
-                        children:
-                          health.freeHddSpace && health.totalHddSpace
-                            ? `${SizeFormatter.sizeFormat(health.freeHddSpace)} / ${SizeFormatter.sizeFormat(health.totalHddSpace)}`
-                            : '—',
-                      },
-                      {
-                        key: 'masq',
-                        label: t('pages.settings.routerosHealthMasquerade'),
-                        children: (
-                          <Tag color={health.hasMasquerade ? 'success' : 'warning'}>
-                            {health.hasMasquerade
-                              ? t('pages.settings.routerosHealthMasqOk')
-                              : t('pages.settings.routerosHealthMasqMissing')}
-                          </Tag>
-                        ),
-                      },
-                      {
-                        key: 'rules',
-                        label: t('pages.settings.routerosHealthManagedRules'),
-                        children: `${health.managedRules ?? 0} / ${health.natRules ?? 0}`,
-                      },
-                    ]}
-                  />
-                )}
-              </Space>
-            </>
-          ),
-        },
-        {
-          key: '2',
-          label: catTabLabel(
-            <TableOutlined aria-hidden />,
-            t('pages.settings.routerosNatTabRules'),
-            isMobile,
-          ),
-          children: (
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-              <Space wrap>
-                <Button
-                  icon={<ReloadOutlined aria-hidden />}
+                <Table<ManagedNatRule>
+                  rowKey="id"
+                  size="small"
                   loading={rulesLoading}
-                  onClick={() => void loadRules()}
-                >
-                  {t('refresh')}
-                </Button>
-                <Button
-                  danger
-                  icon={<DeleteOutlined aria-hidden />}
-                  loading={cleanupLoading}
-                  disabled={!allSetting.routerosNatEnable}
-                  onClick={handleCleanupOrphans}
-                >
-                  {t('pages.settings.routerosNatCleanupOrphans')}
-                </Button>
-              </Space>
-
-              {rulesResult && (
-                <Alert
-                  type={rulesResult.success ? 'success' : 'error'}
-                  title={rulesResult.msg}
-                  showIcon
-                  closable={{ onClose: () => setRulesResult(null) }}
+                  columns={ruleColumns}
+                  dataSource={rules}
+                  pagination={false}
+                  scroll={{ x: 'max-content' }}
+                  locale={{ emptyText: t('pages.settings.routerosNatNoRules') }}
                 />
-              )}
+              </Space>
+            ),
+          },
+          {
+            key: '3',
+            label: catTabLabel(
+              <BookOutlined aria-hidden />,
+              t('pages.settings.routerosNatTabGuide'),
+              isMobile,
+            ),
+            children: (
+              <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                <Typography.Text strong>
+                  {t('pages.settings.routerosNatGuideStep1Title')}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  {t('pages.settings.routerosNatGuideStep1Desc')}
+                </Typography.Text>
+                <Alert
+                  type="warning"
+                  showIcon
+                  title={t('pages.settings.routerosNatPasswordCharsWarn')}
+                />
+                <Typography.Paragraph
+                  copyable={{ text: cliSnippets.userCmd }}
+                  code
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    direction: 'ltr',
+                    textAlign: 'left',
+                    margin: 0,
+                  }}
+                >
+                  {cliSnippets.userCmd}
+                </Typography.Paragraph>
 
-              <Table<ManagedNatRule>
-                rowKey="id"
-                size="small"
-                loading={rulesLoading}
-                columns={ruleColumns}
-                dataSource={rules}
-                pagination={false}
-                scroll={{ x: 'max-content' }}
-                locale={{ emptyText: t('pages.settings.routerosNatNoRules') }}
-              />
-            </Space>
-          ),
-        },
-        {
-          key: '3',
-          label: catTabLabel(
-            <BookOutlined aria-hidden />,
-            t('pages.settings.routerosNatTabGuide'),
-            isMobile,
-          ),
-          children: (
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-              <Typography.Text strong>
-                {t('pages.settings.routerosNatGuideStep1Title')}
-              </Typography.Text>
-              <Typography.Text type="secondary">
-                {t('pages.settings.routerosNatGuideStep1Desc')}
-              </Typography.Text>
-              <Alert
-                type="warning"
-                showIcon
-                title={t('pages.settings.routerosNatPasswordCharsWarn')}
-              />
-              <Typography.Paragraph
-                copyable={{ text: cliSnippets.userCmd }}
-                code
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  direction: 'ltr',
-                  textAlign: 'left',
-                  margin: 0,
-                }}
-              >
-                {cliSnippets.userCmd}
-              </Typography.Paragraph>
+                <Typography.Text strong>
+                  {t('pages.settings.routerosNatGuideStep2Title')}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  {t('pages.settings.routerosNatGuideStep2Desc')}
+                </Typography.Text>
+                <Typography.Paragraph
+                  copyable={{ text: cliSnippets.apiCmd }}
+                  code
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    direction: 'ltr',
+                    textAlign: 'left',
+                    margin: 0,
+                  }}
+                >
+                  {cliSnippets.apiCmd}
+                </Typography.Paragraph>
+                <Typography.Paragraph
+                  copyable={{ text: cliSnippets.firewallCmd }}
+                  code
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    direction: 'ltr',
+                    textAlign: 'left',
+                    margin: 0,
+                  }}
+                >
+                  {cliSnippets.firewallCmd}
+                </Typography.Paragraph>
 
-              <Typography.Text strong>
-                {t('pages.settings.routerosNatGuideStep2Title')}
-              </Typography.Text>
-              <Typography.Text type="secondary">
-                {t('pages.settings.routerosNatGuideStep2Desc')}
-              </Typography.Text>
-              <Typography.Paragraph
-                copyable={{ text: cliSnippets.apiCmd }}
-                code
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  direction: 'ltr',
-                  textAlign: 'left',
-                  margin: 0,
-                }}
-              >
-                {cliSnippets.apiCmd}
-              </Typography.Paragraph>
-              <Typography.Paragraph
-                copyable={{ text: cliSnippets.firewallCmd }}
-                code
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  direction: 'ltr',
-                  textAlign: 'left',
-                  margin: 0,
-                }}
-              >
-                {cliSnippets.firewallCmd}
-              </Typography.Paragraph>
-
-              <Typography.Text strong>
-                {t('pages.settings.routerosNatGuideStep4Title')}
-              </Typography.Text>
-              <Typography.Text type="secondary">
-                {t('pages.settings.routerosNatGuideStep4Desc')}
-              </Typography.Text>
-              <Typography.Paragraph
-                copyable={{ text: cliSnippets.verifyCmd }}
-                code
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  direction: 'ltr',
-                  textAlign: 'left',
-                  margin: 0,
-                }}
-              >
-                {cliSnippets.verifyCmd}
-              </Typography.Paragraph>
-            </Space>
-          ),
-        },
-      ]}
-    />
+                <Typography.Text strong>
+                  {t('pages.settings.routerosNatGuideStep4Title')}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  {t('pages.settings.routerosNatGuideStep4Desc')}
+                </Typography.Text>
+                <Typography.Paragraph
+                  copyable={{ text: cliSnippets.verifyCmd }}
+                  code
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    direction: 'ltr',
+                    textAlign: 'left',
+                    margin: 0,
+                  }}
+                >
+                  {cliSnippets.verifyCmd}
+                </Typography.Paragraph>
+              </Space>
+            ),
+          },
+          {
+            key: '4',
+            label: catTabLabel(
+              <SafetyCertificateOutlined aria-hidden />,
+              t('pages.settings.routerosNatTabDiagnostics'),
+              isMobile,
+            ),
+            children: (
+              <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                <Alert
+                  type="info"
+                  showIcon
+                  title={t('pages.settings.routerosDiagTitle')}
+                  description={t('pages.settings.routerosDiagDesc')}
+                />
+                <Space wrap align="center">
+                  <Button
+                    type="primary"
+                    icon={<SafetyCertificateOutlined aria-hidden />}
+                    loading={diagLoading}
+                    onClick={() => void loadDiagnostics()}
+                  >
+                    {t('pages.settings.routerosDiagRun')}
+                  </Button>
+                  {diagResult?.checks && diagResult.checks.length > 0 && (
+                    <Space size={6} wrap>
+                      <Tag color="success">
+                        {t('pages.settings.routerosDiagSummaryOk')}:{' '}
+                        {diagResult.checks.filter((c) => c.status === 'ok').length}
+                      </Tag>
+                      <Tag color="warning">
+                        {t('pages.settings.routerosDiagSummaryWarn')}:{' '}
+                        {diagResult.checks.filter((c) => c.status === 'warn').length}
+                      </Tag>
+                      <Tag color="error">
+                        {t('pages.settings.routerosDiagSummaryError')}:{' '}
+                        {diagResult.checks.filter((c) => c.status === 'error').length}
+                      </Tag>
+                    </Space>
+                  )}
+                </Space>
+                {diagError && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    title={diagError}
+                    closable={{ onClose: () => setDiagError(null) }}
+                  />
+                )}
+                {diagResult?.checks &&
+                  diagResult.checks.length > 0 &&
+                  (
+                    [
+                      {
+                        title: t('pages.settings.routerosDiagGroupSystem'),
+                        keys: ['disk', 'conntrack', 'hardware'],
+                      },
+                      {
+                        title: t('pages.settings.routerosDiagGroupNetwork'),
+                        keys: ['veth', 'gateway', 'masquerade'],
+                      },
+                      {
+                        title: t('pages.settings.routerosDiagGroupPorts'),
+                        keys: ['conflicts', 'services'],
+                      },
+                    ] as const
+                  ).map((group) => {
+                    const items = diagResult.checks.filter((c) =>
+                      (group.keys as readonly string[]).includes(c.key),
+                    );
+                    if (items.length === 0) return null;
+                    return (
+                      <Card key={group.title} size="small" title={group.title}>
+                        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                          {items.map((c) => (
+                            <Alert
+                              key={c.key}
+                              type={
+                                c.status === 'ok'
+                                  ? 'success'
+                                  : c.status === 'warn'
+                                    ? 'warning'
+                                    : 'error'
+                              }
+                              showIcon
+                              title={diagCheckTitle(c.key)}
+                              description={c.detail}
+                            />
+                          ))}
+                        </Space>
+                      </Card>
+                    );
+                  })}
+              </Space>
+            ),
+          },
+          {
+            key: '5',
+            label: catTabLabel(
+              <CloudDownloadOutlined aria-hidden />,
+              t('pages.settings.routerosNatTabUpdates'),
+              isMobile,
+            ),
+            children: <RouterosUpdatePane />,
+          },
+        ]}
+      />
+    </>
   );
 }

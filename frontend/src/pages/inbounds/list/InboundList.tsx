@@ -29,6 +29,8 @@ import {
 
 import { HttpUtil } from '@/utils';
 import { activateOnKey } from '@/utils/a11y';
+import { useAllSettings } from '@/api/queries/useAllSettings';
+import { useRouterosNatRules, type ManagedNatRule } from '@/api/queries/useRouterosNatRules';
 
 import { buildRowActionsMenu } from './RowActions';
 import { useInboundColumns } from './useInboundColumns';
@@ -66,6 +68,10 @@ export default function InboundList({
   onBulkDelete,
 }: InboundListProps) {
   const { t } = useTranslation();
+  const { allSetting } = useAllSettings();
+  const routerosNatEnable = !!allSetting.routerosNatEnable;
+  const { data: natRules = [], refetch: refetchNatRules } = useRouterosNatRules(routerosNatEnable);
+  const [syncingNatId, setSyncingNatId] = useState<number | null>(null);
   const [statsRecord, setStatsRecord] = useState<DBInboundRecord | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   // Node filter (#4997): 'all' shows everything, 0 is the local-panel
@@ -115,18 +121,46 @@ export default function InboundList({
     });
   }, [dbInbounds, nodeFilter, searchKey, hostRemarksByInboundId]);
 
-  const onSwitchEnable = useCallback(async (dbInbound: DBInboundRecord, next: boolean) => {
-    const previous = dbInbound.enable;
-    dbInbound.enable = next;
-    try {
-      const formData = new FormData();
-      formData.append('enable', String(next));
-      const msg = await HttpUtil.post(`/panel/api/inbounds/setEnable/${dbInbound.id}`, formData);
-      if (!msg?.success) dbInbound.enable = previous;
-    } catch {
-      dbInbound.enable = previous;
+  const natRulesByInboundId = useMemo(() => {
+    const map = new Map<number, ManagedNatRule[]>();
+    for (const rule of natRules) {
+      if (rule.inboundId <= 0) continue;
+      const list = map.get(rule.inboundId) ?? [];
+      list.push(rule);
+      map.set(rule.inboundId, list);
     }
-  }, []);
+    return map;
+  }, [natRules]);
+
+  const handleSyncInboundNat = useCallback(
+    async (id: number) => {
+      setSyncingNatId(id);
+      try {
+        await HttpUtil.post(`/panel/api/inbounds/${id}/syncRouterosNat`);
+        await refetchNatRules();
+      } finally {
+        setSyncingNatId(null);
+      }
+    },
+    [refetchNatRules],
+  );
+
+  const onSwitchEnable = useCallback(
+    async (dbInbound: DBInboundRecord, next: boolean) => {
+      const previous = dbInbound.enable;
+      dbInbound.enable = next;
+      try {
+        const formData = new FormData();
+        formData.append('enable', String(next));
+        const msg = await HttpUtil.post(`/panel/api/inbounds/setEnable/${dbInbound.id}`, formData);
+        if (!msg?.success) dbInbound.enable = previous;
+        else if (routerosNatEnable) void refetchNatRules();
+      } catch {
+        dbInbound.enable = previous;
+      }
+    },
+    [routerosNatEnable, refetchNatRules],
+  );
 
   const hasAnyRemark = useMemo(
     () =>
@@ -177,6 +211,10 @@ export default function InboundList({
     subEnable,
     expireDiff,
     trafficDiff,
+    routerosNatEnable,
+    natRulesByInboundId,
+    syncingNatId,
+    onSyncNat: handleSyncInboundNat,
     onRowAction,
     onSwitchEnable,
   });

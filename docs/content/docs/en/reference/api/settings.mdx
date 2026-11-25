@@ -85,6 +85,35 @@ _openapi:
         ID no longer exists in the local panel database.
       url: '#remove-only-mikrozia-owned-routeros-ipfirewallnat-rules-whose-inbound-id-no-longer-exists-in-the-local-panel-database'
     - depth: 2
+      title: Run read-only RouterOS pre-flight diagnostics (free disk space, VETH
+        interface state, container gateway IP, active srcnat masquerade, and
+        manual dstnat port conflicts).
+      url: '#run-read-only-routeros-pre-flight-diagnostics-free-disk-space-veth-interface-state-container-gateway-ip-active-srcnat-masquerade-and-manual-dstnat-port-conflicts'
+    - depth: 2
+      title: Reconcile opt-in Mikrozia-owned RouterOS NAT rules for the panel and
+        subscription service ports (mikrozia:managed:service:panel and
+        mikrozia:managed:service:sub).
+      url: '#reconcile-opt-in-mikrozia-owned-routeros-nat-rules-for-the-panel-and-subscription-service-ports-mikroziamanagedservicepanel-and-mikroziamanagedservicesub'
+    - depth: 2
+      title: Check the latest published echodev7/mikrozia release tag on Docker Hub,
+        inspect active/staged/previous Mikrozia containers on RouterOS, and
+        generate ready-to-copy RouterOS update commands.
+      url: '#check-the-latest-published-echodev7mikrozia-release-tag-on-docker-hub-inspect-activestagedprevious-mikrozia-containers-on-routeros-and-generate-ready-to-copy-routeros-update-commands'
+    - depth: 2
+      title: Stage a new versioned Mikrozia container on RouterOS using the current
+        container mountlists and envlist with a new root-dir.
+      url: '#stage-a-new-versioned-mikrozia-container-on-routeros-using-the-current-container-mountlists-and-envlist-with-a-new-root-dir'
+    - depth: 2
+      title: Schedule a one-shot RouterOS cutover that stops the current container and
+        starts the newly staged container, optionally cleaning up the previous
+        stopped container after boot.
+      url: '#schedule-a-one-shot-routeros-cutover-that-stops-the-current-container-and-starts-the-newly-staged-container-optionally-cleaning-up-the-previous-stopped-container-after-boot'
+    - depth: 2
+      title: Remove stopped previous Mikrozia containers marked with
+        [Mikrozia:previous] without touching persistent data or certificate
+        mounts.
+      url: '#remove-stopped-previous-mikrozia-containers-marked-with-mikroziaprevious-without-touching-persistent-data-or-certificate-mounts'
+    - depth: 2
       title: Detect the container private IPv4 address used as the default dst-nat
         to-addresses target.
       url: '#detect-the-container-private-ipv4-address-used-as-the-default-dst-nat-to-addresses-target'
@@ -154,6 +183,29 @@ _openapi:
       - content: Remove only Mikrozia-owned RouterOS /ip/firewall/nat rules whose
           inbound ID no longer exists in the local panel database.
         id: remove-only-mikrozia-owned-routeros-ipfirewallnat-rules-whose-inbound-id-no-longer-exists-in-the-local-panel-database
+      - content: Run read-only RouterOS pre-flight diagnostics (free disk space, VETH
+          interface state, container gateway IP, active srcnat masquerade, and
+          manual dstnat port conflicts).
+        id: run-read-only-routeros-pre-flight-diagnostics-free-disk-space-veth-interface-state-container-gateway-ip-active-srcnat-masquerade-and-manual-dstnat-port-conflicts
+      - content: Reconcile opt-in Mikrozia-owned RouterOS NAT rules for the panel and
+          subscription service ports (mikrozia:managed:service:panel and
+          mikrozia:managed:service:sub).
+        id: reconcile-opt-in-mikrozia-owned-routeros-nat-rules-for-the-panel-and-subscription-service-ports-mikroziamanagedservicepanel-and-mikroziamanagedservicesub
+      - content: Check the latest published echodev7/mikrozia release tag on Docker Hub,
+          inspect active/staged/previous Mikrozia containers on RouterOS, and
+          generate ready-to-copy RouterOS update commands.
+        id: check-the-latest-published-echodev7mikrozia-release-tag-on-docker-hub-inspect-activestagedprevious-mikrozia-containers-on-routeros-and-generate-ready-to-copy-routeros-update-commands
+      - content: Stage a new versioned Mikrozia container on RouterOS using the current
+          container mountlists and envlist with a new root-dir.
+        id: stage-a-new-versioned-mikrozia-container-on-routeros-using-the-current-container-mountlists-and-envlist-with-a-new-root-dir
+      - content: Schedule a one-shot RouterOS cutover that stops the current container
+          and starts the newly staged container, optionally cleaning up the
+          previous stopped container after boot.
+        id: schedule-a-one-shot-routeros-cutover-that-stops-the-current-container-and-starts-the-newly-staged-container-optionally-cleaning-up-the-previous-stopped-container-after-boot
+      - content: Remove stopped previous Mikrozia containers marked with
+          [Mikrozia:previous] without touching persistent data or certificate
+          mounts.
+        id: remove-stopped-previous-mikrozia-containers-marked-with-mikroziaprevious-without-touching-persistent-data-or-certificate-mounts
       - content: Detect the container private IPv4 address used as the default dst-nat
           to-addresses target.
         id: detect-the-container-private-ipv4-address-used-as-the-default-dst-nat-to-addresses-target
@@ -170,7 +222,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/panel/api/setting/all","method":"post"},{"path":"/panel/api/setting/defaultSettings","method":"post"},{"path":"/panel/api/setting/factoryDefaults","method":"post"},{"path":"/panel/api/setting/update","method":"post"},{"path":"/panel/api/setting/validateRegex","method":"post"},{"path":"/panel/api/setting/updateUser","method":"post"},{"path":"/panel/api/setting/adminCredentialState","method":"post"},{"path":"/panel/api/setting/restartPanel","method":"post"},{"path":"/panel/api/setting/testSmtp","method":"post"},{"path":"/panel/api/setting/testTgBot","method":"post"},{"path":"/panel/api/setting/tgBotCapabilities","method":"post"},{"path":"/panel/api/setting/testDiscord","method":"post"},{"path":"/panel/api/setting/testRouterosNat","method":"post"},{"path":"/panel/api/setting/syncRouterosNat","method":"post"},{"path":"/panel/api/setting/detectRouterosWanInterface","method":"post"},{"path":"/panel/api/setting/routerosNatRules","method":"get"},{"path":"/panel/api/setting/cleanupRouterosNat","method":"post"},{"path":"/panel/api/setting/detectContainerIp","method":"get"},{"path":"/panel/api/setting/getDefaultJsonConfig","method":"get"}]} showTitle />
+      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/panel/api/setting/all","method":"post"},{"path":"/panel/api/setting/defaultSettings","method":"post"},{"path":"/panel/api/setting/factoryDefaults","method":"post"},{"path":"/panel/api/setting/update","method":"post"},{"path":"/panel/api/setting/validateRegex","method":"post"},{"path":"/panel/api/setting/updateUser","method":"post"},{"path":"/panel/api/setting/adminCredentialState","method":"post"},{"path":"/panel/api/setting/restartPanel","method":"post"},{"path":"/panel/api/setting/testSmtp","method":"post"},{"path":"/panel/api/setting/testTgBot","method":"post"},{"path":"/panel/api/setting/tgBotCapabilities","method":"post"},{"path":"/panel/api/setting/testDiscord","method":"post"},{"path":"/panel/api/setting/testRouterosNat","method":"post"},{"path":"/panel/api/setting/syncRouterosNat","method":"post"},{"path":"/panel/api/setting/detectRouterosWanInterface","method":"post"},{"path":"/panel/api/setting/routerosNatRules","method":"get"},{"path":"/panel/api/setting/cleanupRouterosNat","method":"post"},{"path":"/panel/api/setting/routerosDiagnostics","method":"get"},{"path":"/panel/api/setting/syncRouterosServices","method":"post"},{"path":"/panel/api/setting/routerosUpdateInfo","method":"get"},{"path":"/panel/api/setting/routerosUpdateStage","method":"post"},{"path":"/panel/api/setting/routerosUpdateCutover","method":"post"},{"path":"/panel/api/setting/routerosUpdateCleanupPrevious","method":"post"},{"path":"/panel/api/setting/detectContainerIp","method":"get"},{"path":"/panel/api/setting/getDefaultJsonConfig","method":"get"}]} showTitle />
     </>
   );
 }

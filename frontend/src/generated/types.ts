@@ -64,6 +64,7 @@ export interface AllSetting {
   routerosNatHost: string;
   routerosNatInInterface: string;
   routerosNatInInterfaceList: string;
+  routerosNatManageServices: boolean;
   routerosNatPassword: string;
   routerosNatPort: number;
   routerosNatTargetIP: string;
@@ -264,6 +265,7 @@ export interface AllSettingView {
   routerosNatHost: string;
   routerosNatInInterface: string;
   routerosNatInInterfaceList: string;
+  routerosNatManageServices: boolean;
   routerosNatPassword: string;
   routerosNatPort: number;
   routerosNatTargetIP: string;

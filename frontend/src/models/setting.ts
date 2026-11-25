@@ -205,6 +205,7 @@ export class AllSetting {
   routerosNatTargetIP = '';
   routerosNatInInterface = '';
   routerosNatInInterfaceList = '';
+  routerosNatManageServices = false;
   routerosContainerComment = '';
   hasRouterosNatPassword = false;
   clearRouterosNatPassword = false;

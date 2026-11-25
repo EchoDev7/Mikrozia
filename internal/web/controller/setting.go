@@ -63,8 +63,9 @@ type SettingController struct {
 	panelService       panel.PanelService
 	apiTokenService    panel.ApiTokenService
 	xrayService        service.XrayService
-	inboundService     service.InboundService
-	routerOSNATService service.RouterOSNATService
+	inboundService         service.InboundService
+	routerOSNATService     service.RouterOSNATService
+	routerOSUpdaterService service.RouterOSUpdaterService
 }
 
 // NewSettingController creates a new SettingController and initializes its routes.
@@ -100,6 +101,12 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g.POST("/detectRouterosWanInterface", a.detectRouterosWanInterface)
 	g.GET("/routerosNatRules", a.listRouterosNatRules)
 	g.POST("/cleanupRouterosNat", a.cleanupRouterosNat)
+	g.GET("/routerosDiagnostics", a.routerosDiagnostics)
+	g.POST("/syncRouterosServices", a.syncRouterosServices)
+	g.GET("/routerosUpdateInfo", a.routerosUpdateInfo)
+	g.POST("/routerosUpdateStage", a.routerosUpdateStage)
+	g.POST("/routerosUpdateCutover", a.routerosUpdateCutover)
+	g.POST("/routerosUpdateCleanupPrevious", a.routerosUpdateCleanupPrevious)
 	g.GET("/detectContainerIp", a.detectContainerIp)
 }
 
@@ -574,4 +581,75 @@ func (a *SettingController) cleanupRouterosNat(c *gin.Context) {
 		return
 	}
 	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosNatCleanupSuccess"), gin.H{"removed": removed}, nil)
+}
+
+func (a *SettingController) routerosDiagnostics(c *gin.Context) {
+	user := session.GetLoginUser(c)
+	inbounds, err := a.inboundService.GetInbounds(user.Id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	res, err := a.routerOSNATService.RunDiagnostics(c.Request.Context(), inbounds)
+	if err != nil {
+		jsonMsgObj(c, err.Error(), res, err)
+		return
+	}
+	jsonObj(c, res, nil)
+}
+
+func (a *SettingController) syncRouterosServices(c *gin.Context) {
+	if err := a.routerOSNATService.SyncServicePorts(c.Request.Context()); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsg(c, I18nWeb(c, "pages.settings.routerosNatServicesSyncSuccess"), nil)
+}
+
+func (a *SettingController) routerosUpdateInfo(c *gin.Context) {
+	force := c.Query("refresh") == "1" || c.Query("refresh") == "true"
+	info := a.routerOSUpdaterService.GetUpdateInfo(c.Request.Context(), force)
+	jsonObj(c, info, nil)
+}
+
+func (a *SettingController) routerosUpdateStage(c *gin.Context) {
+	var body struct {
+		TargetVersion string `json:"targetVersion" form:"targetVersion"`
+	}
+	if err := c.ShouldBind(&body); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	spec, err := a.routerOSUpdaterService.StageUpdate(c.Request.Context(), body.TargetVersion)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosUpdateStageStarted"), spec, nil)
+}
+
+func (a *SettingController) routerosUpdateCutover(c *gin.Context) {
+	var body struct {
+		CleanupPrevious bool `json:"cleanupPrevious" form:"cleanupPrevious"`
+	}
+	_ = c.ShouldBind(&body)
+	state, detail, err := a.routerOSUpdaterService.CutoverUpdate(c.Request.Context(), body.CleanupPrevious)
+	if err != nil {
+		jsonMsgObj(c, err.Error(), gin.H{"state": state, "detail": detail}, err)
+		return
+	}
+	if state == "permission_required" {
+		jsonMsgObj(c, "permission_required", gin.H{"state": state, "detail": detail}, errors.New("permission_required"))
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosUpdateCutoverScheduled"), gin.H{"state": "ok"}, nil)
+}
+
+func (a *SettingController) routerosUpdateCleanupPrevious(c *gin.Context) {
+	removed, err := a.routerOSUpdaterService.CleanupPrevious(c.Request.Context())
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosUpdateCleanupSuccess"), gin.H{"removed": removed}, nil)
 }

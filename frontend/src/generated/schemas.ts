@@ -185,6 +185,9 @@ export const SCHEMAS: Record<string, unknown> = {
       "routerosNatInInterfaceList": {
         "type": "string"
       },
+      "routerosNatManageServices": {
+        "type": "boolean"
+      },
       "routerosNatPassword": {
         "type": "string"
       },
@@ -679,6 +682,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "routerosNatHost",
       "routerosNatInInterface",
       "routerosNatInInterfaceList",
+      "routerosNatManageServices",
       "routerosNatPassword",
       "routerosNatPort",
       "routerosNatTargetIP",
@@ -1012,6 +1016,9 @@ export const SCHEMAS: Record<string, unknown> = {
       },
       "routerosNatInInterfaceList": {
         "type": "string"
+      },
+      "routerosNatManageServices": {
+        "type": "boolean"
       },
       "routerosNatPassword": {
         "type": "string"
@@ -1516,6 +1523,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "routerosNatHost",
       "routerosNatInInterface",
       "routerosNatInInterfaceList",
+      "routerosNatManageServices",
       "routerosNatPassword",
       "routerosNatPort",
       "routerosNatTargetIP",
