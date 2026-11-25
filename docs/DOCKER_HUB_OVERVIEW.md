@@ -1,7 +1,7 @@
 # Mikrozia — Xray Control Panel for MikroTik RouterOS Container
 
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-echodev7%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/echodev7/mikrozia)
-[![Release](https://img.shields.io/badge/release-v1.0.7--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
+[![Release](https://img.shields.io/badge/release-v1.0.8--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-lightgrey.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 
