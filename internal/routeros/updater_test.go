@@ -165,3 +165,39 @@ func TestStageContainerUpdate_LowDiskAndPermissionDeniedCutover(t *testing.T) {
 		t.Fatalf("expected permission_required, got %q", st)
 	}
 }
+
+func TestInspectContainers_ROS725RunningWithStagingCommentAndEnvlists(t *testing.T) {
+	srv := &fakeUpdaterServer{
+		containers: []map[string]string{
+			{
+				".id":           "*E",
+				"name":          "mikrozia:v2.0.0-mikrozia",
+				"remote-image":  "echodev7/mikrozia:v2.0.0-mikrozia",
+				"interface":     "veth-mikrozia",
+				"root-dir":      "/containers/mikrozia/root-v2.0.0-mikrozia",
+				"mountlists":    "MIKROZIA_DATA,MIKROZIA_CERT",
+				"envlists":      "MIKROZIA_ENV",
+				"running":       "true",
+				"logging":       "true",
+				"start-on-boot": "true",
+				"comment":       "[Mikrozia:staging:v2.0.0-mikrozia]",
+			},
+		},
+	}
+	client := Client{Dial: srv.dial}
+	cfg := NATConnConfig{Host: "172.16.10.1", Port: 8728, Username: "mikrozia", Password: "secret"}
+
+	inv := client.InspectContainersForUpdate(context.Background(), cfg, "[Mikrozia:container] Container")
+	if inv.State != "ok" || inv.Current == nil || inv.Current.ID != "*E" {
+		t.Fatalf("expected running container *E as Current, got %+v", inv)
+	}
+	if inv.Staged != nil {
+		t.Fatalf("running container must not be classified as Staged: %+v", inv.Staged)
+	}
+	if inv.Current.Envlist != "MIKROZIA_ENV" {
+		t.Fatalf("expected envlists fallback MIKROZIA_ENV, got %q", inv.Current.Envlist)
+	}
+	if inv.Current.Status != "running" {
+		t.Fatalf("expected status running from boolean flag, got %q", inv.Current.Status)
+	}
+}

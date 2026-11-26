@@ -186,12 +186,14 @@ func (s *RouterOSUpdaterService) fetchDockerHubLatest(ctx context.Context, force
 }
 
 func (s *RouterOSUpdaterService) resolveConnAndComment() (routeros.NATConnConfig, string, bool) {
-	apiCfg := resolveRouterOSAPIConfig()
-	if apiCfg.State != "connecting" {
-		return routeros.NATConnConfig{}, "", false
-	}
 	port := routeros.DefaultAPIPort
 	comment := strings.TrimSpace(os.Getenv("MIKROZIA_ROUTEROS_CONTAINER_COMMENT"))
+	if comment == "" {
+		comment = strings.TrimSpace(os.Getenv("MIKROZIA_ROS_CONTAINER_COMMENT"))
+	}
+
+	// Prefer the write-capable Panel Settings RouterOS API account (mikrozia-nat)
+	// over the read-only telemetry env account (mikrozia-api).
 	if database.GetDB() != nil {
 		if allSetting, err := s.settingService.GetAllSetting(); err == nil && allSetting != nil {
 			if allSetting.RouterosNatPort > 0 {
@@ -200,9 +202,28 @@ func (s *RouterOSUpdaterService) resolveConnAndComment() (routeros.NATConnConfig
 			if c := strings.TrimSpace(allSetting.RouterosContainerComment); c != "" {
 				comment = c
 			}
+			host := strings.TrimSpace(allSetting.RouterosNatHost)
+			user := strings.TrimSpace(allSetting.RouterosNatUsername)
+			pass := allSetting.RouterosNatPassword
+			if validHost, ok := routeros.ValidatePrivateHost(host); ok && user != "" && pass != "" {
+				if comment == "" {
+					comment = "[Mikrozia:container] Container"
+				}
+				return routeros.NATConnConfig{
+					Host:     validHost,
+					Port:     port,
+					Username: user,
+					Password: pass,
+				}, comment, true
+			}
 		}
 	}
-	if strings.TrimSpace(comment) == "" {
+
+	apiCfg := resolveRouterOSAPIConfig()
+	if apiCfg.State != "connecting" {
+		return routeros.NATConnConfig{}, "", false
+	}
+	if comment == "" {
 		comment = "[Mikrozia:container] Container"
 	}
 	return routeros.NATConnConfig{

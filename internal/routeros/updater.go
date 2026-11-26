@@ -87,6 +87,10 @@ func rowToUpdateSpec(row map[string]string) ContainerUpdateSpec {
 			status = "stopped"
 		}
 	}
+	envlist := strings.TrimSpace(row["envlist"])
+	if envlist == "" {
+		envlist = strings.TrimSpace(row["envlists"])
+	}
 	return ContainerUpdateSpec{
 		ID:          strings.TrimSpace(row[".id"]),
 		Name:        strings.TrimSpace(row["name"]),
@@ -95,7 +99,7 @@ func rowToUpdateSpec(row map[string]string) ContainerUpdateSpec {
 		Interface:   strings.TrimSpace(row["interface"]),
 		RootDir:     strings.TrimSpace(row["root-dir"]),
 		Mountlists:  strings.TrimSpace(row["mountlists"]),
-		Envlist:     strings.TrimSpace(row["envlist"]),
+		Envlist:     envlist,
 		DNS:         strings.TrimSpace(row["dns"]),
 		MemoryHigh:  strings.TrimSpace(row["memory-high"]),
 		MemoryMax:   strings.TrimSpace(row["memory-max"]),
@@ -103,6 +107,22 @@ func rowToUpdateSpec(row map[string]string) ContainerUpdateSpec {
 		StartOnBoot: strings.TrimSpace(row["start-on-boot"]),
 		Status:      status,
 		Comment:     strings.TrimSpace(row["comment"]),
+	}
+}
+
+func isMikroziaSpec(spec ContainerUpdateSpec) bool {
+	hay := strings.ToLower(spec.Tag + " " + spec.RemoteImage + " " + spec.Name + " " + spec.Comment)
+	return strings.Contains(hay, "mikrozia")
+}
+
+func routerOSYesNo(raw, fallback string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "true", "yes":
+		return "yes"
+	case "false", "no":
+		return "no"
+	default:
+		return fallback
 	}
 }
 
@@ -125,7 +145,7 @@ func (c Client) InspectContainersForUpdate(parent context.Context, cfg NATConnCo
 
 	if writeSentence(conn, []string{
 		"/container/print",
-		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,dns,memory-high,memory-max,logging,start-on-boot,status,running,stopped,extracting,comment",
+		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,envlists,dns,memory-high,memory-max,logging,start-on-boot,status,running,stopped,extracting,comment",
 	}) != nil {
 		return out
 	}
@@ -140,30 +160,42 @@ func (c Client) InspectContainersForUpdate(parent context.Context, cfg NATConnCo
 		commentTarget = "[Mikrozia:container] Container"
 	}
 
+	specs := make([]ContainerUpdateSpec, 0, len(rows))
 	for _, row := range rows {
-		spec := rowToUpdateSpec(row)
-		switch {
-		case spec.Comment == commentTarget && out.Current == nil:
-			cp := spec
+		specs = append(specs, rowToUpdateSpec(row))
+	}
+
+	// 1. Identify Current container: prefer exact comment match, then any running Mikrozia container
+	// (even if its comment is still [Mikrozia:staging:...], a running container is never "staged").
+	for i := range specs {
+		if specs[i].Comment == commentTarget {
+			cp := specs[i]
 			out.Current = &cp
-		case strings.HasPrefix(spec.Comment, StagingCommentPrefix):
+			break
+		}
+	}
+	if out.Current == nil {
+		for i := range specs {
+			if isMikroziaSpec(specs[i]) && strings.EqualFold(specs[i].Status, "running") {
+				cp := specs[i]
+				out.Current = &cp
+				break
+			}
+		}
+	}
+
+	// 2. Identify Staged and Previous containers (excluding the Current container).
+	for i := range specs {
+		spec := specs[i]
+		if out.Current != nil && spec.ID == out.Current.ID {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(spec.Comment, StagingCommentPrefix) && !strings.EqualFold(spec.Status, "running"):
 			cp := spec
 			out.Staged = &cp
 		case spec.Comment == PreviousContainerComment:
 			out.Previous = append(out.Previous, spec)
-		}
-	}
-
-	// Fallback: if no exact comment match, match a running container whose image is echodev7/mikrozia
-	if out.Current == nil {
-		for _, row := range rows {
-			spec := rowToUpdateSpec(row)
-			if strings.Contains(strings.ToLower(spec.Tag+spec.RemoteImage), "mikrozia") &&
-				strings.EqualFold(spec.Status, "running") {
-				cp := spec
-				out.Current = &cp
-				break
-			}
 		}
 	}
 
@@ -205,7 +237,7 @@ func (c Client) StageContainerUpdate(parent context.Context, cfg NATConnConfig, 
 	// Idempotency: if already staged for this tag, return it
 	if writeSentence(conn, []string{
 		"/container/print",
-		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,dns,memory-high,memory-max,logging,start-on-boot,status,running,stopped,extracting,comment",
+		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,envlists,dns,memory-high,memory-max,logging,start-on-boot,status,running,stopped,extracting,comment",
 	}) == nil {
 		if st, rows := readNATRecords(r); st == "ok" {
 			for _, row := range rows {
@@ -239,16 +271,8 @@ func (c Client) StageContainerUpdate(parent context.Context, cfg NATConnConfig, 
 	if current.MemoryMax != "" {
 		words = append(words, "=memory-max="+current.MemoryMax)
 	}
-	if current.Logging != "" {
-		words = append(words, "=logging="+current.Logging)
-	} else {
-		words = append(words, "=logging=yes")
-	}
-	if current.StartOnBoot != "" {
-		words = append(words, "=start-on-boot="+current.StartOnBoot)
-	} else {
-		words = append(words, "=start-on-boot=yes")
-	}
+	words = append(words, "=logging="+routerOSYesNo(current.Logging, "yes"))
+	words = append(words, "=start-on-boot="+routerOSYesNo(current.StartOnBoot, "yes"))
 
 	if writeSentence(conn, words) != nil {
 		return ContainerUpdateSpec{}, "unreachable", ""
@@ -317,6 +341,7 @@ func (c Client) ScheduleContainerCutover(parent context.Context, cfg NATConnConf
 		"/system/scheduler/add",
 		"=name=" + CutoverSchedulerName,
 		"=interval=3s",
+		"=policy=read,write,policy,test,ftp",
 		"=on-event=" + onEvent,
 		"=comment=One-shot Mikrozia container cutover",
 	}) != nil {
@@ -341,7 +366,7 @@ func (c Client) RemovePreviousContainers(parent context.Context, cfg NATConnConf
 	}
 	defer conn.Close()
 
-	if writeSentence(conn, []string{"/container/print", "=.proplist=.id,status,comment"}) != nil {
+	if writeSentence(conn, []string{"/container/print", "=.proplist=.id,status,running,stopped,comment"}) != nil {
 		return 0, "unreachable", ""
 	}
 	state, rows := readNATRecords(r)
@@ -353,7 +378,9 @@ func (c Client) RemovePreviousContainers(parent context.Context, cfg NATConnConf
 		if strings.TrimSpace(row["comment"]) != PreviousContainerComment {
 			continue
 		}
-		if !strings.EqualFold(strings.TrimSpace(row["status"]), "stopped") {
+		isStopped := strings.EqualFold(strings.TrimSpace(row["status"]), "stopped") ||
+			(routerOSBool(row["stopped"]) && !routerOSBool(row["running"]))
+		if !isStopped {
 			continue
 		}
 		if writeSentence(conn, []string{"/container/remove", "=.id=" + row[".id"]}) != nil {
