@@ -662,7 +662,7 @@ comment یکتای همان کانتینر در `MIKROZIA_ENV` تنظیم کنی
 برای فعال‌سازی **اختیاری** Restart Container، حساب RouterOS API جداگانه‌ای
 با Policyهای لازم برای خواندن و اجرای `/container/restart` بسازید و نام/رمز آن
 را در `MIKROZIA_ROS_RESTART_USERNAME` و
-`MIKROZIA_ROS_RESTART_PASSWORD` قرار دهید. Policyهای `read,write,api`
+`MIKROZIA_ROS_RESTART_PASSWORD` قرار دهید. Policyهای `read,write,api,policy,test,ftp`
 پیش‌نیاز مورد انتظارند، اما RouterOS دسترسی را به همین یک فرمان محدود نمی‌کند؛
 دسترسی API را فقط از IP داخلی Container مجاز کنید و مجوز حساب را روی CHR
 آزمایش کنید. از حساب `admin` یا همان حساب فقط‌خواندنی استفاده نکنید. رمز را

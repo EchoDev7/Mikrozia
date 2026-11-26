@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/echodev7/mikrozia/v3/internal/config"
-	"github.com/echodev7/mikrozia/v3/internal/database"
 	"github.com/echodev7/mikrozia/v3/internal/logger"
 	"github.com/echodev7/mikrozia/v3/internal/routeros"
 )
@@ -186,51 +185,19 @@ func (s *RouterOSUpdaterService) fetchDockerHubLatest(ctx context.Context, force
 }
 
 func (s *RouterOSUpdaterService) resolveConnAndComment() (routeros.NATConnConfig, string, bool) {
-	port := routeros.DefaultAPIPort
-	comment := strings.TrimSpace(os.Getenv("MIKROZIA_ROUTEROS_CONTAINER_COMMENT"))
-	if comment == "" {
-		comment = strings.TrimSpace(os.Getenv("MIKROZIA_ROS_CONTAINER_COMMENT"))
-	}
-
-	// Prefer the write-capable Panel Settings RouterOS API account (mikrozia-nat)
-	// over the read-only telemetry env account (mikrozia-api).
-	if database.GetDB() != nil {
-		if allSetting, err := s.settingService.GetAllSetting(); err == nil && allSetting != nil {
-			if allSetting.RouterosNatPort > 0 {
-				port = allSetting.RouterosNatPort
-			}
-			if c := strings.TrimSpace(allSetting.RouterosContainerComment); c != "" {
-				comment = c
-			}
-			host := strings.TrimSpace(allSetting.RouterosNatHost)
-			user := strings.TrimSpace(allSetting.RouterosNatUsername)
-			pass := allSetting.RouterosNatPassword
-			if validHost, ok := routeros.ValidatePrivateHost(host); ok && user != "" && pass != "" {
-				if comment == "" {
-					comment = "[Mikrozia:container] Container"
-				}
-				return routeros.NATConnConfig{
-					Host:     validHost,
-					Port:     port,
-					Username: user,
-					Password: pass,
-				}, comment, true
-			}
-		}
-	}
-
-	apiCfg := resolveRouterOSAPIConfig()
-	if apiCfg.State != "connecting" {
+	cfg := resolveRouterOSAPIConfig()
+	if cfg.State != "connecting" {
 		return routeros.NATConnConfig{}, "", false
 	}
+	comment := cfg.ContainerComment
 	if comment == "" {
 		comment = "[Mikrozia:container] Container"
 	}
 	return routeros.NATConnConfig{
-		Host:     apiCfg.Host,
-		Port:     port,
-		Username: apiCfg.Username,
-		Password: apiCfg.Password,
+		Host:     cfg.Host,
+		Port:     cfg.Port,
+		Username: cfg.Username,
+		Password: cfg.Password,
 	}, comment, true
 }
 
@@ -271,7 +238,7 @@ func buildManualCommands(current *routeros.ContainerUpdateSpec, targetTag, activ
 	}
 	stagingComment := routeros.StagingComment(targetTag)
 	stageCmd := fmt.Sprintf(
-		`/container/add remote-image="echodev7/mikrozia:%s" interface=%s root-dir=%s mountlists="%s" envlist=%s dns="%s" memory-high=%s memory-max=%s logging=yes start-on-boot=yes comment="%s"`,
+		`/container/add remote-image="echodev7/mikrozia:%s" interface=%s root-dir=%s mountlists="%s" envlists=%s dns="%s" memory-high=%s memory-max=%s logging=yes start-on-boot=yes comment="%s"`,
 		targetTag, iface, rootDir, mounts, envlist, dns, memHigh, memMax, stagingComment,
 	)
 	cutoverCmd := fmt.Sprintf(
@@ -282,7 +249,7 @@ func buildManualCommands(current *routeros.ContainerUpdateSpec, targetTag, activ
 		activeComment,
 	)
 	cleanupCmd := fmt.Sprintf(
-		`/container/remove [find where comment="%s" and status="stopped"]`,
+		`/container/remove [find where comment="%s" and stopped=yes]`,
 		routeros.PreviousContainerComment,
 	)
 	return stageCmd, cutoverCmd, cleanupCmd

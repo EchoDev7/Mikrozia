@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/echodev7/mikrozia/v3/internal/config"
 	"github.com/echodev7/mikrozia/v3/internal/database"
 	"github.com/echodev7/mikrozia/v3/internal/routeros"
 )
@@ -129,42 +128,64 @@ func (s *RouterOSAPIService) pruneAndSummarizeMemLocked(now time.Time) (*float64
 	return &avg, &peakRounded, history
 }
 
-// resolveRouterOSAPIConfig prefers the container environment configuration
-// and falls back to the unified Panel Settings RouterOS API credentials when
-// environment variables are unset, so operators can manage telemetry,
-// container reads, and NAT with one dedicated RouterOS API account.
-func resolveRouterOSAPIConfig() config.RouterOSAPIConfig {
-	cfg := config.GetRouterOSAPIConfig()
-	if cfg.State != "not_configured" {
-		return cfg
+// RouterOSAPIConfig holds the single unified RouterOS API account configured
+// in Panel Settings (Settings -> RouterOS).
+type RouterOSAPIConfig struct {
+	State            string
+	Host             string
+	Port             int
+	Username         string
+	Password         string
+	ContainerComment string
+}
+
+// routerOSConfigOverride is used only by unit tests to inject RouterOS API config.
+var routerOSConfigOverride func() RouterOSAPIConfig
+
+// resolveRouterOSAPIConfig reads the single unified RouterOS API account from
+// Panel Settings (Settings -> RouterOS), powering telemetry, container status/logs/restart,
+// SSL port-80 status, Managed NAT, Diagnostics, and Docker Hub updates.
+func resolveRouterOSAPIConfig() RouterOSAPIConfig {
+	if routerOSConfigOverride != nil {
+		return routerOSConfigOverride()
 	}
 	if database.GetDB() == nil {
-		return cfg
+		return RouterOSAPIConfig{State: "not_configured"}
 	}
 	var settingService SettingService
 	allSetting, err := settingService.GetAllSetting()
 	if err != nil || allSetting == nil {
-		return cfg
+		return RouterOSAPIConfig{State: "not_configured"}
 	}
 	host := strings.TrimSpace(allSetting.RouterosNatHost)
 	user := strings.TrimSpace(allSetting.RouterosNatUsername)
 	pass := allSetting.RouterosNatPassword
 	if host == "" && user == "" && pass == "" {
-		return cfg
+		return RouterOSAPIConfig{State: "not_configured"}
 	}
 	validHost, ok := routeros.ValidatePrivateHost(host)
 	if !ok || user == "" || pass == "" {
-		return config.RouterOSAPIConfig{State: "invalid_configuration"}
+		return RouterOSAPIConfig{State: "invalid_configuration"}
 	}
-	return config.RouterOSAPIConfig{
-		State:    "connecting",
-		Host:     validHost,
-		Username: user,
-		Password: pass,
+	port := allSetting.RouterosNatPort
+	if port <= 0 || port > 65535 {
+		port = routeros.DefaultAPIPort
+	}
+	comment := strings.TrimSpace(allSetting.RouterosContainerComment)
+	if comment == "" {
+		comment = "[Mikrozia:container] Container"
+	}
+	return RouterOSAPIConfig{
+		State:            "connecting",
+		Host:             validHost,
+		Port:             port,
+		Username:         user,
+		Password:         pass,
+		ContainerComment: comment,
 	}
 }
 
-func (s *RouterOSAPIService) effectiveRouterOSAPIConfig() config.RouterOSAPIConfig {
+func (s *RouterOSAPIService) effectiveRouterOSAPIConfig() RouterOSAPIConfig {
 	return resolveRouterOSAPIConfig()
 }
 

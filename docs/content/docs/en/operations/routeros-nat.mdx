@@ -14,7 +14,7 @@ With **Managed RouterOS NAT Integration** enabled, Mikrozia automatically reconc
 
 - MikroTik RouterOS v7 (or CHR) hosting the Mikrozia container.
 - Private network reachability from inside the container to the RouterOS bridge/gateway IP (for example `172.16.10.1`).
-- A dedicated RouterOS API account with least-privilege permissions (`read,write,policy,api`).
+- A dedicated RouterOS API account with least-privilege permissions (`read,write,api,policy,test,ftp,policy,test,ftp`).
 
 ## Step-by-Step MikroTik Setup
 
@@ -26,12 +26,12 @@ With **Managed RouterOS NAT Integration** enabled, Mikrozia automatically reconc
 Run the following commands in the RouterOS Terminal (WinBox or SSH):
 
 ```bash
-/user/group/add name=mikrozia-nat policy=read,write,policy,api
+/user/group/add name=mikrozia-nat policy=read,write,api,policy,test,ftp,policy,test,ftp
 /user/add name=mikrozia-nat group=mikrozia-nat password="YOUR_STRONG_PASSWORD"
 ```
 
 <Callout type="warn">
-  Do not use the full `admin` account. A dedicated account with `read,write,policy,api` is sufficient for both Managed NAT and Dashboard RouterOS CPU/RAM telemetry (one unified account).
+  Do not use the full `admin` account. A dedicated account with `read,write,api,policy,test,ftp,policy,test,ftp` is sufficient for both Managed NAT and Dashboard RouterOS CPU/RAM telemetry (one unified account).
 
   **RouterOS CLI password rule**: When setting a password inside double quotes (`password="..."`) in RouterOS Terminal, **avoid `$`, `"`, `\`, `[`, `]`, `?`, and spaces** (`$` is expanded as a script variable and causes `authentication_failed`). Use `A-Z`, `a-z`, `0-9`, and safe symbols such as `@ # % ^ _ - . !`.
 </Callout>
@@ -92,6 +92,6 @@ Open **Panel Settings → RouterOS NAT** (`/panel/settings#routeros-nat`) and fi
 | Symptom | Likely Cause | Fix |
 | --- | --- | --- |
 | **Connection refused / timeout** | `/ip/service` `api` is disabled, restricted to a different subnet, or blocked by `chain=input`. | Check `/ip/service/print` and add an `input` allow rule for the container subnet on port `8728`. |
-| **Authentication failed** | Wrong credentials or missing `api` policy on the user group. | Ensure group `mikrozia-nat` has `policy=read,write,policy,api`. |
+| **Authentication failed** | Wrong credentials or missing `api` policy on the user group. | Ensure group `mikrozia-nat` has `policy=read,write,api,policy,test,ftp,policy,test,ftp`. |
 | **NAT conflict detected** | An enabled manual `dstnat` rule already uses the same protocol and port. | Mikrozia refuses to overwrite manual rules; remove or disable the conflicting manual rule in RouterOS and retry. |
 | **Invalid host / target IP** | A public IP was entered. | Only private IPv4 addresses (e.g. `172.16.10.1`, `192.168.x.x`) are accepted. |

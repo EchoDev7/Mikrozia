@@ -38,47 +38,12 @@ When the environment owns the account, the panel's **Security** tab shows a
 notice instead of a password form, and a panel-side password change is refused
 with a truthful message — the environment would overwrite it on the next start.
 
-## RouterOS API status and telemetry
+## RouterOS API integration
 
-The dashboard can perform a read-only native RouterOS API query over the
-internal Container-to-router network on TCP/8728 only. These values are
-optional; set all three or leave all three unset. Partial configuration is
-reported as invalid. Mikrozia does not enable the API service, create users, or
-change router settings.
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `MIKROZIA_ROUTEROS_API_HOST` | — | Literal private IPv4/IPv6 address of the RouterOS API endpoint (no hostnames, zones, loopback, or link-local addresses). |
-| `MIKROZIA_ROUTEROS_API_USERNAME` | — | Dedicated read-only RouterOS API account name (`read,api` policies only). |
-| `MIKROZIA_ROUTEROS_API_PASSWORD` | — | RouterOS API account password. |
-| `MIKROZIA_ROUTEROS_CONTAINER_COMMENT` | — | Exact unique comment of the Mikrozia RouterOS container; enables read-only Container Log lookup. |
-| `MIKROZIA_ROS_CONTAINER_COMMENT` | — | RouterOS Container alias for `MIKROZIA_ROUTEROS_CONTAINER_COMMENT`. Use this shorter name on RouterOS 7.25.1, which does not pass the longer name to the container process. |
-| `MIKROZIA_ROUTEROS_RESTART_USERNAME` | — | Separate operational RouterOS API username for the optional Restart Container command. Requires RouterOS read, write, and api policies; keep access on the internal container IP only. |
-| `MIKROZIA_ROUTEROS_RESTART_PASSWORD` | — | Password for the separate optional operational account. Never reuse the read-only account. |
-| `MIKROZIA_ROS_RESTART_USERNAME` / `MIKROZIA_ROS_RESTART_PASSWORD` | — | RouterOS Container aliases for the two Restart Container credentials. Use this shorter pair on RouterOS 7.25.1. |
-
-Example values are placeholders only:
-
-```text
-MIKROZIA_ROUTEROS_API_HOST=172.16.10.1
-MIKROZIA_ROUTEROS_API_USERNAME=<READ_ONLY_API_USER>
-MIKROZIA_ROUTEROS_API_PASSWORD=<SET_A_SECRET_VALUE>
-```
-
-The password is held only in process memory while probing; it is never stored in
-the database or returned by the panel API. RouterOS Container `/container/envs`
-is visible to router administrators and is not a secret store. Restrict access
-to the router configuration. The integration polls `/system/resource/print`
-(`uptime`, `cpu-load`, `cpu-count`, `cpu-frequency`, `total-memory`,
-`free-memory`) every 15s with a 4s timeout and 30s stale threshold; RouterOS-side
-VETH telemetry remains deferred. Container log reads use the dedicated read-only
-RouterOS API account together with the exact unique container comment, while
-optional Restart Container requires a separate operational RouterOS API account.
-
-When both canonical and short `MIKROZIA_ROS_*` alias variables are available,
-the canonical name takes precedence and the short alias is fallback only. After
-changing `/container/envs` in RouterOS, restart the container to apply the
-updated environment.
+RouterOS API credentials and the container comment are configured exclusively in
+**Panel Settings → RouterOS** using a single unified RouterOS API account
+(`policy=read,write,api,policy,test,ftp`). No `MIKROZIA_ROUTEROS_API_*` or
+`MIKROZIA_ROS_RESTART_*` container environment variables are used.
 
 ## Container network metrics
 

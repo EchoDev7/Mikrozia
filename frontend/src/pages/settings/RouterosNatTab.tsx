@@ -112,7 +112,7 @@ export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNa
     const port = allSetting.routerosNatPort > 0 ? allSetting.routerosNatPort : 8728;
     const subnet = subnetHint(allSetting.routerosNatTargetIP || allSetting.routerosNatHost);
     return {
-      userCmd: `/user/group/add name=mikrozia-nat policy=read,write,policy,test,ftp,api\n/user/add name=${user} group=mikrozia-nat password="CHANGE_ME_STRONG_PASSWORD"`,
+      userCmd: `/user/group/add name=mikrozia-nat policy=read,write,api,policy,test,ftp,policy,test,ftp\n/user/add name=${user} group=mikrozia-nat password="CHANGE_ME_STRONG_PASSWORD"`,
       apiCmd: `/ip/service/set api disabled=no port=${port} address=${subnet}`,
       firewallCmd: `/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=${port} src-address=${subnet} comment="Allow Mikrozia container API"`,
       verifyCmd: `/ip/firewall/nat/print where comment~"^mikrozia:managed:inbound:"`,

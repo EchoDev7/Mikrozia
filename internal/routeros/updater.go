@@ -260,7 +260,7 @@ func (c Client) StageContainerUpdate(parent context.Context, cfg NATConnConfig, 
 		words = append(words, "=mountlists="+current.Mountlists)
 	}
 	if current.Envlist != "" {
-		words = append(words, "=envlist="+current.Envlist)
+		words = append(words, "=envlists="+current.Envlist)
 	}
 	if current.DNS != "" {
 		words = append(words, "=dns="+current.DNS)
@@ -278,6 +278,19 @@ func (c Client) StageContainerUpdate(parent context.Context, cfg NATConnConfig, 
 		return ContainerUpdateSpec{}, "unreachable", ""
 	}
 	st, retID, detail := readCommandResult(r)
+	// Compatibility fallback for older RouterOS builds that only accept singular "envlist".
+	if st != "ok" && current.Envlist != "" && strings.Contains(strings.ToLower(detail), "unknown parameter") {
+		for i, w := range words {
+			if strings.HasPrefix(w, "=envlists=") {
+				words[i] = "=envlist=" + current.Envlist
+				break
+			}
+		}
+		if writeSentence(conn, words) != nil {
+			return ContainerUpdateSpec{}, "unreachable", ""
+		}
+		st, retID, detail = readCommandResult(r)
+	}
 	if st != "ok" {
 		return ContainerUpdateSpec{}, st, detail
 	}

@@ -14,9 +14,13 @@ func int64Ptr(v int64) *int64    { return &v }
 func uint64Ptr(v uint64) *uint64 { return &v }
 
 func TestRouterOSStatusNeverConnectedBeforeHealthAndCoalescesViewers(t *testing.T) {
-	t.Setenv("MIKROZIA_ROUTEROS_API_HOST", "172.16.10.1")
-	t.Setenv("MIKROZIA_ROUTEROS_API_USERNAME", "test-user")
-	t.Setenv("MIKROZIA_ROUTEROS_API_PASSWORD", "secret-canary")
+	setTestRouterOSConfig(t, RouterOSAPIConfig{
+		State:    "connecting",
+		Host:     "172.16.10.1",
+		Port:     8728,
+		Username: "test-user",
+		Password: "secret-canary",
+	})
 	start, release := make(chan struct{}, 2), make(chan struct{})
 	s := &RouterOSAPIService{probe: func(context.Context, string, string, string) routeros.ResourceSnapshot {
 		start <- struct{}{}
@@ -69,9 +73,16 @@ func TestRouterOSStatusNeverConnectedBeforeHealthAndCoalescesViewers(t *testing.
 }
 
 func TestRouterOSStatusHistoryWindowStaleRebootAndConfigRemoval(t *testing.T) {
-	t.Setenv("MIKROZIA_ROUTEROS_API_HOST", "172.16.10.1")
-	t.Setenv("MIKROZIA_ROUTEROS_API_USERNAME", "test-user")
-	t.Setenv("MIKROZIA_ROUTEROS_API_PASSWORD", "secret-canary")
+	activeCfg := RouterOSAPIConfig{
+		State:    "connecting",
+		Host:     "172.16.10.1",
+		Port:     8728,
+		Username: "test-user",
+		Password: "secret-canary",
+	}
+	prev := routerOSConfigOverride
+	routerOSConfigOverride = func() RouterOSAPIConfig { return activeCfg }
+	t.Cleanup(func() { routerOSConfigOverride = prev })
 
 	now := time.Unix(1_700_000_000, 0)
 	nextSnap := routeros.ResourceSnapshot{
@@ -178,9 +189,7 @@ func TestRouterOSStatusHistoryWindowStaleRebootAndConfigRemoval(t *testing.T) {
 	}
 
 	// Config removal clears history completely.
-	t.Setenv("MIKROZIA_ROUTEROS_API_HOST", "")
-	t.Setenv("MIKROZIA_ROUTEROS_API_USERNAME", "")
-	t.Setenv("MIKROZIA_ROUTEROS_API_PASSWORD", "")
+	activeCfg = RouterOSAPIConfig{State: "not_configured"}
 	removed := s.Status()
 	if removed.State != "not_configured" || len(removed.CpuHistory) != 0 || removed.CpuAvg != nil || removed.CpuPeak != nil || len(removed.MemHistory) != 0 || removed.MemAvg != nil || removed.MemPeak != nil {
 		t.Fatalf("expected cleared history on config removal, got %+v", removed)

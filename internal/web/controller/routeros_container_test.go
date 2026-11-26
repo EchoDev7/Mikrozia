@@ -14,15 +14,6 @@ import (
 
 func TestRouterOSContainerRoutesAuthAndNoSecrets(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("MIKROZIA_ROUTEROS_API_HOST", "")
-	t.Setenv("MIKROZIA_ROUTEROS_API_USERNAME", "")
-	t.Setenv("MIKROZIA_ROUTEROS_API_PASSWORD", "")
-	t.Setenv("MIKROZIA_ROUTEROS_RESTART_USERNAME", "")
-	t.Setenv("MIKROZIA_ROUTEROS_RESTART_PASSWORD", "")
-	t.Setenv("MIKROZIA_ROUTEROS_CONTAINER_COMMENT", "")
-	t.Setenv("MIKROZIA_ROS_RESTART_USERNAME", "")
-	t.Setenv("MIKROZIA_ROS_RESTART_PASSWORD", "")
-	t.Setenv("MIKROZIA_ROS_CONTAINER_COMMENT", "")
 
 	for _, path := range []string{"/routerosContainerStatus", "/routerosContainerLogs/20", "/restartRouterosContainer"} {
 		method := http.MethodGet

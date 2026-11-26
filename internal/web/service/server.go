@@ -730,12 +730,6 @@ func (s *ServerService) readPort80Status(now time.Time) (string, string) {
 	s.port80Mu.Unlock()
 
 	if shouldProbe {
-		port := routeros.DefaultAPIPort
-		if database.GetDB() != nil {
-			if allSetting, err := s.settingService.GetAllSetting(); err == nil && allSetting != nil && allSetting.RouterosNatPort > 0 {
-				port = allSetting.RouterosNatPort
-			}
-		}
 		go func(natCfg routeros.NATConnConfig) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
@@ -748,7 +742,7 @@ func (s *ServerService) readPort80Status(now time.Time) (string, string) {
 			s.port80Mu.Unlock()
 		}(routeros.NATConnConfig{
 			Host:     cfg.Host,
-			Port:     port,
+			Port:     cfg.Port,
 			Username: cfg.Username,
 			Password: cfg.Password,
 		})
