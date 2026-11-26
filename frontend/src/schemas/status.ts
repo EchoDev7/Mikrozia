@@ -42,6 +42,8 @@ export const TlsCertInfoSchema = z.object({
   notAfter: z.number().optional(),
   daysLeft: z.number().optional(),
   expired: z.boolean().optional(),
+  port80Status: z.enum(['open', 'closed', 'unknown']).optional(),
+  routerServiceConflict: z.string().optional(),
 });
 
 export const StatusSchema = z.object({

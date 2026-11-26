@@ -657,7 +657,7 @@ func (c Client) RunDiagnostics(parent context.Context, cfg NATConnConfig, target
 	}
 
 	// 6. RouterOS built-in /ip/service conflict check (www:80, www-ssl:443, or inbound ports)
-	if writeSentence(conn, []string{"/ip/service/print", "=.proplist=name,port,disabled"}) == nil {
+	if writeSentence(conn, []string{"/ip/service/print", "=.proplist=name,port,disabled,dynamic"}) == nil {
 		if st, rows := readNATRecords(r); st == "ok" {
 			inboundPorts := map[int]bool{80: true, 443: true}
 			for _, ib := range inbounds {
@@ -670,11 +670,18 @@ func (c Client) RunDiagnostics(parent context.Context, cfg NATConnConfig, target
 				if row["disabled"] == "true" || row["disabled"] == "yes" {
 					continue
 				}
+				if row["dynamic"] == "true" || row["dynamic"] == "yes" {
+					continue
+				}
+				name := strings.TrimSpace(row["name"])
+				lowerName := strings.ToLower(name)
+				if strings.HasPrefix(lowerName, "xray") || lowerName == "x-ui" {
+					continue
+				}
 				portNum, err := strconv.Atoi(strings.TrimSpace(row["port"]))
 				if err != nil || !inboundPorts[portNum] {
 					continue
 				}
-				name := strings.TrimSpace(row["name"])
 				if name == "" {
 					name = "service"
 				}
@@ -821,7 +828,7 @@ func (c Client) CheckPort80AndServices(parent context.Context, cfg NATConnConfig
 
 	if writeSentence(conn, []string{
 		"/ip/service/print",
-		"=.proplist=name,port,disabled",
+		"=.proplist=name,port,disabled,dynamic",
 	}) == nil {
 		if st, svcRows := readNATRecords(r); st == "ok" {
 			var conflicts []string
@@ -829,11 +836,18 @@ func (c Client) CheckPort80AndServices(parent context.Context, cfg NATConnConfig
 				if row["disabled"] == "true" || row["disabled"] == "yes" {
 					continue
 				}
+				if row["dynamic"] == "true" || row["dynamic"] == "yes" {
+					continue
+				}
+				name := strings.TrimSpace(row["name"])
+				lowerName := strings.ToLower(name)
+				if strings.HasPrefix(lowerName, "xray") || lowerName == "x-ui" {
+					continue
+				}
 				portNum, err := strconv.Atoi(strings.TrimSpace(row["port"]))
 				if err != nil || (portNum != 80 && portNum != 443) {
 					continue
 				}
-				name := strings.TrimSpace(row["name"])
 				if name == "" {
 					name = "service"
 				}

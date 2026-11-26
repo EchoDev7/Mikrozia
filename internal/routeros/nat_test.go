@@ -263,6 +263,8 @@ func TestRunDiagnostics_ReadOnlyChecks(t *testing.T) {
 		},
 		services: []map[string]string{
 			{"name": "www", "port": "80", "disabled": "false"},
+			{"name": "xray-linux-amd6", "port": "443", "disabled": "false", "dynamic": "true"},
+			{"name": "x-ui", "port": "11879", "disabled": "false"},
 		},
 		conntrack: []map[string]string{
 			{"enabled": "auto", "total-entries": "8000", "max-entries": "10000"},

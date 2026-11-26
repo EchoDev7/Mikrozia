@@ -76,6 +76,17 @@ func DeriveNextRootDir(currentRootDir, targetTag string) string {
 }
 
 func rowToUpdateSpec(row map[string]string) ContainerUpdateSpec {
+	status := strings.TrimSpace(row["status"])
+	if status == "" {
+		switch {
+		case routerOSBool(row["extracting"]):
+			status = "extracting"
+		case routerOSBool(row["running"]):
+			status = "running"
+		case routerOSBool(row["stopped"]):
+			status = "stopped"
+		}
+	}
 	return ContainerUpdateSpec{
 		ID:          strings.TrimSpace(row[".id"]),
 		Name:        strings.TrimSpace(row["name"]),
@@ -90,7 +101,7 @@ func rowToUpdateSpec(row map[string]string) ContainerUpdateSpec {
 		MemoryMax:   strings.TrimSpace(row["memory-max"]),
 		Logging:     strings.TrimSpace(row["logging"]),
 		StartOnBoot: strings.TrimSpace(row["start-on-boot"]),
-		Status:      strings.TrimSpace(row["status"]),
+		Status:      status,
 		Comment:     strings.TrimSpace(row["comment"]),
 	}
 }
@@ -114,7 +125,7 @@ func (c Client) InspectContainersForUpdate(parent context.Context, cfg NATConnCo
 
 	if writeSentence(conn, []string{
 		"/container/print",
-		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,dns,memory-high,memory-max,logging,start-on-boot,status,comment",
+		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,dns,memory-high,memory-max,logging,start-on-boot,status,running,stopped,extracting,comment",
 	}) != nil {
 		return out
 	}
@@ -194,7 +205,7 @@ func (c Client) StageContainerUpdate(parent context.Context, cfg NATConnConfig, 
 	// Idempotency: if already staged for this tag, return it
 	if writeSentence(conn, []string{
 		"/container/print",
-		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,dns,memory-high,memory-max,logging,start-on-boot,status,comment",
+		"=.proplist=.id,name,tag,remote-image,interface,root-dir,mountlists,envlist,dns,memory-high,memory-max,logging,start-on-boot,status,running,stopped,extracting,comment",
 	}) == nil {
 		if st, rows := readNATRecords(r); st == "ok" {
 			for _, row := range rows {
