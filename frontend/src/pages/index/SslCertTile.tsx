@@ -3,13 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Card, Space, Tag, Tooltip } from 'antd';
 import { SafetyCertificateOutlined } from '@ant-design/icons';
 
+import { activateOnKey } from '@/utils/a11y';
 import type { TlsCertInfo } from '@/models/status';
 
 interface SslCertTileProps {
   tlsCert: TlsCertInfo | null;
+  onNavigate?: () => void;
 }
 
-export default function SslCertTile({ tlsCert }: SslCertTileProps) {
+export default function SslCertTile({ tlsCert, onNavigate }: SslCertTileProps) {
   const { t, i18n } = useTranslation();
 
   const expiryText = useMemo(() => {
@@ -48,13 +50,21 @@ export default function SslCertTile({ tlsCert }: SslCertTileProps) {
   }
 
   return (
-    <Card className="ov-tile" hoverable styles={{ body: { padding: 0 } }}>
+    <Card
+      className={`ov-tile${onNavigate ? ' ov-tile--clickable' : ''}`}
+      hoverable
+      styles={{ body: { padding: 0 } }}
+      role={onNavigate ? 'button' : undefined}
+      tabIndex={onNavigate ? 0 : undefined}
+      onClick={onNavigate}
+      onKeyDown={onNavigate ? activateOnKey(onNavigate) : undefined}
+    >
       <div className="ov-tile-head">
-        <span className="ov-kicker">
+        <span className="ov-tile-icon">
           <SafetyCertificateOutlined aria-hidden />
-          {t('pages.index.sslCertificate')}
         </span>
-        <span className="ov-tile-detail" title={tlsCert?.subject || ''}>
+        <span className="ov-kicker">{t('pages.index.sslCertificate')}</span>
+        <span className="ov-tile-ssl-domain" title={tlsCert?.subject || ''}>
           {configured ? tlsCert?.subject || 'TLS' : 'HTTP'}
         </span>
       </div>
@@ -98,7 +108,7 @@ export default function SslCertTile({ tlsCert }: SslCertTileProps) {
         </Space>
       </div>
 
-      <div className="ov-tile-foot">
+      <div className="ov-tile-foot ov-tile-foot--padded">
         <span>{statusText}</span>
         <span>{configured ? `${t('pages.index.sslCertExpires')} ${expiryText}` : '—'}</span>
       </div>

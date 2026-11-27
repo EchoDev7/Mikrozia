@@ -1155,6 +1155,8 @@ export const EXAMPLES: Record<string, unknown> = {
     "x25519": true
   },
   "RouterOSAPIStatus": {
+    "architectureName": "x86_64",
+    "boardName": "CHR",
     "checkedAt": 0,
     "cpuAvg": null,
     "cpuCount": null,
@@ -1164,6 +1166,7 @@ export const EXAMPLES: Record<string, unknown> = {
     ],
     "cpuLoad": null,
     "cpuPeak": null,
+    "managedNat": null,
     "memAvg": null,
     "memHistory": [
       0
@@ -1173,7 +1176,16 @@ export const EXAMPLES: Record<string, unknown> = {
     "memTotal": null,
     "memUsed": null,
     "stale": false,
-    "state": "not_configured"
+    "state": "not_configured",
+    "uptimeSeconds": null,
+    "version": "7.25.2 (stable)"
+  },
+  "RouterOSManagedNATHealth": {
+    "enabled": true,
+    "missingCount": 0,
+    "orphanCount": 0,
+    "ruleCount": 4,
+    "state": "in_sync"
   },
   "ServerSettings": {
     "contentPaddingAddition": "",

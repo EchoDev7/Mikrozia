@@ -1061,6 +1061,8 @@ export interface RealityScanResult {
 }
 
 export interface RouterOSAPIStatus {
+  architectureName?: string;
+  boardName?: string;
   checkedAt: number;
   cpuAvg?: number | null;
   cpuCount?: number | null;
@@ -1068,6 +1070,7 @@ export interface RouterOSAPIStatus {
   cpuHistory: number[];
   cpuLoad?: number | null;
   cpuPeak?: number | null;
+  managedNat?: RouterOSManagedNATHealth | null;
   memAvg?: number | null;
   memHistory: number[];
   memPeak?: number | null;
@@ -1075,6 +1078,16 @@ export interface RouterOSAPIStatus {
   memTotal?: number | null;
   memUsed?: number | null;
   stale: boolean;
+  state: string;
+  uptimeSeconds?: number | null;
+  version?: string;
+}
+
+export interface RouterOSManagedNATHealth {
+  enabled: boolean;
+  missingCount: number;
+  orphanCount: number;
+  ruleCount: number;
   state: string;
 }
 

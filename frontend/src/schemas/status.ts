@@ -46,6 +46,13 @@ export const TlsCertInfoSchema = z.object({
   routerServiceConflict: z.string().optional(),
 });
 
+export const NetworkInfoSchema = z.object({
+  containerIP: z.string().optional(),
+  containerGateway: z.string().optional(),
+  routerWANGateway: z.string().optional(),
+  routerWANIface: z.string().optional(),
+});
+
 export const StatusSchema = z.object({
   resourceScope: z.string().optional(),
   unavailableMetrics: z.array(z.string()).optional(),
@@ -68,6 +75,8 @@ export const StatusSchema = z.object({
   appStats: AppStatsSchema.optional(),
   xray: XrayInfoSchema.optional(),
   tlsCert: TlsCertInfoSchema.nullable().optional(),
+  network: NetworkInfoSchema.nullable().optional(),
+  serverTime: z.number().optional(),
 });
 
 export type StatusInput = z.infer<typeof StatusSchema>;

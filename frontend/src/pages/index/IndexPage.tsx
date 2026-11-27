@@ -1,5 +1,6 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { Alert, Button, ConfigProvider, Layout, Modal, Result, Spin, message } from 'antd';
 import {
   CopyOutlined,
@@ -37,12 +38,12 @@ import { LazyMount } from '@/components/utility';
 import SponsorSlot from '@/components/sponsor/SponsorSlot';
 import { setMessageInstance } from '@/utils/messageBus';
 import OverviewActionBar from './OverviewActionBar';
+import OverviewAlerts from './OverviewAlerts';
 import VitalTile from './VitalTile';
 import ClientsSummaryTile from './ClientsSummaryTile';
 import TopInboundsTile from './TopInboundsTile';
 import SslCertTile from './SslCertTile';
 import ThroughputCard from './ThroughputCard';
-import ConnectionsCard from './ConnectionsCard';
 import SystemStrip from './SystemStrip';
 import { mean, useOverviewHistory } from './useOverviewHistory';
 import type { PanelUpdateInfo } from '@/generated/types';
@@ -57,6 +58,7 @@ import './IndexPage.css';
 
 export default function IndexPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { isDark, isUltra, antdThemeConfig } = useTheme();
   const { status, fetched, fetchError, refresh } = useStatusQuery();
   const routerOSAPIStatus = useRouterOSAPIStatus();
@@ -102,7 +104,29 @@ export default function IndexPage() {
       },
     );
     HttpUtil.get<PanelUpdateInfo>('/panel/api/server/getPanelUpdateInfo').then((msg) => {
-      if (msg?.success && msg.obj) setPanelUpdateInfo(msg.obj);
+      const obj = msg?.success ? msg.obj : null;
+      if (obj) {
+        setPanelUpdateInfo((prev) => ({
+          ...prev,
+          channel: obj.channel || prev.channel,
+          currentVersion: obj.currentVersion || prev.currentVersion,
+        }));
+      }
+    });
+    HttpUtil.get<{ currentVersion?: string; latestVersion?: string; updateAvailable?: boolean }>(
+      '/panel/api/setting/routerosUpdateInfo',
+      undefined,
+      { silent: true },
+    ).then((msg) => {
+      const obj = msg?.success ? msg.obj : null;
+      if (obj) {
+        setPanelUpdateInfo((prev) => ({
+          ...prev,
+          currentVersion: obj.currentVersion || prev.currentVersion,
+          latestVersion: obj.latestVersion || prev.latestVersion,
+          updateAvailable: Boolean(obj.updateAvailable),
+        }));
+      }
     });
   }, []);
 
@@ -225,25 +249,6 @@ export default function IndexPage() {
   const totalDisk = status.disk.total;
   const freeDisk = Math.max(0, totalDisk - status.disk.current);
 
-  const health = useMemo(() => {
-    const items = [
-      { name: t('pages.index.cpu'), value: status.cpu.percent },
-      { name: t('pages.index.memory'), value: status.mem.percent },
-      { name: t('pages.index.storage'), value: status.disk.percent },
-    ];
-    const list = (xs: typeof items) => xs.map((i) => `${i.name} ${i.value.toFixed(0)}%`).join(', ');
-    const crit = items.filter((i) => i.value >= USAGE_CRIT_PERCENT);
-    if (crit.length)
-      return {
-        text: t('pages.index.healthCritical', { list: list(crit) }),
-        color: USAGE_CRIT_COLOR,
-      };
-    const warm = items.filter((i) => i.value >= USAGE_WARN_PERCENT);
-    if (warm.length)
-      return { text: t('pages.index.healthWarm', { list: list(warm) }), color: USAGE_WARN_COLOR };
-    return null;
-  }, [status, t]);
-
   return (
     <ConfigProvider theme={antdThemeConfig}>
       {messageContextHolder}
@@ -278,6 +283,9 @@ export default function IndexPage() {
                     isMobile={isMobile}
                     accessLogEnable={accessLogEnable}
                     panelVersion={displayVersion}
+                    updateAvailable={panelUpdateInfo.updateAvailable}
+                    latestVersion={panelUpdateInfo.latestVersion}
+                    onOpenUpdates={() => navigate('/settings?sub=update#routeros-nat')}
                     routerOSStatus={
                       routerOSAPIStatus.data ?? { state: 'connecting', checkedAt: 0, stale: false }
                     }
@@ -303,12 +311,13 @@ export default function IndexPage() {
 
                   <SponsorSlot slot="dashboard" />
 
-                  {health && (
-                    <div className="ov-health" style={{ color: health.color }}>
-                      <span className="ov-health-mark" />
-                      {health.text}
-                    </div>
-                  )}
+                  <OverviewAlerts
+                    status={status}
+                    routerosStatus={routerOSAPIStatus.data ?? null}
+                    updateAvailable={panelUpdateInfo.updateAvailable}
+                    latestVersion={panelUpdateInfo.latestVersion}
+                    onNavigate={(to) => navigate(to)}
+                  />
 
                   <hr className="ov-rule" />
 
@@ -440,11 +449,14 @@ export default function IndexPage() {
                       summary={clientsSummary.data}
                       isLoading={clientsSummary.isLoading}
                       isError={clientsSummary.isError}
+                      onNavigate={() => navigate('/clients')}
                     />
                     <TopInboundsTile
                       inbounds={topInbounds.data}
                       isLoading={topInbounds.isLoading}
                       isError={topInbounds.isError}
+                      onNavigateAll={() => navigate('/inbounds')}
+                      onSelectInbound={(inbound) => navigate(`/inbounds?inboundId=${inbound.id}`)}
                     />
                     <VitalTile
                       icon={<HddOutlined aria-hidden />}
@@ -457,30 +469,26 @@ export default function IndexPage() {
                       data={history.series.diskUsage}
                       isMobile={isMobile}
                     />
-                    <SslCertTile tlsCert={status.tlsCert} />
+                    <SslCertTile
+                      tlsCert={status.tlsCert}
+                      onNavigate={() => navigate('/settings?sub=certs#general')}
+                    />
                   </div>
 
-                  <div className="ov-mid">
-                    <ThroughputCard
-                      status={status}
-                      up={history.series.netUp}
-                      down={history.series.netDown}
-                      labels={history.labels}
-                      isMobile={isMobile}
-                    />
-                    <ConnectionsCard
-                      status={status}
-                      tcp={history.series.tcpCount}
-                      udp={history.series.udpCount}
-                      labels={history.labels}
-                      isMobile={isMobile}
-                    />
-                  </div>
+                  <ThroughputCard
+                    status={status}
+                    up={history.series.netUp}
+                    down={history.series.netDown}
+                    labels={history.labels}
+                    isMobile={isMobile}
+                  />
 
                   <SystemStrip
                     status={status}
+                    routerosStatus={routerOSAPIStatus.data ?? null}
                     showIp={showIp}
                     onToggleIp={() => setShowIp((v) => !v)}
+                    onOpenRouterOS={() => navigate('/settings#routeros-nat')}
                   />
                 </div>
               )}

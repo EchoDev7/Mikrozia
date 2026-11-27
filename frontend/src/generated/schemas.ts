@@ -4651,6 +4651,14 @@ export const SCHEMAS: Record<string, unknown> = {
   },
   "RouterOSAPIStatus": {
     "properties": {
+      "architectureName": {
+        "example": "x86_64",
+        "type": "string"
+      },
+      "boardName": {
+        "example": "CHR",
+        "type": "string"
+      },
       "checkedAt": {
         "example": 0,
         "format": "int64",
@@ -4681,6 +4689,14 @@ export const SCHEMAS: Record<string, unknown> = {
       "cpuPeak": {
         "nullable": true,
         "type": "integer"
+      },
+      "managedNat": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RouterOSManagedNATHealth"
+          }
+        ],
+        "nullable": true
       },
       "memAvg": {
         "nullable": true,
@@ -4717,6 +4733,15 @@ export const SCHEMAS: Record<string, unknown> = {
       "state": {
         "example": "not_configured",
         "type": "string"
+      },
+      "uptimeSeconds": {
+        "format": "int64",
+        "nullable": true,
+        "type": "integer"
+      },
+      "version": {
+        "example": "7.25.2 (stable)",
+        "type": "string"
       }
     },
     "required": [
@@ -4724,6 +4749,39 @@ export const SCHEMAS: Record<string, unknown> = {
       "cpuHistory",
       "memHistory",
       "stale",
+      "state"
+    ],
+    "type": "object"
+  },
+  "RouterOSManagedNATHealth": {
+    "description": "RouterOSManagedNATHealth summarizes Managed NAT sync health between local\nMikrozia inbounds/services and Mikrozia-owned NAT rules on RouterOS.",
+    "properties": {
+      "enabled": {
+        "example": true,
+        "type": "boolean"
+      },
+      "missingCount": {
+        "example": 0,
+        "type": "integer"
+      },
+      "orphanCount": {
+        "example": 0,
+        "type": "integer"
+      },
+      "ruleCount": {
+        "example": 4,
+        "type": "integer"
+      },
+      "state": {
+        "example": "in_sync",
+        "type": "string"
+      }
+    },
+    "required": [
+      "enabled",
+      "missingCount",
+      "orphanCount",
+      "ruleCount",
       "state"
     ],
     "type": "object"

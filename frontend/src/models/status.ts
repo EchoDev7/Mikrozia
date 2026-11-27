@@ -78,6 +78,13 @@ export interface TlsCertInfo {
   routerServiceConflict?: string;
 }
 
+export interface NetworkInfo {
+  containerIP?: string;
+  containerGateway?: string;
+  routerWANGateway?: string;
+  routerWANIface?: string;
+}
+
 interface StatusInput extends Pick<ParsedStatusInput, 'resourceScope' | 'unavailableMetrics'> {
   cpu?: number;
   cpuCores?: number;
@@ -99,6 +106,8 @@ interface StatusInput extends Pick<ParsedStatusInput, 'resourceScope' | 'unavail
   xray?: Partial<XrayInfo>;
   amneziawg?: Partial<AmneziaWGInfo>;
   tlsCert?: TlsCertInfo | null;
+  network?: NetworkInfo | null;
+  serverTime?: number;
 }
 
 export class Status {
@@ -129,6 +138,9 @@ export class Status {
   xray: XrayInfo = { state: 'stop', errorMsg: '', version: '', color: '' };
   amneziawg: AmneziaWGInfo = { configured: false, running: false };
   tlsCert: TlsCertInfo | null = null;
+  network: NetworkInfo | null = null;
+  serverTime = 0;
+  clockSkewSeconds = 0;
 
   constructor(data?: StatusInput | null) {
     if (data == null) return;
@@ -156,5 +168,10 @@ export class Status {
     this.xray.color = XRAY_STATE_COLORS[this.xray.state] ?? 'gray';
     this.amneziawg = { ...this.amneziawg, ...(data.amneziawg || {}) };
     this.tlsCert = data.tlsCert ?? null;
+    this.network = data.network ?? null;
+    if (typeof data.serverTime === 'number' && data.serverTime > 0) {
+      this.serverTime = data.serverTime;
+      this.clockSkewSeconds = Math.abs(Math.floor(Date.now() / 1000) - data.serverTime);
+    }
   }
 }

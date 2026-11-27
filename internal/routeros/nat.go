@@ -866,6 +866,107 @@ func (c Client) CheckPort80Status(parent context.Context, cfg NATConnConfig) str
 	return c.CheckPort80AndServices(parent, cfg).Port80Status
 }
 
+// InterfaceTrafficSnapshot holds live traffic rates and cumulative counters read
+// directly from RouterOS for the container's VETH interface.
+// Note: from the router's perspective on the veth pair, router RX = container Upload (Sent)
+// and router TX = container Download (Received).
+type InterfaceTrafficSnapshot struct {
+	OK          bool
+	Interface   string
+	UpBytesPS   uint64 // container upload (router rx-bits-per-second / 8)
+	DownBytesPS uint64 // container download (router tx-bits-per-second / 8)
+	PktUpPS     uint64
+	PktDownPS   uint64
+	SentBytes   uint64 // router rx-byte
+	RecvBytes   uint64 // router tx-byte
+	PktSent     uint64 // router rx-packet
+	PktRecv     uint64 // router tx-packet
+}
+
+// ReadInterfaceTraffic queries RouterOS /interface/monitor-traffic (once) and
+// /interface/print stats for the container VETH interface so Overall Speed matches
+// MikroTik WinBox/WebFig exactly.
+func (c Client) ReadInterfaceTraffic(parent context.Context, cfg NATConnConfig, ifaceName, containerComment string) InterfaceTrafficSnapshot {
+	out := InterfaceTrafficSnapshot{Interface: strings.TrimSpace(ifaceName)}
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return out
+	}
+	defer conn.Close()
+
+	// Discover the container's veth interface name once if not yet cached.
+	if out.Interface == "" {
+		if writeSentence(conn, []string{
+			"/container/print",
+			"=.proplist=interface,comment,status,running,tag,remote-image,name",
+		}) == nil {
+			if st, rows := readNATRecords(r); st == "ok" {
+				commentTarget := strings.TrimSpace(containerComment)
+				if commentTarget == "" {
+					commentTarget = "[Mikrozia:container] Container"
+				}
+				for _, row := range rows {
+					if strings.TrimSpace(row["comment"]) == commentTarget && strings.TrimSpace(row["interface"]) != "" {
+						out.Interface = strings.TrimSpace(row["interface"])
+						break
+					}
+				}
+				if out.Interface == "" {
+					for _, row := range rows {
+						if (strings.EqualFold(row["status"], "running") || routerOSBool(row["running"])) &&
+							strings.Contains(strings.ToLower(row["tag"]+row["remote-image"]+row["name"]), "mikrozia") &&
+							strings.TrimSpace(row["interface"]) != "" {
+							out.Interface = strings.TrimSpace(row["interface"])
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	if out.Interface == "" {
+		return out
+	}
+
+	// 1. Live 1-second instantaneous rates from /interface/monitor-traffic once
+	if writeSentence(conn, []string{
+		"/interface/monitor-traffic",
+		"=interface=" + out.Interface,
+		"=once=",
+	}) != nil {
+		return out
+	}
+	if st, rows := readNATRecords(r); st == "ok" && len(rows) > 0 {
+		row := rows[0]
+		rxBps, _ := strconv.ParseUint(strings.TrimSpace(row["rx-bits-per-second"]), 10, 64)
+		txBps, _ := strconv.ParseUint(strings.TrimSpace(row["tx-bits-per-second"]), 10, 64)
+		rxPps, _ := strconv.ParseUint(strings.TrimSpace(row["rx-packets-per-second"]), 10, 64)
+		txPps, _ := strconv.ParseUint(strings.TrimSpace(row["tx-packets-per-second"]), 10, 64)
+		out.UpBytesPS = rxBps / 8
+		out.DownBytesPS = txBps / 8
+		out.PktUpPS = rxPps
+		out.PktDownPS = txPps
+		out.OK = true
+	}
+
+	// 2. Cumulative persistent byte/packet totals from /interface/print
+	if writeSentence(conn, []string{
+		"/interface/print",
+		"?name=" + out.Interface,
+		"=.proplist=rx-byte,tx-byte,rx-packet,tx-packet",
+	}) == nil {
+		if st, rows := readNATRecords(r); st == "ok" && len(rows) > 0 {
+			row := rows[0]
+			out.SentBytes, _ = strconv.ParseUint(strings.TrimSpace(row["rx-byte"]), 10, 64)
+			out.RecvBytes, _ = strconv.ParseUint(strings.TrimSpace(row["tx-byte"]), 10, 64)
+			out.PktSent, _ = strconv.ParseUint(strings.TrimSpace(row["rx-packet"]), 10, 64)
+			out.PktRecv, _ = strconv.ParseUint(strings.TrimSpace(row["tx-packet"]), 10, 64)
+		}
+	}
+
+	return out
+}
+
 // CleanupOrphanedNAT removes only Mikrozia-owned NAT rules whose inbound ID is not present in validInboundIDs.
 func (c Client) CleanupOrphanedNAT(parent context.Context, cfg NATConnConfig, validInboundIDs map[int]bool) (int, string, string) {
 	conn, r, state := c.dialAndLoginNAT(parent, cfg)
@@ -956,6 +1057,54 @@ func (c Client) DetectWANInterface(parent context.Context, cfg NATConnConfig) (s
 		}
 	}
 	return "", "not_found"
+}
+
+// WANNetworkSummary holds the active RouterOS default-route gateway and WAN interface.
+type WANNetworkSummary struct {
+	Gateway   string
+	Interface string
+}
+
+// ReadWANNetworkSummary queries RouterOS active default IPv4 routes to return
+// both the router's upstream gateway address and its WAN interface name.
+func (c Client) ReadWANNetworkSummary(parent context.Context, cfg NATConnConfig) WANNetworkSummary {
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return WANNetworkSummary{}
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{
+		"/ip/route/print",
+		"?dst-address=0.0.0.0/0",
+		"=.proplist=active,immediate-gw,gateway",
+	}) != nil {
+		return WANNetworkSummary{}
+	}
+	state, rows := readNATRecords(r)
+	if state != "ok" {
+		return WANNetworkSummary{}
+	}
+	for _, row := range rows {
+		active := row["active"] == "true" || row["active"] == "yes"
+		if !active {
+			continue
+		}
+		rawGW := strings.TrimSpace(row["immediate-gw"])
+		if rawGW == "" {
+			rawGW = strings.TrimSpace(row["gateway"])
+		}
+		gwAddr := rawGW
+		if before, _, ok := strings.Cut(rawGW, "%"); ok {
+			gwAddr = strings.TrimSpace(before)
+		}
+		iface := ExtractWANInterfaceFromGateway(row["immediate-gw"])
+		if iface == "" {
+			iface = ExtractWANInterfaceFromGateway(row["gateway"])
+		}
+		return WANNetworkSummary{Gateway: gwAddr, Interface: iface}
+	}
+	return WANNetworkSummary{}
 }
 
 func validateNATSpec(spec NATRuleSpec) (NATRuleSpec, bool) {

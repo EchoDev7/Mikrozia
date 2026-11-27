@@ -14,7 +14,7 @@ icon: Network
 
 - روتر MikroTik RouterOS v7 (یا CHR) که کانتینر میکروزیا روی آن اجرا می‌شود.
 - دسترسی شبکه داخلی (Private IP) از داخل کانتینر میکروزیا به گیت‌وی/بریج میکروتیک (مثلاً `172.16.10.1`).
-- یک کاربر اختصاصی API در میکروتیک با حداقل دسترسی (`read,write,api,policy,test,ftp,policy,test,ftp`).
+- یک کاربر اختصاصی API در میکروتیک با حداقل دسترسی (`read,write,api,policy,test,ftp`).
 
 ## راه‌اندازی گام‌به‌گام در میکروتیک
 
@@ -26,12 +26,12 @@ icon: Network
 در ترمینال میکروتیک (از طریق WinBox یا SSH) یک گروه با حداقل دسترسی لازم و یک کاربر اختصاصی برای میکروزیا بسازید:
 
 ```bash
-/user/group/add name=mikrozia-nat policy=read,write,api,policy,test,ftp,policy,test,ftp
+/user/group/add name=mikrozia-nat policy=read,write,api,policy,test,ftp
 /user/add name=mikrozia-nat group=mikrozia-nat password="YOUR_STRONG_PASSWORD"
 ```
 
 <Callout type="warn">
-  هرگز از کاربر `admin` با دسترسی `full` برای این اتصال استفاده نکنید. دسترسی `read,write,api,policy,test,ftp,policy,test,ftp` برای مدیریت رول‌های NAT و همچنین خواندن وضعیت CPU/RAM میکروتیک در داشبورد (یک اکانت واحد) کافی است.
+  هرگز از کاربر `admin` با دسترسی `full` برای این اتصال استفاده نکنید. دسترسی `read,write,api,policy,test,ftp` برای مدیریت رول‌های NAT و همچنین خواندن وضعیت CPU/RAM میکروتیک در داشبورد (یک اکانت واحد) کافی است.
 
   **کاراکترهای غیرمجاز در رمز عبور ترمینال میکروتیک**: هنگام اجرای دستور `password="..."` در ترمینال RouterOS، از کاراکترهای **`$`، `"`، `\`، `[`، `]`، `?` و فاصله (Space)** استفاده نکنید (به‌ویژه `$` که توسط میکروتیک به‌عنوان متغیر تفسیر و حذف می‌شود و باعث خطای `authentication_failed` می‌گردد). از حروف انگلیسی، اعداد و نمادهای امن مانند `@ # % ^ _ - . !` استفاده کنید.
 </Callout>
@@ -95,6 +95,6 @@ icon: Network
 | خطا / وضعیت | علت احتمالی | راه‌حل |
 | --- | --- | --- |
 | **Connection refused / timeout** | سرویس `api` خاموش است، `address` محدود شده یا فایروال ورودی پورت `8728` را بسته است. | تنظیمات `/ip/service/print` و رول `chain=input` فایروال میکروتیک را بررسی کنید. |
-| **Authentication failed** | نام کاربری/رمز اشتباه است یا گروه کاربر سیاست `api` را ندارد. | گروه `mikrozia-nat` را با `policy=read,write,api,policy,test,ftp,policy,test,ftp` بررسی کنید. |
+| **Authentication failed** | نام کاربری/رمز اشتباه است یا گروه کاربر سیاست `api` را ندارد. | گروه `mikrozia-nat` را با `policy=read,write,api,policy,test,ftp` بررسی کنید. |
 | **NAT conflict detected** | یک رول `dstnat` دستی و فعال روی همان پورت و پروتکل در میکروتیک وجود دارد. | میکروزیا برای حفظ ایمنی رول دستی شما را تغییر نمی‌دهد؛ رول دستی تکراری را در میکروتیک حذف یا غیرفعال کنید و مجدداً ذخیره بزنید. |
 | **Invalid host / target IP** | آدرس IP عمومی وارد شده است. | فقط آدرس‌های IP خصوصی (مانند `172.16.10.1` یا `192.168.x.x`) مجاز هستند. |

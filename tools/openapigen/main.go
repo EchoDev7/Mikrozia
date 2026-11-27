@@ -115,6 +115,7 @@ func run(root, outDir string) error {
 				"GeodataTokenIssue",
 				"AmneziaWGLogs",
 				"RouterOSAPIStatus",
+				"RouterOSManagedNATHealth",
 				"PeerActivity",
 				"HwidSlotStatus",
 			),

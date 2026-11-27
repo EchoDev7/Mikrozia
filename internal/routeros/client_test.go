@@ -59,7 +59,7 @@ func TestHealthRequiresAuthenticatedReadOnlyReply(t *testing.T) {
 			if !reflect.DeepEqual(seen[0], []string{"/login", "=name=fixture-user", "=password=fixture-password"}) {
 				t.Fatal("unexpected login sentence")
 			}
-			if len(seen) == 2 && !reflect.DeepEqual(seen[1], []string{"/system/resource/print", "=.proplist=uptime,cpu-load,cpu-count,cpu-frequency,total-memory,free-memory"}) {
+			if len(seen) == 2 && !reflect.DeepEqual(seen[1], []string{"/system/resource/print", "=.proplist=uptime,cpu-load,cpu-count,cpu-frequency,total-memory,free-memory,version,board-name,architecture-name"}) {
 				t.Fatalf("non-allowlisted query: %q", seen[1])
 			}
 		})
@@ -88,9 +88,12 @@ func TestResourceSnapshotStrictParsingAndNullableFields(t *testing.T) {
 	}
 
 	t.Run("valid zero cpu-load with valid count and frequency", func(t *testing.T) {
-		snap := runMock(t, "!re|=uptime=2d3h4m5s|=cpu-load=0|=cpu-count=2|=cpu-frequency=2400\n!done")
+		snap := runMock(t, "!re|=uptime=2d3h4m5s|=cpu-load=0|=cpu-count=2|=cpu-frequency=2400|=version=7.25.2 (stable)|=board-name=CHR|=architecture-name=x86_64\n!done")
 		if snap.State != "connected" || snap.CPULoad == nil || *snap.CPULoad != 0 {
 			t.Fatalf("unexpected snap: %+v", snap)
+		}
+		if snap.Version != "7.25.2 (stable)" || snap.BoardName != "CHR" || snap.ArchitectureName != "x86_64" {
+			t.Fatalf("unexpected router metadata: version=%q board=%q arch=%q", snap.Version, snap.BoardName, snap.ArchitectureName)
 		}
 		if snap.CPUCount == nil || *snap.CPUCount != 2 {
 			t.Fatalf("cpuCount = %v, want 2", snap.CPUCount)

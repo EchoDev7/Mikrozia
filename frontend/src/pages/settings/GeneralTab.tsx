@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { Input, InputNumber, Select, Switch, Tabs } from 'antd';
 import {
   ApartmentOutlined,
@@ -174,9 +175,21 @@ export default function GeneralTab({ allSetting, updateSetting }: GeneralTabProp
     [],
   );
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedSubTab, setSelectedSubTab] = useState<string>('1');
+  const activeSubTab = searchParams.get('sub') === 'certs' ? '3' : selectedSubTab;
+
   return (
     <Tabs
-      defaultActiveKey="1"
+      activeKey={activeSubTab}
+      onChange={(key) => {
+        setSelectedSubTab(key);
+        if (searchParams.has('sub')) {
+          const next = new URLSearchParams(searchParams);
+          next.delete('sub');
+          setSearchParams(next, { replace: true });
+        }
+      }}
       items={[
         {
           key: '1',

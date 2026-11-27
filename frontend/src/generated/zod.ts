@@ -1131,6 +1131,8 @@ export const RealityScanResultSchema = z.object({
 export type RealityScanResult = z.infer<typeof RealityScanResultSchema>;
 
 export const RouterOSAPIStatusSchema = z.object({
+  architectureName: z.string().optional(),
+  boardName: z.string().optional(),
   checkedAt: z.number().int(),
   cpuAvg: z.number().nullable().optional(),
   cpuCount: z.number().int().nullable().optional(),
@@ -1138,6 +1140,7 @@ export const RouterOSAPIStatusSchema = z.object({
   cpuHistory: z.array(z.number().int()),
   cpuLoad: z.number().int().nullable().optional(),
   cpuPeak: z.number().int().nullable().optional(),
+  managedNat: z.lazy(() => RouterOSManagedNATHealthSchema).nullable().optional(),
   memAvg: z.number().nullable().optional(),
   memHistory: z.array(z.number()),
   memPeak: z.number().nullable().optional(),
@@ -1146,8 +1149,19 @@ export const RouterOSAPIStatusSchema = z.object({
   memUsed: z.number().int().nullable().optional(),
   stale: z.boolean(),
   state: z.string(),
+  uptimeSeconds: z.number().int().nullable().optional(),
+  version: z.string().optional(),
 });
 export type RouterOSAPIStatus = z.infer<typeof RouterOSAPIStatusSchema>;
+
+export const RouterOSManagedNATHealthSchema = z.object({
+  enabled: z.boolean(),
+  missingCount: z.number().int(),
+  orphanCount: z.number().int(),
+  ruleCount: z.number().int(),
+  state: z.string(),
+});
+export type RouterOSManagedNATHealth = z.infer<typeof RouterOSManagedNATHealthSchema>;
 
 export const ServerSettingsSchema = z.object({
   contentPaddingAddition: z.string().optional(),

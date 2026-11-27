@@ -18,13 +18,16 @@ var errReply = errors.New("invalid RouterOS API reply")
 
 // ResourceSnapshot holds the parsed read-only fields from /system/resource/print.
 type ResourceSnapshot struct {
-	State           string
-	UptimeSeconds   *int64
-	CPULoad         *int
-	CPUCount        *int
-	CPUFrequencyMhz *int
-	MemUsed         *uint64
-	MemTotal        *uint64
+	State            string
+	UptimeSeconds    *int64
+	CPULoad          *int
+	CPUCount         *int
+	CPUFrequencyMhz  *int
+	MemUsed          *uint64
+	MemTotal         *uint64
+	Version          string
+	BoardName        string
+	ArchitectureName string
 }
 
 // Client deliberately exposes no arbitrary command execution or configuration operations.
@@ -68,7 +71,7 @@ func (c Client) ResourceSnapshot(parent context.Context, host, username, passwor
 	if state != "ok" {
 		return ResourceSnapshot{State: state}
 	}
-	if writeSentence(conn, []string{"/system/resource/print", "=.proplist=uptime,cpu-load,cpu-count,cpu-frequency,total-memory,free-memory"}) != nil {
+	if writeSentence(conn, []string{"/system/resource/print", "=.proplist=uptime,cpu-load,cpu-count,cpu-frequency,total-memory,free-memory,version,board-name,architecture-name"}) != nil {
 		return ResourceSnapshot{State: "unreachable"}
 	}
 	state, records, attrs := readReply(r, false)
@@ -83,8 +86,11 @@ func (c Client) ResourceSnapshot(parent context.Context, host, username, passwor
 		return ResourceSnapshot{State: "invalid_reply"}
 	}
 	snap := ResourceSnapshot{
-		State:   "connected",
-		CPULoad: &loadVal,
+		State:            "connected",
+		CPULoad:          &loadVal,
+		Version:          strings.TrimSpace(attrs["version"]),
+		BoardName:        strings.TrimSpace(attrs["board-name"]),
+		ArchitectureName: strings.TrimSpace(attrs["architecture-name"]),
 	}
 	if upSec, ok := parseRouterOSUptime(attrs["uptime"]); ok {
 		snap.UptimeSeconds = &upSec

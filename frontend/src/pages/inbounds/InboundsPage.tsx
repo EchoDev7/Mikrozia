@@ -1,5 +1,6 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import {
   Button,
   Card,
@@ -467,6 +468,28 @@ export default function InboundsPage() {
     setFormDbInbound(dbInbound);
     setFormOpen(true);
   }, []);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [handledInboundParam, setHandledInboundParam] = useState<string | null>(null);
+  const inboundIdParam = searchParams.get('inboundId');
+  if (fetched && inboundIdParam && inboundIdParam !== handledInboundParam) {
+    setHandledInboundParam(inboundIdParam);
+    const targetId = Number(inboundIdParam);
+    const target = Number.isFinite(targetId)
+      ? dbInbounds.find((ib) => ib.id === targetId)
+      : undefined;
+    if (target) {
+      setFormMode('edit');
+      setFormDbInbound(target);
+      setFormOpen(true);
+    }
+  }
+  useEffect(() => {
+    if (!fetched || !searchParams.has('inboundId')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('inboundId');
+    setSearchParams(next, { replace: true });
+  }, [fetched, searchParams, setSearchParams]);
 
   const confirmDelete = useCallback(
     (dbInbound: DBInbound) => {

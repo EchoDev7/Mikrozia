@@ -2,18 +2,21 @@ import { useTranslation } from 'react-i18next';
 import { Card } from 'antd';
 import { TeamOutlined } from '@ant-design/icons';
 
+import { activateOnKey } from '@/utils/a11y';
 import type { ClientsSummaryCounts } from '@/generated/types';
 
 interface ClientsSummaryTileProps {
   summary?: ClientsSummaryCounts;
   isLoading: boolean;
   isError: boolean;
+  onNavigate?: () => void;
 }
 
 export default function ClientsSummaryTile({
   summary,
   isLoading,
   isError,
+  onNavigate,
 }: ClientsSummaryTileProps) {
   const { t } = useTranslation();
   const ready = !isError && !isLoading && summary !== undefined;
@@ -33,7 +36,15 @@ export default function ClientsSummaryTile({
       : '—';
 
   return (
-    <Card hoverable className="ov-tile" styles={{ body: { padding: 0 } }}>
+    <Card
+      hoverable
+      className={`ov-tile${onNavigate ? ' ov-tile--clickable' : ''}`}
+      styles={{ body: { padding: 0 } }}
+      role={onNavigate ? 'button' : undefined}
+      tabIndex={onNavigate ? 0 : undefined}
+      onClick={onNavigate}
+      onKeyDown={onNavigate ? activateOnKey(onNavigate) : undefined}
+    >
       <div className="ov-tile-head">
         <span className="ov-tile-icon">
           <TeamOutlined aria-hidden />

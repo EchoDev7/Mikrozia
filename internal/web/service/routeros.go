@@ -2,20 +2,23 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/echodev7/mikrozia/v3/internal/database"
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 	"github.com/echodev7/mikrozia/v3/internal/routeros"
 )
 
 const (
-	routerOSProbeInterval  = 2 * time.Second
-	routerOSStaleThreshold = 30 * time.Second
-	routerOSHistoryMax     = 60
-	routerOSHistoryWindow  = 15 * time.Minute
+	routerOSProbeInterval     = 2 * time.Second
+	routerOSNATHealthInterval = 15 * time.Second
+	routerOSStaleThreshold    = 30 * time.Second
+	routerOSHistoryMax        = 60
+	routerOSHistoryWindow     = 15 * time.Minute
 )
 
 type routerOSCPUSample struct {
@@ -28,34 +31,52 @@ type routerOSMemSample struct {
 	percent float64
 }
 
+// RouterOSManagedNATHealth summarizes Managed NAT sync health between local
+// Mikrozia inbounds/services and Mikrozia-owned NAT rules on RouterOS.
+type RouterOSManagedNATHealth struct {
+	Enabled      bool   `json:"enabled" example:"true"`
+	State        string `json:"state" example:"in_sync"`
+	RuleCount    int    `json:"ruleCount" example:"4"`
+	MissingCount int    `json:"missingCount" example:"0"`
+	OrphanCount  int    `json:"orphanCount" example:"0"`
+}
+
 type RouterOSAPIStatus struct {
-	State           string    `json:"state" example:"not_configured"`
-	CheckedAt       int64     `json:"checkedAt" example:"0"`
-	Stale           bool      `json:"stale" example:"false"`
-	CPULoad         *int      `json:"cpuLoad"`
-	CPUCount        *int      `json:"cpuCount"`
-	CPUFrequencyMhz *int      `json:"cpuFrequencyMhz"`
-	CpuAvg          *float64  `json:"cpuAvg"`
-	CpuPeak         *int      `json:"cpuPeak"`
-	CpuHistory      []int     `json:"cpuHistory"`
-	MemUsed         *uint64   `json:"memUsed"`
-	MemTotal        *uint64   `json:"memTotal"`
-	MemPercent      *float64  `json:"memPercent"`
-	MemAvg          *float64  `json:"memAvg"`
-	MemPeak         *float64  `json:"memPeak"`
-	MemHistory      []float64 `json:"memHistory"`
+	State            string                    `json:"state" example:"not_configured"`
+	CheckedAt        int64                     `json:"checkedAt" example:"0"`
+	Stale            bool                      `json:"stale" example:"false"`
+	Version          string                    `json:"version,omitempty" example:"7.25.2 (stable)"`
+	BoardName        string                    `json:"boardName,omitempty" example:"CHR"`
+	ArchitectureName string                    `json:"architectureName,omitempty" example:"x86_64"`
+	UptimeSeconds    *int64                    `json:"uptimeSeconds"`
+	CPULoad          *int                      `json:"cpuLoad"`
+	CPUCount         *int                      `json:"cpuCount"`
+	CPUFrequencyMhz  *int                      `json:"cpuFrequencyMhz"`
+	CpuAvg           *float64                  `json:"cpuAvg"`
+	CpuPeak          *int                      `json:"cpuPeak"`
+	CpuHistory       []int                     `json:"cpuHistory"`
+	MemUsed          *uint64                   `json:"memUsed"`
+	MemTotal         *uint64                   `json:"memTotal"`
+	MemPercent       *float64                  `json:"memPercent"`
+	MemAvg           *float64                  `json:"memAvg"`
+	MemPeak          *float64                  `json:"memPeak"`
+	MemHistory       []float64                 `json:"memHistory"`
+	ManagedNAT       *RouterOSManagedNATHealth `json:"managedNat,omitempty"`
 }
 
 type RouterOSAPIService struct {
-	mu         sync.Mutex
-	status     RouterOSAPIStatus
-	samples    []routerOSCPUSample
-	memSamples []routerOSMemSample
-	lastUptime *int64
-	next       time.Time
-	checking   bool
-	probe      func(context.Context, string, string, string) routeros.ResourceSnapshot
-	now        func() time.Time
+	mu               sync.Mutex
+	status           RouterOSAPIStatus
+	samples          []routerOSCPUSample
+	memSamples       []routerOSMemSample
+	lastUptime       *int64
+	lastNATHealth    *RouterOSManagedNATHealth
+	nextNATHealthAt  time.Time
+	next             time.Time
+	checking         bool
+	probe            func(context.Context, string, string, string) routeros.ResourceSnapshot
+	natHealthProbe   func(context.Context, RouterOSAPIConfig) *RouterOSManagedNATHealth
+	now              func() time.Time
 }
 
 func (s *RouterOSAPIService) currentTime() time.Time {
@@ -189,7 +210,136 @@ func (s *RouterOSAPIService) effectiveRouterOSAPIConfig() RouterOSAPIConfig {
 	return resolveRouterOSAPIConfig()
 }
 
-// Status coalesces all viewers into at most one four-second probe per fifteen seconds.
+// EvaluateManagedNATHealth compares live Mikrozia-owned NAT rules from RouterOS
+// against local enabled inbounds (and optional panel/sub service ports) to
+// report rule count, missing rules, and orphaned rules without mutating state.
+func EvaluateManagedNATHealth(
+	rules []routeros.ManagedNATRule,
+	inbounds []*model.Inbound,
+	manageServices bool,
+	webPort int,
+	subEnable bool,
+	subPort int,
+) RouterOSManagedNATHealth {
+	validInboundIDs := make(map[int]bool, len(inbounds))
+	expectedInbound := make(map[string]bool)
+	for _, ib := range inbounds {
+		if ib == nil || (ib.NodeID != nil && *ib.NodeID > 0) {
+			continue
+		}
+		validInboundIDs[ib.Id] = true
+		if !ib.Enable {
+			continue
+		}
+		for _, proto := range ProtocolsForInbound(ib) {
+			key := fmt.Sprintf("%d:%s:%d", ib.Id, strings.ToLower(proto), ib.Port)
+			expectedInbound[key] = true
+		}
+	}
+
+	expectedServices := make(map[string]bool)
+	if manageServices {
+		if webPort > 0 {
+			expectedServices[fmt.Sprintf("panel:%d", webPort)] = true
+		}
+		if subEnable && subPort > 0 && subPort != webPort {
+			expectedServices[fmt.Sprintf("sub:%d", subPort)] = true
+		}
+	}
+
+	matchedInbound := make(map[string]bool)
+	matchedServices := make(map[string]bool)
+	orphanCount := 0
+	for _, r := range rules {
+		if r.InboundID > 0 {
+			if !validInboundIDs[r.InboundID] {
+				orphanCount++
+				continue
+			}
+			if !r.Disabled {
+				key := fmt.Sprintf("%d:%s:%s", r.InboundID, strings.ToLower(strings.TrimSpace(r.Protocol)), strings.TrimSpace(r.DstPort))
+				matchedInbound[key] = true
+			}
+		} else if r.Service != "" && !r.Disabled {
+			key := fmt.Sprintf("%s:%s", strings.ToLower(strings.TrimSpace(r.Service)), strings.TrimSpace(r.DstPort))
+			matchedServices[key] = true
+		}
+	}
+
+	missingCount := 0
+	for key := range expectedInbound {
+		if !matchedInbound[key] {
+			missingCount++
+		}
+	}
+	for key := range expectedServices {
+		if !matchedServices[key] {
+			missingCount++
+		}
+	}
+
+	state := "in_sync"
+	if missingCount > 0 || orphanCount > 0 {
+		state = "drift"
+	}
+	return RouterOSManagedNATHealth{
+		Enabled:      true,
+		State:        state,
+		RuleCount:    len(rules),
+		MissingCount: missingCount,
+		OrphanCount:  orphanCount,
+	}
+}
+
+func defaultNATHealthProbe(ctx context.Context, cfg RouterOSAPIConfig) *RouterOSManagedNATHealth {
+	db := database.GetDB()
+	if db == nil {
+		return nil
+	}
+	var settingService SettingService
+	allSetting, err := settingService.GetAllSetting()
+	if err != nil || allSetting == nil {
+		return nil
+	}
+	if !allSetting.RouterosNatEnable {
+		return &RouterOSManagedNATHealth{
+			Enabled: false,
+			State:   "disabled",
+		}
+	}
+	natCfg := routeros.NATConnConfig{
+		Host:     cfg.Host,
+		Port:     cfg.Port,
+		Username: cfg.Username,
+		Password: cfg.Password,
+	}
+	rules, state := (routeros.Client{}).ListManagedNATRules(ctx, natCfg)
+	if state != "ok" {
+		return &RouterOSManagedNATHealth{
+			Enabled: true,
+			State:   "error",
+		}
+	}
+	var inbounds []*model.Inbound
+	if err := db.Find(&inbounds).Error; err != nil {
+		return &RouterOSManagedNATHealth{
+			Enabled:   true,
+			State:     "error",
+			RuleCount: len(rules),
+		}
+	}
+	health := EvaluateManagedNATHealth(
+		rules,
+		inbounds,
+		allSetting.RouterosNatManageServices,
+		allSetting.WebPort,
+		allSetting.SubEnable,
+		allSetting.SubPort,
+	)
+	return &health
+}
+
+// Status coalesces all viewers into at most one four-second probe per two seconds.
 func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -199,6 +349,8 @@ func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 		s.samples = nil
 		s.memSamples = nil
 		s.lastUptime = nil
+		s.lastNATHealth = nil
+		s.nextNATHealthAt = time.Time{}
 		s.status = RouterOSAPIStatus{State: cfg.State, CpuHistory: []int{}, MemHistory: []float64{}}
 		s.next = time.Time{}
 		return RouterOSAPIStatus{State: cfg.State, CpuHistory: []int{}, MemHistory: []float64{}}
@@ -212,8 +364,17 @@ func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 		if probe == nil {
 			probe = (routeros.Client{}).ResourceSnapshot
 		}
+		needNATProbe := !now.Before(s.nextNATHealthAt) || s.lastNATHealth == nil
+		natProbe := s.natHealthProbe
+		if natProbe == nil {
+			natProbe = defaultNATHealthProbe
+		}
 		go func() {
 			snap := probe(context.Background(), cfg.Host, cfg.Username, cfg.Password)
+			var probedNAT *RouterOSManagedNATHealth
+			if snap.State == "connected" && needNATProbe {
+				probedNAT = natProbe(context.Background(), cfg)
+			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			doneAt := s.currentTime()
@@ -222,6 +383,8 @@ func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 				s.samples = nil
 				s.memSamples = nil
 				s.lastUptime = nil
+				s.lastNATHealth = nil
+				s.nextNATHealthAt = time.Time{}
 				s.status = RouterOSAPIStatus{State: currentCfg.State, CpuHistory: []int{}, MemHistory: []float64{}}
 				s.next, s.checking = time.Time{}, false
 				return
@@ -231,9 +394,23 @@ func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 					s.samples = nil
 					s.memSamples = nil
 				}
+				var uptimePtr *int64
 				if snap.UptimeSeconds != nil {
 					up := *snap.UptimeSeconds
 					s.lastUptime = &up
+					uptimePtr = &up
+				}
+				if needNATProbe {
+					if probedNAT != nil {
+						cp := *probedNAT
+						s.lastNATHealth = &cp
+					}
+					s.nextNATHealthAt = doneAt.Add(routerOSNATHealthInterval)
+				}
+				var natHealthCopy *RouterOSManagedNATHealth
+				if s.lastNATHealth != nil {
+					cp := *s.lastNATHealth
+					natHealthCopy = &cp
 				}
 				s.samples = append(s.samples, routerOSCPUSample{at: doneAt, load: *snap.CPULoad})
 				avg, peak, history := s.pruneAndSummarizeLocked(doneAt)
@@ -262,20 +439,25 @@ func (s *RouterOSAPIService) Status() RouterOSAPIStatus {
 				memAvg, memPeak, memHistory := s.pruneAndSummarizeMemLocked(doneAt)
 
 				s.status = RouterOSAPIStatus{
-					State:           "connected",
-					CheckedAt:       doneAt.Unix(),
-					CPULoad:         &loadVal,
-					CPUCount:        cntPtr,
-					CPUFrequencyMhz: freqPtr,
-					CpuAvg:          avg,
-					CpuPeak:         peak,
-					CpuHistory:      history,
-					MemUsed:         memUsedPtr,
-					MemTotal:        memTotalPtr,
-					MemPercent:      memPctPtr,
-					MemAvg:          memAvg,
-					MemPeak:         memPeak,
-					MemHistory:      memHistory,
+					State:            "connected",
+					CheckedAt:        doneAt.Unix(),
+					Version:          snap.Version,
+					BoardName:        snap.BoardName,
+					ArchitectureName: snap.ArchitectureName,
+					UptimeSeconds:    uptimePtr,
+					CPULoad:          &loadVal,
+					CPUCount:         cntPtr,
+					CPUFrequencyMhz:  freqPtr,
+					CpuAvg:           avg,
+					CpuPeak:          peak,
+					CpuHistory:       history,
+					MemUsed:          memUsedPtr,
+					MemTotal:         memTotalPtr,
+					MemPercent:       memPctPtr,
+					MemAvg:           memAvg,
+					MemPeak:          memPeak,
+					MemHistory:       memHistory,
+					ManagedNAT:       natHealthCopy,
 				}
 			} else {
 				avg, peak, history := s.pruneAndSummarizeLocked(doneAt)

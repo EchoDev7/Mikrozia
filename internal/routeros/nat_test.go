@@ -88,6 +88,24 @@ func (f *fakeNATServer) serve(conn net.Conn) {
 				_ = writeSentence(conn, out)
 			}
 			_ = writeSentence(conn, []string{"!done"})
+		case "/interface/monitor-traffic":
+			_ = writeSentence(conn, []string{
+				"!re",
+				"=rx-bits-per-second=3200000",
+				"=tx-bits-per-second=2400000",
+				"=rx-packets-per-second=200",
+				"=tx-packets-per-second=150",
+			})
+			_ = writeSentence(conn, []string{"!done"})
+		case "/interface/print":
+			_ = writeSentence(conn, []string{
+				"!re",
+				"=rx-byte=4420410450",
+				"=tx-byte=4115375411",
+				"=rx-packet=4317313",
+				"=tx-packet=5242580",
+			})
+			_ = writeSentence(conn, []string{"!done"})
 		case "/ip/firewall/nat/add":
 			f.nextID++
 			id := "*" + string(rune('0'+f.nextID))
@@ -336,5 +354,20 @@ func TestCheckPort80Status(t *testing.T) {
 	snap = (Client{Dial: srvClosed.dial}).CheckPort80AndServices(context.Background(), cfg)
 	if snap.Port80Status != "closed" || snap.ServiceConflict != "" {
 		t.Fatalf("CheckPort80AndServices(closed) = %+v, want closed + empty conflict", snap)
+	}
+}
+
+func TestReadInterfaceTraffic(t *testing.T) {
+	srv := &fakeNATServer{}
+	cfg := NATConnConfig{Host: "172.16.10.1", Port: 8728, Username: "mikrozia", Password: "secret"}
+	got := (Client{Dial: srv.dial}).ReadInterfaceTraffic(context.Background(), cfg, "veth-mikrozia", "[Mikrozia:container] Container")
+	if !got.OK {
+		t.Fatalf("expected OK=true, got %+v", got)
+	}
+	if got.UpBytesPS != 400000 || got.DownBytesPS != 300000 {
+		t.Fatalf("rates = (up=%d, down=%d), want (400000, 300000)", got.UpBytesPS, got.DownBytesPS)
+	}
+	if got.SentBytes != 4420410450 || got.RecvBytes != 4115375411 {
+		t.Fatalf("totals = (sent=%d, recv=%d), want (4420410450, 4115375411)", got.SentBytes, got.RecvBytes)
 	}
 }

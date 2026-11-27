@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import {
   Alert,
   Button,
@@ -112,7 +113,7 @@ export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNa
     const port = allSetting.routerosNatPort > 0 ? allSetting.routerosNatPort : 8728;
     const subnet = subnetHint(allSetting.routerosNatTargetIP || allSetting.routerosNatHost);
     return {
-      userCmd: `/user/group/add name=mikrozia-nat policy=read,write,api,policy,test,ftp,policy,test,ftp\n/user/add name=${user} group=mikrozia-nat password="CHANGE_ME_STRONG_PASSWORD"`,
+      userCmd: `/user/group/add name=mikrozia-nat policy=read,write,api,policy,test,ftp\n/user/add name=${user} group=mikrozia-nat password="CHANGE_ME_STRONG_PASSWORD"`,
       apiCmd: `/ip/service/set api disabled=no port=${port} address=${subnet}`,
       firewallCmd: `/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=${port} src-address=${subnet} comment="Allow Mikrozia container API"`,
       verifyCmd: `/ip/firewall/nat/print where comment~"^mikrozia:managed:inbound:"`,
@@ -455,12 +456,23 @@ export default function RouterosNatTab({ allSetting, updateSetting }: RouterosNa
     [t],
   );
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedSubTab, setSelectedSubTab] = useState<string>('1');
+  const subParam = searchParams.get('sub');
+  const activeSubTab = subParam === 'update' ? '5' : subParam === 'rules' ? '2' : selectedSubTab;
+
   return (
     <>
       {modalContextHolder}
       <Tabs
-        defaultActiveKey="1"
+        activeKey={activeSubTab}
         onChange={(key) => {
+          setSelectedSubTab(key);
+          if (searchParams.has('sub')) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('sub');
+            setSearchParams(next, { replace: true });
+          }
           if (key === '2') {
             void loadRules();
           } else if (key === '4' && !diagResult && !diagLoading) {

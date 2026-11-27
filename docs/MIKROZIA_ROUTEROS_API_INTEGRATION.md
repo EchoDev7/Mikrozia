@@ -41,7 +41,7 @@ authoritative in the official documentation linked below.
   **Managed RouterOS NAT Integration** in Panel Settings, Mikrozia reconciles
   only its own marked `/ip/firewall/nat` (`dst-nat`) rules
   (`comment="mikrozia:managed:inbound:<id>:<proto>"`) using a dedicated
-  operator-supplied RouterOS API account (`read,write,api,policy,test,ftp,policy,test,ftp`), with conflict
+  operator-supplied RouterOS API account (`read,write,api,policy,test,ftp`), with conflict
   detection against foreign rules and compensating rollback on partial failure.
 - Container restart is disabled until the operator provides an exact unique
   container comment and a separate operational API account through

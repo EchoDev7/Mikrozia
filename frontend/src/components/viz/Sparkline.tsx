@@ -361,8 +361,8 @@ export default function Sparkline(props: SparklineProps) {
         grid: { show: false },
         ticks: { show: false },
         font: AXIS_FONT,
-        gap: 4,
-        size: 56,
+        gap: 6,
+        size: 64,
         splits: () => viewRef.current.yTicks ?? [],
         values: (_u, splits) =>
           splits.map((v) => (cfgRef.current.yFormatter ? cfgRef.current.yFormatter(v) : String(v))),
@@ -506,7 +506,7 @@ export default function Sparkline(props: SparklineProps) {
     const opts: uPlot.Options = {
       width: container.clientWidth || 600,
       height,
-      padding: [8, 8, showAxes ? 0 : 2, showAxes ? 0 : 2],
+      padding: [8, showAxes ? 26 : 8, showAxes ? 0 : 2, showAxes ? 14 : 2],
       legend: { show: false },
       cursor: {
         show: showTooltip,

@@ -7,6 +7,7 @@ import {
   ArrowUpOutlined,
   AreaChartOutlined,
   BarsOutlined,
+  CloudDownloadOutlined,
   CloudServerOutlined,
   ControlOutlined,
   DownOutlined,
@@ -23,6 +24,9 @@ interface OverviewActionBarProps {
   isMobile: boolean;
   accessLogEnable: boolean;
   panelVersion: string;
+  updateAvailable?: boolean;
+  latestVersion?: string;
+  onOpenUpdates?: () => void;
   routerOSStatus: { state: string; checkedAt: number; stale: boolean };
   containerStatus: { state: string; status: string; restartAvailable: boolean };
   onStopXray: () => void;
@@ -56,6 +60,9 @@ export default function OverviewActionBar({
   isMobile,
   accessLogEnable,
   panelVersion,
+  updateAvailable,
+  latestVersion,
+  onOpenUpdates,
   routerOSStatus,
   containerStatus,
   onStopXray,
@@ -207,6 +214,14 @@ export default function OverviewActionBar({
       ) : null}
 
       <span className="ov-panel-version ov-mono">{formatPanelVersion(panelVersion)}</span>
+      {updateAvailable && latestVersion && onOpenUpdates && (
+        <Tooltip title={t('pages.index.alertUpdateAvailable', { version: latestVersion })}>
+          <button type="button" className="ov-update-badge" onClick={onOpenUpdates}>
+            <CloudDownloadOutlined aria-hidden />
+            <span>{t('pages.index.updateAvailableBadge')}</span>
+          </button>
+        </Tooltip>
+      )}
       <Tooltip
         title={t(
           routerOSStatus.stale

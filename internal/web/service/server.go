@@ -131,7 +131,17 @@ type Status struct {
 		Mem     uint64 `json:"mem"`
 		Uptime  uint64 `json:"uptime"`
 	} `json:"appStats"`
-	TlsCert *TlsCertInfo `json:"tlsCert,omitempty"`
+	TlsCert    *TlsCertInfo `json:"tlsCert,omitempty"`
+	Network    *NetworkInfo `json:"network,omitempty"`
+	ServerTime int64        `json:"serverTime,omitempty"`
+}
+
+// NetworkInfo summarizes container and RouterOS network addresses for the Overview IP card.
+type NetworkInfo struct {
+	ContainerIP      string `json:"containerIP,omitempty"`
+	ContainerGateway string `json:"containerGateway,omitempty"`
+	RouterWANGateway string `json:"routerWANGateway,omitempty"`
+	RouterWANIface   string `json:"routerWANIface,omitempty"`
 }
 
 // TlsCertInfo summarizes the active panel TLS certificate for the Overview card.
@@ -182,6 +192,17 @@ type ServerService struct {
 	routerServiceConflict string
 	port80CheckedAt       time.Time
 	port80Checking        bool
+
+	vethTrafficMu       sync.Mutex
+	vethTraffic         routeros.InterfaceTrafficSnapshot
+	vethTrafficAt       time.Time
+	vethTrafficChecking bool
+	vethIfaceName       string
+
+	wanNetMu       sync.Mutex
+	wanNetSummary  routeros.WANNetworkSummary
+	wanNetAt       time.Time
+	wanNetChecking bool
 }
 
 // allowedHistoryBuckets is the bucket-second whitelist for time-series
@@ -250,7 +271,7 @@ func (s *ServerService) reconcileStatusXray(status *Status) *Status {
 	return &live
 }
 
-const maxCachedStatusAge = 5 * time.Second
+const maxCachedStatusAge = 2 * time.Second
 
 // CurrentStatus never reports "no status yet" or a permanently frozen snapshot:
 // if the @2s ticker has not populated LastStatus yet or stalled beyond
@@ -645,13 +666,26 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 		status.Loads = []float64{avgState.Load1, avgState.Load5, avgState.Load15}
 	}
 
-	// Network stats
-	readNet := s.netIOCounters
-	if readNet == nil {
-		readNet = net.IOCounters
+	// Network stats: prefer live RouterOS veth interface traffic when RouterOS API
+	// is configured so Overall Speed and cumulative totals match MikroTik WinBox/WebFig
+	// exactly; fall back to local container /proc/net/dev counters otherwise.
+	if rosTraffic, ok := s.readRouterOSVethTraffic(now); ok {
+		status.NetIO.Up = rosTraffic.UpBytesPS
+		status.NetIO.Down = rosTraffic.DownBytesPS
+		status.NetIO.PktUp = rosTraffic.PktUpPS
+		status.NetIO.PktDown = rosTraffic.PktDownPS
+		status.NetTraffic.Sent = rosTraffic.SentBytes
+		status.NetTraffic.Recv = rosTraffic.RecvBytes
+		status.NetTraffic.PktSent = rosTraffic.PktSent
+		status.NetTraffic.PktRecv = rosTraffic.PktRecv
+	} else {
+		readNet := s.netIOCounters
+		if readNet == nil {
+			readNet = net.IOCounters
+		}
+		ioStats, err := readNet(true)
+		collectNetIO(ioStats, err, status, lastStatus, now)
 	}
-	ioStats, err := readNet(true)
-	collectNetIO(ioStats, err, status, lastStatus, now)
 
 	// TCP/UDP connections
 	status.TcpCount, err = sys.GetTCPCount()
@@ -700,11 +734,87 @@ func (s *ServerService) GetStatus(lastStatus *Status) *Status {
 	}
 
 	status.TlsCert = s.readPanelTLSCertInfo(now)
+	status.ServerTime = now.Unix()
 	p80, svcConflict := s.readPort80Status(now)
 	status.TlsCert.Port80Status = p80
 	status.TlsCert.RouterServiceConflict = svcConflict
+	status.Network = s.readNetworkInfo(now)
 
 	return status
+}
+
+func detectContainerGatewayIPv4() string {
+	f, err := os.Open("/proc/net/route")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	if !sc.Scan() {
+		return ""
+	}
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) < 3 || fields[1] != "00000000" {
+			continue
+		}
+		rawHex := fields[2]
+		if len(rawHex) != 8 {
+			continue
+		}
+		b, err := hex.DecodeString(rawHex)
+		if err != nil || len(b) != 4 {
+			continue
+		}
+		return fmt.Sprintf("%d.%d.%d.%d", b[3], b[2], b[1], b[0])
+	}
+	return ""
+}
+
+func (s *ServerService) readNetworkInfo(now time.Time) *NetworkInfo {
+	info := &NetworkInfo{
+		ContainerIP:      DetectContainerIPv4(),
+		ContainerGateway: detectContainerGatewayIPv4(),
+	}
+	cfg := resolveRouterOSAPIConfig()
+	if info.ContainerGateway == "" && cfg.State == "connecting" {
+		info.ContainerGateway = cfg.Host
+	}
+	if cfg.State != "connecting" {
+		return info
+	}
+
+	s.wanNetMu.Lock()
+	cached := s.wanNetSummary
+	shouldProbe := !s.wanNetChecking && (s.wanNetAt.IsZero() || now.Sub(s.wanNetAt) >= 30*time.Second)
+	if shouldProbe {
+		s.wanNetChecking = true
+	}
+	s.wanNetMu.Unlock()
+
+	if shouldProbe {
+		go func(natCfg routeros.NATConnConfig) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			summary := (routeros.Client{}).ReadWANNetworkSummary(ctx, natCfg)
+			s.wanNetMu.Lock()
+			if summary.Gateway != "" || summary.Interface != "" {
+				s.wanNetSummary = summary
+			}
+			s.wanNetAt = time.Now()
+			s.wanNetChecking = false
+			s.wanNetMu.Unlock()
+		}(routeros.NATConnConfig{
+			Host:     cfg.Host,
+			Port:     cfg.Port,
+			Username: cfg.Username,
+			Password: cfg.Password,
+		})
+	}
+
+	info.RouterWANGateway = cached.Gateway
+	info.RouterWANIface = cached.Interface
+	return info
 }
 
 func (s *ServerService) readPort80Status(now time.Time) (string, string) {
@@ -748,6 +858,51 @@ func (s *ServerService) readPort80Status(now time.Time) (string, string) {
 		})
 	}
 	return cached, cachedConflict
+}
+
+func (s *ServerService) readRouterOSVethTraffic(now time.Time) (routeros.InterfaceTrafficSnapshot, bool) {
+	cfg := resolveRouterOSAPIConfig()
+	if cfg.State != "connecting" {
+		return routeros.InterfaceTrafficSnapshot{}, false
+	}
+
+	s.vethTrafficMu.Lock()
+	cached := s.vethTraffic
+	cachedAt := s.vethTrafficAt
+	ifaceName := s.vethIfaceName
+	shouldProbe := !s.vethTrafficChecking && (cachedAt.IsZero() || now.Sub(cachedAt) >= 2*time.Second)
+	if shouldProbe {
+		s.vethTrafficChecking = true
+	}
+	s.vethTrafficMu.Unlock()
+
+	if shouldProbe {
+		go func(natCfg routeros.NATConnConfig, knownIface, comment string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			snap := (routeros.Client{}).ReadInterfaceTraffic(ctx, natCfg, knownIface, comment)
+			s.vethTrafficMu.Lock()
+			if snap.OK {
+				s.vethTraffic = snap
+				s.vethTrafficAt = time.Now()
+				if snap.Interface != "" {
+					s.vethIfaceName = snap.Interface
+				}
+			}
+			s.vethTrafficChecking = false
+			s.vethTrafficMu.Unlock()
+		}(routeros.NATConnConfig{
+			Host:     cfg.Host,
+			Port:     cfg.Port,
+			Username: cfg.Username,
+			Password: cfg.Password,
+		}, ifaceName, cfg.ContainerComment)
+	}
+
+	if cached.OK && !cachedAt.IsZero() && now.Sub(cachedAt) <= 15*time.Second {
+		return cached, true
+	}
+	return routeros.InterfaceTrafficSnapshot{}, false
 }
 
 func (s *ServerService) readPanelTLSCertInfo(now time.Time) *TlsCertInfo {

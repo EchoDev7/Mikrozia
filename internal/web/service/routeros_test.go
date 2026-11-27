@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/echodev7/mikrozia/v3/internal/database/model"
 	"github.com/echodev7/mikrozia/v3/internal/routeros"
 )
 
@@ -215,4 +216,36 @@ func TestRouterOSStatusHistoryCapAndSlidingWindow(t *testing.T) {
 	if len(pruned) != 21 || pruned[0] != 50 || pruned[20] != 70 {
 		t.Fatalf("15m sliding window failed: len=%d first=%d last=%d", len(pruned), pruned[0], pruned[len(pruned)-1])
 	}
+}
+
+func TestEvaluateManagedNATHealth(t *testing.T) {
+	inbounds := []*model.Inbound{
+		{Id: 1, Enable: true, Protocol: model.VLESS, Port: 443},
+		{Id: 2, Enable: true, Protocol: model.Protocol("hysteria2"), Port: 8443},
+		{Id: 3, Enable: false, Protocol: model.VLESS, Port: 9443},
+	}
+
+	t.Run("in_sync with active inbounds and panel service rule", func(t *testing.T) {
+		rules := []routeros.ManagedNATRule{
+			{InboundID: 1, Protocol: "tcp", DstPort: "443", Disabled: false},
+			{InboundID: 2, Protocol: "udp", DstPort: "8443", Disabled: false},
+			{InboundID: 3, Protocol: "tcp", DstPort: "9443", Disabled: true},
+			{Service: "panel", Protocol: "tcp", DstPort: "2053", Disabled: false},
+		}
+		got := EvaluateManagedNATHealth(rules, inbounds, true, 2053, false, 2096)
+		if !got.Enabled || got.State != "in_sync" || got.RuleCount != 4 || got.MissingCount != 0 || got.OrphanCount != 0 {
+			t.Fatalf("unexpected health: %+v", got)
+		}
+	})
+
+	t.Run("drift detects missing and orphan rules", func(t *testing.T) {
+		rules := []routeros.ManagedNATRule{
+			{InboundID: 1, Protocol: "tcp", DstPort: "443", Disabled: false},
+			{InboundID: 99, Protocol: "tcp", DstPort: "1234", Disabled: false},
+		}
+		got := EvaluateManagedNATHealth(rules, inbounds, true, 2053, false, 2096)
+		if !got.Enabled || got.State != "drift" || got.RuleCount != 2 || got.MissingCount != 2 || got.OrphanCount != 1 {
+			t.Fatalf("unexpected drift health: %+v", got)
+		}
+	})
 }

@@ -4677,6 +4677,14 @@
       },
       "RouterOSAPIStatus": {
         "properties": {
+          "architectureName": {
+            "example": "x86_64",
+            "type": "string"
+          },
+          "boardName": {
+            "example": "CHR",
+            "type": "string"
+          },
           "checkedAt": {
             "example": 0,
             "format": "int64",
@@ -4707,6 +4715,14 @@
           "cpuPeak": {
             "nullable": true,
             "type": "integer"
+          },
+          "managedNat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RouterOSManagedNATHealth"
+              }
+            ],
+            "nullable": true
           },
           "memAvg": {
             "nullable": true,
@@ -4743,6 +4759,15 @@
           "state": {
             "example": "not_configured",
             "type": "string"
+          },
+          "uptimeSeconds": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "version": {
+            "example": "7.25.2 (stable)",
+            "type": "string"
           }
         },
         "required": [
@@ -4750,6 +4775,39 @@
           "cpuHistory",
           "memHistory",
           "stale",
+          "state"
+        ],
+        "type": "object"
+      },
+      "RouterOSManagedNATHealth": {
+        "description": "RouterOSManagedNATHealth summarizes Managed NAT sync health between local\nMikrozia inbounds/services and Mikrozia-owned NAT rules on RouterOS.",
+        "properties": {
+          "enabled": {
+            "example": true,
+            "type": "boolean"
+          },
+          "missingCount": {
+            "example": 0,
+            "type": "integer"
+          },
+          "orphanCount": {
+            "example": 0,
+            "type": "integer"
+          },
+          "ruleCount": {
+            "example": 4,
+            "type": "integer"
+          },
+          "state": {
+            "example": "in_sync",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "missingCount",
+          "orphanCount",
+          "ruleCount",
           "state"
         ],
         "type": "object"
@@ -7690,6 +7748,8 @@
                 "example": {
                   "success": true,
                   "obj": {
+                    "architectureName": "x86_64",
+                    "boardName": "CHR",
                     "checkedAt": 0,
                     "cpuAvg": null,
                     "cpuCount": null,
@@ -7699,6 +7759,7 @@
                     ],
                     "cpuLoad": null,
                     "cpuPeak": null,
+                    "managedNat": null,
                     "memAvg": null,
                     "memHistory": [
                       0
@@ -7708,7 +7769,9 @@
                     "memTotal": null,
                     "memUsed": null,
                     "stale": false,
-                    "state": "not_configured"
+                    "state": "not_configured",
+                    "uptimeSeconds": null,
+                    "version": "7.25.2 (stable)"
                   }
                 }
               }

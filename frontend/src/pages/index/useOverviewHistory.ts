@@ -6,15 +6,7 @@ import type { Status } from '@/models/status';
 const OVERVIEW_WINDOW = 72;
 const SEED_BUCKET_SECONDS = 2;
 
-const SERIES_KEYS = [
-  'cpu',
-  'mem',
-  'diskUsage',
-  'netUp',
-  'netDown',
-  'tcpCount',
-  'udpCount',
-] as const;
+const SERIES_KEYS = ['cpu', 'mem', 'diskUsage', 'netUp', 'netDown'] as const;
 
 export type OverviewSeriesKey = (typeof SERIES_KEYS)[number];
 
@@ -51,8 +43,6 @@ function sampleOf(status: Status): Record<OverviewSeriesKey, number | null> {
     diskUsage: status.disk.percent,
     netUp: status.metricAvailable('netIO') ? status.netIO.up : null,
     netDown: status.metricAvailable('netIO') ? status.netIO.down : null,
-    tcpCount: status.tcpCount,
-    udpCount: status.udpCount,
   };
 }
 
