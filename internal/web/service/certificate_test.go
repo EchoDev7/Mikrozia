@@ -305,3 +305,54 @@ func TestValidationFailureAtApplyRestoresThePriorPair(t *testing.T) {
 	}
 	assertCertificateBytes(t, manager, oldCert, oldKey)
 }
+
+func TestCertificateSeparatePanelAndSubLifecycle(t *testing.T) {
+	// Day 1: Issue Panel + Sub with panel.example.com
+	oldCert, oldKey := certificateTestPair(t, "old.example.com")
+	panelCert, panelKey := certificateTestPair(t, "panel.example.com")
+	_, panelRes := newCertificateTransaction(t, oldCert, oldKey, panelCert, panelKey, false)
+	settings := &certificateSettingsFake{paths: previousCertificatePaths()}
+	reloader := &certificateReloaderFake{certificate: panelRes.CertPath, privateKey: panelRes.KeyPath}
+	svc := &CertificateService{settings: settings, reloader: reloader}
+
+	if err := svc.ApplyAndReloadTarget(panelRes, CertificateTargetBoth); err != nil {
+		t.Fatalf("Day 1 ApplyAndReloadTarget(both): %v", err)
+	}
+	if settings.paths.PanelCert != panelRes.CertPath || settings.paths.SubCert != panelRes.CertPath {
+		t.Fatalf("Day 1 expected both paths to point to panel cert, got %+v", settings.paths)
+	}
+
+	// Day 30: Issue Subscription Only with sub.example.com — must preserve PanelCert/PanelKey!
+	subCert, subKey := certificateTestPair(t, "sub.example.com")
+	_, subRes := newCertificateTransaction(t, oldCert, oldKey, subCert, subKey, false)
+	reloader.certificate, reloader.privateKey = subRes.CertPath, subRes.KeyPath
+	if err := svc.ApplyAndReloadTarget(subRes, CertificateTargetSub); err != nil {
+		t.Fatalf("Day 30 ApplyAndReloadTarget(sub): %v", err)
+	}
+	if settings.paths.PanelCert != panelRes.CertPath || settings.paths.PanelKey != panelRes.KeyPath {
+		t.Fatalf("Day 30 sub-only issuance overwrote panel cert! got %+v", settings.paths)
+	}
+	if settings.paths.SubCert != subRes.CertPath || settings.paths.SubKey != subRes.KeyPath {
+		t.Fatalf("Day 30 expected sub cert updated, got %+v", settings.paths)
+	}
+
+	// Day 60: Renew panel cert via ApplyAndReload — must NOT overwrite SubCert/SubKey!
+	panelRenew := &acme.InstallResult{CertPath: panelRes.CertPath, KeyPath: panelRes.KeyPath, Changed: true}
+	reloader.certificate, reloader.privateKey = panelRes.CertPath, panelRes.KeyPath
+	if err := svc.ApplyAndReload(panelRenew); err != nil {
+		t.Fatalf("Day 60 renew panel via ApplyAndReload: %v", err)
+	}
+	if settings.paths.SubCert != subRes.CertPath || settings.paths.SubKey != subRes.KeyPath {
+		t.Fatalf("Day 60 panel renewal overwrote separate sub cert! got %+v", settings.paths)
+	}
+
+	// Day 60: Renew sub cert via ApplyAndReload — must NOT overwrite PanelCert/PanelKey!
+	subRenew := &acme.InstallResult{CertPath: subRes.CertPath, KeyPath: subRes.KeyPath, Changed: true}
+	reloader.certificate, reloader.privateKey = subRes.CertPath, subRes.KeyPath
+	if err := svc.ApplyAndReload(subRenew); err != nil {
+		t.Fatalf("Day 60 renew sub via ApplyAndReload: %v", err)
+	}
+	if settings.paths.PanelCert != panelRes.CertPath || settings.paths.PanelKey != panelRes.KeyPath {
+		t.Fatalf("Day 60 sub renewal overwrote separate panel cert! got %+v", settings.paths)
+	}
+}

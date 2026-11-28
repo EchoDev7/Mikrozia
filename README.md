@@ -11,7 +11,7 @@
 # Mikrozia — RouterOS Container Control Panel
 
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-echodev7%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/echodev7/mikrozia)
-[![Release](https://img.shields.io/badge/release-v2.0.4--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
+[![Release](https://img.shields.io/badge/release-v2.1.0--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -40,7 +40,7 @@ Mikrozia is an independent Xray control panel and runtime package built specific
 ## Current Release
 
 ```text
-echodev7/mikrozia:v2.0.4-mikrozia
+echodev7/mikrozia:v2.1.0-mikrozia
 ```
 
 Published architectures:
@@ -107,7 +107,7 @@ Configure Docker Hub registry and create the versioned container:
 
 ```routeros
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v2.0.4-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.0.4-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v2.1.0-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.1.0-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 Monitor extraction:
@@ -168,7 +168,7 @@ Never use an in-place updater to overwrite the container RootFS.
 
 - Release workflow: `.github/workflows/docker.yml`
 - Required GitHub Secrets: `DOCKER_HUB_USERNAME`, `DOCKER_HUB_TOKEN`
-- Release tag format: `v<major>.<minor>.<patch>-mikrozia` (e.g. `v2.0.4-mikrozia`)
+- Release tag format: `v<major>.<minor>.<patch>-mikrozia` (e.g. `v2.1.0-mikrozia`)
 - CI tests and smoke-tests all three published architectures before publishing `amd64`, `arm64`, and `arm/v7` images with SBOM, provenance, and digests to `echodev7/mikrozia`.
 
 To build the Docker image locally, pass the pinned version files as build arguments:

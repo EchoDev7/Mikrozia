@@ -391,6 +391,9 @@ func (s *Server) startTask(restartXray bool, loc *time.Location) {
 	// Automatic renewal of the DNS-01 certificates. HTTP-01 domains are
 	// renewed manually and are skipped by the job.
 	_, _ = s.cron.AddJob(cadenceAcmeRenew, job.NewAcmeRenewJob())
+	common.GoRecover("acme-port80-cleanup", func() {
+		(&service.ACMEPanelService{}).CleanupOrphanedPort80Rule(context.Background())
+	})
 
 	// Warm permanent routing URLs immediately and refresh them outside the
 	// latency-sensitive subscription request path.

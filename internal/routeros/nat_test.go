@@ -371,3 +371,58 @@ func TestReadInterfaceTraffic(t *testing.T) {
 		t.Fatalf("totals = (sent=%d, recv=%d), want (4420410450, 4115375411)", got.SentBytes, got.RecvBytes)
 	}
 }
+
+func TestTemporaryACMEPort80LifecycleAndConflicts(t *testing.T) {
+	cfg := NATConnConfig{Host: "172.16.10.1", Port: 8728, Username: "mikrozia", Password: "secret"}
+
+	t.Run("opens and closes only managed ACME rule while preserving manual rules", func(t *testing.T) {
+		srv := &fakeNATServer{
+			rules: []map[string]string{
+				{".id": "*10", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "443", "comment": "manual-https", "disabled": "false"},
+			},
+			services: []map[string]string{
+				{"name": "www", "port": "80", "disabled": "true"},
+			},
+		}
+		c := Client{Dial: srv.dial}
+		opened, st, detail := c.OpenTemporaryACMEPort80(context.Background(), cfg, "172.16.10.2", "ether1")
+		if !opened || st != "ok" || detail != "" {
+			t.Fatalf("OpenTemporaryACMEPort80 = (%v, %q, %q), want (true, ok, '')", opened, st, detail)
+		}
+		if len(srv.rules) != 2 || srv.rules[1]["comment"] != ManagedACMEHTTP01Comment {
+			t.Fatalf("expected managed ACME rule added, rules=%+v", srv.rules)
+		}
+
+		removed, st, detail := c.CloseTemporaryACMEPort80(context.Background(), cfg)
+		if removed != 1 || st != "ok" || detail != "" {
+			t.Fatalf("CloseTemporaryACMEPort80 = (%d, %q, %q), want (1, ok, '')", removed, st, detail)
+		}
+		if len(srv.rules) != 1 || srv.rules[0]["comment"] != "manual-https" {
+			t.Fatalf("expected manual rule preserved after close, rules=%+v", srv.rules)
+		}
+	})
+
+	t.Run("refuses when RouterOS www service is enabled on port 80", func(t *testing.T) {
+		srv := &fakeNATServer{
+			services: []map[string]string{
+				{"name": "www", "port": "80", "disabled": "false"},
+			},
+		}
+		opened, st, _ := (Client{Dial: srv.dial}).OpenTemporaryACMEPort80(context.Background(), cfg, "172.16.10.2", "")
+		if opened || st != "conflict" {
+			t.Fatalf("expected conflict on enabled www:80, got (%v, %q)", opened, st)
+		}
+	})
+
+	t.Run("refuses when unmanaged dstnat rule occupies port 80", func(t *testing.T) {
+		srv := &fakeNATServer{
+			rules: []map[string]string{
+				{".id": "*5", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "80", "comment": "user-http", "disabled": "false"},
+			},
+		}
+		opened, st, _ := (Client{Dial: srv.dial}).OpenTemporaryACMEPort80(context.Background(), cfg, "172.16.10.2", "")
+		if opened || st != "conflict" {
+			t.Fatalf("expected conflict on unmanaged port 80 NAT, got (%v, %q)", opened, st)
+		}
+	})
+}

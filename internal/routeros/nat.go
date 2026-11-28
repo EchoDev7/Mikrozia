@@ -16,6 +16,7 @@ import (
 const (
 	ManagedNATCommentPrefix     = "mikrozia:managed:inbound:"
 	ManagedServiceCommentPrefix = "mikrozia:managed:service:"
+	ManagedACMEHTTP01Comment    = "mikrozia:managed:acme:http01"
 	DefaultAPIPort              = 8728
 	maxNATRecords               = 4096
 )
@@ -1332,4 +1333,192 @@ func (c Client) ReconcileInboundNAT(parent context.Context, cfg NATConnConfig, i
 // DeleteInboundNAT removes only Mikrozia-owned NAT rules belonging to inboundID.
 func (c Client) DeleteInboundNAT(parent context.Context, cfg NATConnConfig, inboundID int) NATReconcileResult {
 	return c.ReconcileInboundNAT(parent, cfg, inboundID, nil)
+}
+
+func portListContains(raw string, port int) bool {
+	target := strconv.Itoa(port)
+	for _, token := range strings.Split(raw, ",") {
+		part := strings.TrimSpace(token)
+		if part == "" {
+			continue
+		}
+		if part == target {
+			return true
+		}
+		if dash := strings.IndexByte(part, '-'); dash > 0 {
+			lo, err1 := strconv.Atoi(strings.TrimSpace(part[:dash]))
+			hi, err2 := strconv.Atoi(strings.TrimSpace(part[dash+1:]))
+			if err1 == nil && err2 == nil && port >= lo && port <= hi {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// OpenTemporaryACMEPort80 creates one temporary Mikrozia-owned dst-nat rule for
+// TCP port 80 -> targetIP:80 marked with ManagedACMEHTTP01Comment. It refuses to
+// proceed if an enabled RouterOS /ip/service (such as www) or an unmanaged dstnat
+// rule already occupies port 80.
+func (c Client) OpenTemporaryACMEPort80(parent context.Context, cfg NATConnConfig, targetIP, inInterface string) (bool, string, string) {
+	cleanIP, ok := ValidatePrivateIPv4(targetIP)
+	if !ok {
+		return false, "invalid_configuration", "invalid private container target IP"
+	}
+	cleanIface, ok := sanitizeInterfaceList(inInterface)
+	if !ok {
+		return false, "invalid_configuration", "invalid in-interface name"
+	}
+
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return false, state, ""
+	}
+	defer conn.Close()
+
+	// Pre-flight 1: ensure no enabled static RouterOS /ip/service holds port 80.
+	if writeSentence(conn, []string{
+		"/ip/service/print",
+		"=.proplist=name,port,disabled,dynamic",
+	}) != nil {
+		return false, "unreachable", ""
+	}
+	st, svcRows := readNATRecords(r)
+	if st != "ok" {
+		return false, st, ""
+	}
+	for _, row := range svcRows {
+		if row["disabled"] == "true" || row["disabled"] == "yes" {
+			continue
+		}
+		if row["dynamic"] == "true" || row["dynamic"] == "yes" {
+			continue
+		}
+		name := strings.TrimSpace(row["name"])
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(lower, "xray") || strings.HasPrefix(lower, "x-ui") {
+			continue
+		}
+		if strings.TrimSpace(row["port"]) == "80" {
+			return false, "conflict", fmt.Sprintf("RouterOS service %q is enabled on port 80; disable or move it first", name)
+		}
+	}
+
+	// Pre-flight 2: inspect existing /ip/firewall/nat rules on port 80.
+	if writeSentence(conn, []string{
+		"/ip/firewall/nat/print",
+		"=.proplist=.id,chain,action,protocol,dst-port,to-addresses,to-ports,disabled,comment",
+	}) != nil {
+		return false, "unreachable", ""
+	}
+	st, natRows := readNATRecords(r)
+	if st != "ok" {
+		return false, st, ""
+	}
+	var staleOwnedIDs []string
+	alreadyActive := false
+	for _, row := range natRows {
+		comment := strings.TrimSpace(row["comment"])
+		disabled := row["disabled"] == "true" || row["disabled"] == "yes"
+		if comment == ManagedACMEHTTP01Comment {
+			if !disabled &&
+				strings.EqualFold(row["chain"], "dstnat") &&
+				strings.EqualFold(row["action"], "dst-nat") &&
+				strings.EqualFold(row["protocol"], "tcp") &&
+				strings.TrimSpace(row["dst-port"]) == "80" &&
+				strings.TrimSpace(row["to-addresses"]) == cleanIP &&
+				strings.TrimSpace(row["to-ports"]) == "80" {
+				alreadyActive = true
+				continue
+			}
+			if id := strings.TrimSpace(row[".id"]); id != "" {
+				staleOwnedIDs = append(staleOwnedIDs, id)
+			}
+			continue
+		}
+		if disabled || !strings.EqualFold(row["chain"], "dstnat") {
+			continue
+		}
+		if strings.EqualFold(row["protocol"], "tcp") && portListContains(row["dst-port"], 80) {
+			return false, "conflict", "an existing unmanaged RouterOS NAT rule already forwards port 80"
+		}
+	}
+
+	for _, id := range staleOwnedIDs {
+		if writeSentence(conn, []string{"/ip/firewall/nat/remove", "=.id=" + id}) != nil {
+			return false, "unreachable", ""
+		}
+		st, _, detail := readCommandResult(r)
+		if st != "ok" {
+			return false, st, detail
+		}
+	}
+
+	if alreadyActive {
+		return true, "ok", ""
+	}
+
+	words := []string{
+		"/ip/firewall/nat/add",
+		"=chain=dstnat",
+		"=action=dst-nat",
+		"=protocol=tcp",
+		"=dst-port=80",
+		"=to-addresses=" + cleanIP,
+		"=to-ports=80",
+		"=comment=" + ManagedACMEHTTP01Comment,
+	}
+	if cleanIface != "" {
+		words = append(words, "=in-interface="+cleanIface)
+	} else {
+		words = append(words, "=dst-address-type=local")
+	}
+	if writeSentence(conn, words) != nil {
+		return false, "unreachable", ""
+	}
+	st, _, detail := readCommandResult(r)
+	if st != "ok" {
+		return false, st, detail
+	}
+	return true, "ok", ""
+}
+
+// CloseTemporaryACMEPort80 removes only Mikrozia-owned temporary ACME HTTP-01
+// NAT rules marked with ManagedACMEHTTP01Comment.
+func (c Client) CloseTemporaryACMEPort80(parent context.Context, cfg NATConnConfig) (int, string, string) {
+	conn, r, state := c.dialAndLoginNAT(parent, cfg)
+	if state != "ok" {
+		return 0, state, ""
+	}
+	defer conn.Close()
+
+	if writeSentence(conn, []string{
+		"/ip/firewall/nat/print",
+		"=.proplist=.id,comment",
+	}) != nil {
+		return 0, "unreachable", ""
+	}
+	st, rows := readNATRecords(r)
+	if st != "ok" {
+		return 0, st, ""
+	}
+	removed := 0
+	for _, row := range rows {
+		if strings.TrimSpace(row["comment"]) != ManagedACMEHTTP01Comment {
+			continue
+		}
+		id := strings.TrimSpace(row[".id"])
+		if id == "" {
+			continue
+		}
+		if writeSentence(conn, []string{"/ip/firewall/nat/remove", "=.id=" + id}) != nil {
+			return removed, "unreachable", ""
+		}
+		st, _, detail := readCommandResult(r)
+		if st != "ok" {
+			return removed, st, detail
+		}
+		removed++
+	}
+	return removed, "ok", ""
 }

@@ -17,6 +17,7 @@ import { onNumber } from '@/utils/onNumber';
 import { DefaultSettingTag, SettingListItem } from '@/components/ui';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { catTabLabel } from './catTabLabel';
+import CertificatesPane from './CertificatesPane';
 import { sanitizePath } from './uriPath';
 import SecretInput from './SecretInput';
 
@@ -402,6 +403,7 @@ export default function GeneralTab({ allSetting, updateSetting }: GeneralTabProp
           ),
           children: (
             <>
+              <CertificatesPane allSetting={allSetting} updateSetting={updateSetting} />
               <SettingListItem
                 paddings="small"
                 title={t('pages.settings.publicKeyPath')}

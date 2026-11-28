@@ -66,6 +66,7 @@ type SettingController struct {
 	inboundService         service.InboundService
 	routerOSNATService     service.RouterOSNATService
 	routerOSUpdaterService service.RouterOSUpdaterService
+	acmePanelService       service.ACMEPanelService
 }
 
 // NewSettingController creates a new SettingController and initializes its routes.
@@ -108,6 +109,9 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g.POST("/routerosUpdateCutover", a.routerosUpdateCutover)
 	g.POST("/routerosUpdateCleanupPrevious", a.routerosUpdateCleanupPrevious)
 	g.GET("/detectContainerIp", a.detectContainerIp)
+	g.GET("/acmeStatus", a.acmeStatus)
+	g.POST("/acmeIssue", a.acmeIssue)
+	g.POST("/acmeRenew", a.acmeRenew)
 }
 
 func (a *SettingController) validateRegex(c *gin.Context) {
@@ -652,4 +656,41 @@ func (a *SettingController) routerosUpdateCleanupPrevious(c *gin.Context) {
 		return
 	}
 	jsonMsgObj(c, I18nWeb(c, "pages.settings.routerosUpdateCleanupSuccess"), gin.H{"removed": removed}, nil)
+}
+
+func (a *SettingController) acmeStatus(c *gin.Context) {
+	status, err := a.acmePanelService.Status()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonObj(c, status, nil)
+}
+
+func (a *SettingController) acmeIssue(c *gin.Context) {
+	var req service.ACMEIssueRequest
+	if err := c.ShouldBind(&req); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	resp, err := a.acmePanelService.Issue(c.Request.Context(), req)
+	if err != nil {
+		jsonMsg(c, err.Error(), err)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.acmeIssueSuccess"), resp, nil)
+}
+
+func (a *SettingController) acmeRenew(c *gin.Context) {
+	var req service.ACMERenewRequest
+	if err := c.ShouldBind(&req); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	resp, err := a.acmePanelService.Renew(c.Request.Context(), req)
+	if err != nil {
+		jsonMsg(c, err.Error(), err)
+		return
+	}
+	jsonMsgObj(c, I18nWeb(c, "pages.settings.acmeRenewSuccess"), resp, nil)
 }

@@ -1,7 +1,7 @@
 # Mikrozia — Xray Control Panel for MikroTik RouterOS Container
 
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-echodev7%2Fmikrozia-blue.svg?logo=docker)](https://hub.docker.com/r/echodev7/mikrozia)
-[![Release](https://img.shields.io/badge/release-v2.0.4--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
+[![Release](https://img.shields.io/badge/release-v2.1.0--mikrozia-green.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 [![RouterOS](https://img.shields.io/badge/RouterOS-7.25%2B-red.svg)](https://mikrotik.com)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-lightgrey.svg)](https://hub.docker.com/r/echodev7/mikrozia/tags)
 
@@ -21,7 +21,7 @@ echodev7/mikrozia
 
 | Tag                                 | Recommended Use            | Notes                             |
 | ----------------------------------- | -------------------------- | --------------------------------- |
-| `echodev7/mikrozia:v2.0.4-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
+| `echodev7/mikrozia:v2.1.0-mikrozia` | **Production Deployments** | Pinned, immutable release tag.    |
 | `echodev7/mikrozia:latest`          | Quick testing / Labs       | Tracks the newest stable release. |
 
 ### Supported Architectures
@@ -153,16 +153,16 @@ reconciled with them on every start and is never silently deleted or reset.
 
 ### Step 4: Configure Docker Hub Registry and Add Container
 
-Set the official registry and create the container object using version `v2.0.4-mikrozia`:
+Set the official registry and create the container object using version `v2.1.0-mikrozia`:
 
 ```routeros
 # Set registry and temporary directory for layer extraction
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
 
 # Pull image and add container
-/container/add remote-image="echodev7/mikrozia:v2.0.4-mikrozia" \
+/container/add remote-image="echodev7/mikrozia:v2.1.0-mikrozia" \
   interface=veth-mikrozia \
-  root-dir=containers/mikrozia/root-v2.0.4-mikrozia \
+  root-dir=containers/mikrozia/root-v2.1.0-mikrozia \
   mountlists="MIKROZIA_DATA,MIKROZIA_CERT" \
   envlist=MIKROZIA_ENV \
   dns="1.1.1.1,8.8.8.8" \

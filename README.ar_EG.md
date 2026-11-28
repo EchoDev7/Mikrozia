@@ -9,7 +9,7 @@ Mikrozia هي حزمة من Mikrozia وXray لمشغّل **حاوية MikroTik R
 ## الإصدار الحالي
 
 ```text
-echodev7/mikrozia:v2.0.4-mikrozia
+echodev7/mikrozia:v2.1.0-mikrozia
 ```
 
 استخدم وسمًا مُصدَّرًا برقم إصدار في بيئة الإنتاج، وليس `latest`.
@@ -24,7 +24,7 @@ echodev7/mikrozia:v2.0.4-mikrozia
 ## التثبيت
 
 نفّذ الأوامر التالية بالترتيب في Terminal RouterOS أو WinBox. صورة الإنتاج هي
-الوسم المُصدَّر برقم إصدار `echodev7/mikrozia:v2.0.4-mikrozia`.
+الوسم المُصدَّر برقم إصدار `echodev7/mikrozia:v2.1.0-mikrozia`.
 
 > تتبع هذه التعليمات عقد حاويات RouterOS `7.25` الحالي. لم يكتمل قبول CHR نظيف
 > الخاص بـ P1-CHR-01 بعد؛ اختبر المسار كاملًا على CHR مؤقت قبل الإنتاج. لا يدّعي
@@ -47,7 +47,7 @@ echodev7/mikrozia:v2.0.4-mikrozia
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v2.0.4-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.0.4-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v2.1.0-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.1.0-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **قيم حساسة:** Environment حاوية RouterOS هو مخزن إعدادات وليس خزنة أسرار. كل قيمة

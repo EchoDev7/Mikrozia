@@ -10,7 +10,7 @@ persa).
 ## Versión actual
 
 ```text
-echodev7/mikrozia:v2.0.4-mikrozia
+echodev7/mikrozia:v2.1.0-mikrozia
 ```
 
 En producción use una etiqueta versionada, no `latest`.
@@ -26,7 +26,7 @@ En producción use una etiqueta versionada, no `latest`.
 ## Instalación
 
 Ejecute estos comandos en orden en Terminal RouterOS o WinBox. La imagen de
-producción es la etiqueta versionada `echodev7/mikrozia:v2.0.4-mikrozia`.
+producción es la etiqueta versionada `echodev7/mikrozia:v2.1.0-mikrozia`.
 
 > Estas instrucciones siguen el contrato actual de contenedores RouterOS `7.25`.
 > La aceptación en un CHR limpio para P1-CHR-01 aún no se ha completado; valide
@@ -50,7 +50,7 @@ producción es la etiqueta versionada `echodev7/mikrozia:v2.0.4-mikrozia`.
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_USERNAME value="YOUR_ADMIN_USERNAME" comment="[Mikrozia:container] Environment"
 /container/envs/add list=MIKROZIA_ENV key=MIKROZIA_ADMIN_PASSWORD value="YOUR_STRONG_PASSWORD" comment="[Mikrozia:container] Environment"
 /container/config/set registry-url="https://registry-1.docker.io" tmpdir=containers/mikrozia/tmp
-/container/add remote-image="echodev7/mikrozia:v2.0.4-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.0.4-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
+/container/add remote-image="echodev7/mikrozia:v2.1.0-mikrozia" interface=veth-mikrozia root-dir=containers/mikrozia/root-v2.1.0-mikrozia mountlists="MIKROZIA_DATA,MIKROZIA_CERT" envlist=MIKROZIA_ENV dns="1.1.1.1,8.8.8.8" memory-high=512M memory-max=1024M logging=yes start-on-boot=yes comment="[Mikrozia:container] Container"
 ```
 
 > **Valores sensibles:** el Environment del contenedor de RouterOS es un almacén de
